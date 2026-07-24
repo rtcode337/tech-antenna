@@ -1,0 +1,73 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+
+# .NET
+project.lock.json
+project.fragment.lock.json
+*.userprefs
+*.user
+*.suo
+*.usertasks
+*.cache
+*.dbmdl
+*.pidb
+*.svclog
+*.scc
+
+# Visual Studio / Rider / VS Code
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+*.sln.docstates
+*.DotSettings.user
+
+# Test results
+[Tt]est[Rr]esult*/
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+TestResults/
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+.nuget/
+
+# ASP.NET Core
+**/wwwroot/lib/
+*.pubxml
+*.publishproj
+PublishScripts/
+appsettings.*.local.json
+
+# User secrets are stored outside the repo, but never commit a stray copy
+secrets.json
+
+# Environment / local config
+.env
+.env.local
+
+# Database (local Postgres bind mount)
+db/data/
+
+# EF Core
+*.mdf
+*.ldf
+*.ndf
+
+# OS
+.DS_Store
+Thumbs.db

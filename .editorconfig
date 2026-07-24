@@ -1,0 +1,84 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.{cs,csx}]
+indent_size = 4
+
+[*.{csproj,props,targets,slnx,xml,config,razor,cshtml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
+
+##############################
+# C# コーディング規約
+##############################
+
+[*.cs]
+
+# using は名前空間の外・System を先頭に
+csharp_using_directive_placement = outside_namespace:warning
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# ファイルスコープ名前空間(ネストを1段減らす)
+csharp_style_namespace_declarations = file_scoped:warning
+
+# var は型が自明なときだけ
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+# 式形式メンバー
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_expression_bodied_properties = true:suggestion
+csharp_style_expression_bodied_accessors = true:suggestion
+
+# 現代的な構文
+csharp_style_prefer_primary_constructors = true:suggestion
+csharp_style_prefer_pattern_matching = true:suggestion
+csharp_style_throw_expression = true:suggestion
+csharp_prefer_simple_using_statement = true:suggestion
+dotnet_style_prefer_conditional_expression_over_assignment = true:suggestion
+dotnet_style_null_propagation = true:suggestion
+dotnet_style_coalesce_expression = true:suggestion
+
+# 波括弧は省略しない
+csharp_prefer_braces = true:warning
+
+# this. は付けない
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+
+# 命名: private フィールドは _camelCase
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_camel
+dotnet_naming_rule.private_fields_underscore.severity = warning
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel.required_prefix = _
+dotnet_naming_style.underscore_camel.capitalization = camel_case
+
+# 非同期メソッドは Async 接尾辞
+dotnet_naming_rule.async_methods_suffix.symbols = async_methods
+dotnet_naming_rule.async_methods_suffix.style = async_suffix
+dotnet_naming_rule.async_methods_suffix.severity = suggestion
+dotnet_naming_symbols.async_methods.applicable_kinds = method
+dotnet_naming_symbols.async_methods.required_modifiers = async
+dotnet_naming_style.async_suffix.required_suffix = Async
+dotnet_naming_style.async_suffix.capitalization = pascal_case
+
+# CancellationToken の引き回し漏れ・非同期の取り違えを検出する
+dotnet_diagnostic.CA2016.severity = warning
+dotnet_diagnostic.CA2007.severity = none
