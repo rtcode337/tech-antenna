@@ -27,25 +27,33 @@ PostgreSQL への保存、Anthropic API による記事の日本語要約まで�
 
 ## 本番運用
 
-GHCR のイメージを pull して docker compose で動かす。ホストに .NET も Postgres も要らない。
+docker compose で動かす。ホストに .NET も Postgres も要らない。
 
 ```bash
 cp .env.example .env   # POSTGRES_PASSWORD と、使う外部 API のキーを入れる
-docker compose pull && docker compose up -d
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 `http://<ホスト>:8080` で開く(`.env` の `PORT` で変更可)。データは Docker の名前付き
 ボリューム(`pgdata`)に入り、未適用のマイグレーションは起動時に自動で当たるため、
-更新は `docker compose pull && docker compose up -d` だけでよい。
+更新は `git pull` して同じコマンドを打つだけでよい。
 
-- イメージは main への push で GitHub Actions が amd64 / arm64 向けにビルドし
-  `ghcr.io/rtcode337/tech-antenna` へ公開する。**非公開リポジトリのため、デプロイ先では
-  `read:packages` 権限の PAT で `docker login ghcr.io` が必要**
-- 特定のコミットへ戻すときは `.env` の `TECH_ANTENNA_IMAGE` に `:sha-xxxxxxx` を指定する
+- リポジトリが非公開の間は、イメージを自動公開する GitHub Actions を置いていない
+  (非公開リポジトリでは Actions の実行時間と GHCR のストレージ・転送量がプラン付属の枠を
+  消費するため)。公開に切り替えるときに追加する
+- ビルド済みイメージを GHCR から pull して動かすこともできる。その場合は手元で
+  タグを打って push し(コミットを特定できるよう `latest` だけにしない)、
+  デプロイ先では `docker compose pull && docker compose up -d`。
+  非公開パッケージなので pull 側は `read:packages` 権限の PAT で `docker login ghcr.io` が必要
+  ```bash
+  SHA=$(git rev-parse --short HEAD)
+  docker build -t ghcr.io/rtcode337/tech-antenna:latest \
+               -t ghcr.io/rtcode337/tech-antenna:sha-$SHA .
+  docker push --all-tags ghcr.io/rtcode337/tech-antenna
+  ```
+  デプロイ先で特定のイメージを使うときは `.env` の `TECH_ANTENNA_IMAGE` に指定する
 - TLS は前段のリバースプロキシで終端する前提(コンテナは HTTP のみ待ち受ける)。
   プロキシ配下に置くときは `.env` で `FORWARDED_HEADERS_ENABLED=true`
-- 手元でイメージをビルドして本番同等に動かす:
-  `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`
 
 ## 開発環境
 

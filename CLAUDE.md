@@ -113,9 +113,15 @@ URL のリンクにとどめる。
 
 ## 本番の実行形態(Docker)
 
-本番は「GHCR のイメージを pull して docker compose で動かす」形態。アプリの構成
+本番は「コンテナイメージを docker compose で動かす」形態。アプリの構成
 (プロジェクト構成・必要な環境変数・待ち受けポート)を変えたら、同じコミットで
 `Dockerfile`・`docker-compose.yml`・`.env.example` も追従させる。
+
+**リポジトリが非公開の間は、イメージをビルド・公開する GitHub Actions を置かない**
+(非公開リポジトリでは Actions の実行時間も GHCR のストレージ・転送量もプラン付属の枠を
+消費し、イメージはベース層だけで圧縮後 90MB/アーキ 積まれるため)。本番起動は
+デプロイ先でのビルド(`docker-compose.build.yml` を重ねる)で行い、GHCR に置きたいときは
+手元でタグを打って push する。公開リポジトリに切り替えるときにワークフローを追加する。
 
 - `Dockerfile` — マルチステージ。`sdk:10.0` で publish し、`aspnet:10.0` に成果物だけを載せて
   非 root(`USER $APP_UID`=1654)で `dotnet TechAntenna.Web.dll` を実行する。HTTP 8080 のみ待ち受け
@@ -124,15 +130,17 @@ URL のリンクにとどめる。
   - arm64 向けは QEMU ではなく **.NET のクロスコンパイル**(`--platform=$BUILDPLATFORM` +
     `dotnet publish -a`)で出す。実行ステージに `RUN` を置かないのもエミュレーションを
     避けるため(鍵置き場のディレクトリはビルドステージで作って `COPY --chown` する)
-- `docker-compose.yml` — 本番用(`app` + `db`)。イメージは pull のみでビルドしない。
-  設定は `.env` から環境変数で渡す。`docker-compose.build.yml` は手元ビルド用の上書き定義
+- `docker-compose.yml` — 本番用(`app` + `db`)。この定義自体はビルドせず GHCR のイメージを
+  参照する。設定は `.env` から環境変数で渡す。`docker-compose.build.yml` はその場でビルドする
+  上書き定義(`:local` タグ)で、非公開の間の本番起動と手元の動作確認はこちらを重ねて使う
   - Postgres は `postgres:18-alpine`。**18 のイメージは PGDATA が
     `/var/lib/postgresql/18/docker`** で、ボリュームの単位はその1段上の
     `/var/lib/postgresql`(17 以前と位置が違うので、マウント先を変えると初期化し直しになる)
   - データは名前付きボリューム(`pgdata`/`dpkeys`)に置く。bind マウントにしないのは、
     ホスト側の所有者調整が要らないようにするため
-- `.github/workflows/docker-publish.yml` — main への push で amd64 / arm64 のマニフェストを
-  `ghcr.io/rtcode337/tech-antenna` へ公開(`latest` と `sha-xxxxxxx` の2タグ)
+- GHCR に置く場合の公開先は `ghcr.io/rtcode337/tech-antenna`。`latest` だけでなく
+  `sha-xxxxxxx` も打つ(どのコミットが動いているか後から特定できるようにするため。
+  手順は README「本番運用」)
 
 `Program.cs` にコンテナ運用のための分岐が2つある。
 

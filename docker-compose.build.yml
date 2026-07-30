@@ -1,9 +1,11 @@
-# 手元でイメージをビルドして本番同等に動かす用(コードを変えたときの動作確認)。
-# docker-compose.yml に重ねて使う上書き定義で、単体では動かない:
+# イメージをその場でビルドして動かす用。docker-compose.yml に重ねて使う上書き定義で、
+# 単体では動かない:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 #
-# 違いは GHCR から pull せずその場でビルドする点だけ(タグは :local で pull 版と区別する)。
+# 非公開リポジトリの間は自動公開のワークフローを置いていないため、デプロイ先での本番起動も
+# 手元での動作確認もこの形で行う(README「本番運用」参照)。GHCR から pull する版と
+# 区別できるよう、タグは :local にする。
 services:
   app:
     build:

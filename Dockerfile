@@ -1,8 +1,9 @@
-# 本番用イメージ。main への push で GitHub Actions(.github/workflows/docker-publish.yml)が
-# ビルドし ghcr.io/rtcode337/tech-antenna として公開する。
+# 本番用イメージ。リポジトリが非公開の間は GitHub Actions を置かず、デプロイ先か手元で
+# ビルドする(README「本番運用」参照)。
 #
-# ビルドは常にビルドホストのアーキ(amd64)で行い、arm64 向けは .NET のクロスコンパイル
-# (-a arm64)で出力する。QEMU エミュレーション下の dotnet publish は極端に遅いため。
+# ビルドは常にビルドホストのアーキで行い、別アーキ向け(--platform linux/arm64 など)は
+# .NET のクロスコンパイル(-a arm64)で出力する。QEMU エミュレーション下の
+# dotnet publish は極端に遅いため。
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 

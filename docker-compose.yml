@@ -1,11 +1,14 @@
-# 本番用。イメージは GitHub Actions(.github/workflows/docker-publish.yml)が main への
-# push でビルドし GHCR へ公開する(amd64 / arm64)。本番ではビルドせず pull するだけ:
+# 本番用。この定義自体はイメージをビルドせず、GHCR に置いたイメージを pull して動かす:
 #
 #   docker compose pull && docker compose up -d
 #
-# 障害時は :latest ではなく :sha-xxxxxxx を TECH_ANTENNA_IMAGE に指定すれば任意の時点へ戻せる。
-# 手元でイメージをビルドして本番同等に動かしたいときは docker-compose.build.yml を重ねる
-# (README「本番運用」参照)。設定値は .env(.env.example をコピーして作る)から渡す。
+# 非公開リポジトリの間はイメージを自動公開する GitHub Actions を置いていないため、
+# デプロイ先でビルドするときは docker-compose.build.yml を重ねる(README「本番運用」参照):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# 特定のイメージを指定したいときは TECH_ANTENNA_IMAGE(:sha-xxxxxxx 等)を使う。
+# 設定値は .env(.env.example をコピーして作る)から渡す。
 name: tech-antenna
 
 services:
