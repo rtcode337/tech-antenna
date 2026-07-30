@@ -19,6 +19,9 @@ public class Book
     /// <summary>書誌詳細ページの URL。</summary>
     public Uri? Url { get; init; }
 
+    /// <summary>書影の URL。画像そのものは保持せずリンクのみを持つ。</summary>
+    public Uri? CoverUrl { get; init; }
+
     /// <summary>収集元の名前(例: openBD、Google Books)。</summary>
     public required string SourceName { get; init; }
 

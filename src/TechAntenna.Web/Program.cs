@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TechAntenna.Core.Abstractions;
+using TechAntenna.Infrastructure.Books;
 using TechAntenna.Infrastructure.Events;
 using TechAntenna.Infrastructure.Feeds;
 using TechAntenna.Infrastructure.Persistence;
@@ -34,12 +35,14 @@ if (string.IsNullOrWhiteSpace(connectionString))
 {
     builder.Services.AddSingleton<IArticleStore, InMemoryArticleStore>();
     builder.Services.AddSingleton<IEventStore, InMemoryEventStore>();
+    builder.Services.AddSingleton<IBookStore, InMemoryBookStore>();
 }
 else
 {
     builder.Services.AddDbContextFactory<TechAntennaDbContext>(o => o.UseNpgsql(connectionString));
     builder.Services.AddSingleton<IArticleStore, EfArticleStore>();
     builder.Services.AddSingleton<IEventStore, EfEventStore>();
+    builder.Services.AddSingleton<IBookStore, EfBookStore>();
 }
 
 var collection = builder.Configuration
@@ -78,6 +81,32 @@ if (!string.IsNullOrWhiteSpace(connpass.ApiKey))
 }
 
 builder.Services.AddHostedService<EventCollectionWorker>();
+
+// --- 書籍収集(Google Books + openBD)---
+builder.Services.Configure<BooksOptions>(
+    builder.Configuration.GetSection(BooksOptions.SectionName));
+
+var books = builder.Configuration
+    .GetSection(BooksOptions.SectionName)
+    .Get<BooksOptions>() ?? new BooksOptions();
+if (books.Keywords.Count > 0)
+{
+    builder.Services.AddHttpClient(GoogleBooksCatalog.HttpClientName, ConfigureBookClient);
+
+    builder.Services.AddSingleton<IBookCatalog>(sp => new GoogleBooksCatalog(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<TimeProvider>(),
+        books.GoogleBooksApiKey));
+
+    // openBD はキーワード検索を持たないため、検索結果を補う後段として使う
+    if (books.UseOpenBd)
+    {
+        builder.Services.AddHttpClient(OpenBdEnricher.HttpClientName, ConfigureBookClient);
+        builder.Services.AddSingleton<IBookEnricher, OpenBdEnricher>();
+    }
+
+    builder.Services.AddHostedService<BookCollectionWorker>();
+}
 
 // --- LLM 要約(Anthropic API)---
 builder.Services.Configure<AnthropicOptions>(
@@ -119,3 +148,12 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+// 書籍まわりの収集先へ共通で使う HttpClient の設定。
+// 連絡先はリポジトリ URL のみを名乗る(個人のメールアドレスは入れない)
+static void ConfigureBookClient(HttpClient client)
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+        "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
+    client.Timeout = TimeSpan.FromSeconds(30);
+}

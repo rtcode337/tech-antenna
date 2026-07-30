@@ -51,6 +51,22 @@ connpass は API v2(`X-API-Key` と `User-Agent` が必須)。API キーと検�
 `Connpass` セクションで設定し、**キーの実値はコミットせず**環境変数
 (`Connpass__ApiKey`)や user-secrets で渡す。キー未設定ならイベント収集は動かない。
 
+## 書籍収集
+
+**openBD はキーワード検索を持たず ISBN 参照専用**なので、役割を分けている。
+
+- キーワード検索は Google Books API(`IBookCatalog`)。API キーは任意で、
+  未設定でも検索できるが1日あたりの上限が低くなる
+- openBD は検索結果の書誌情報を ISBN で補う後段(`IBookEnricher`)。
+  **既に値がある項目は上書きせず、欠けている項目だけを埋める**
+
+設定は `Books` セクション(`Keywords` / `IntervalHours` / `GoogleBooksApiKey` /
+`UseOpenBd`)。`Keywords` が空なら書籍収集は動かない。
+
+取り込むのは**書誌事実(タイトル・著者・出版社・刊行日・ISBN・リンク・書影 URL)だけ**で、
+`description` や `textSnippet` といった出版社の著作物は取り込まない。書影は画像自体を保持せず
+URL のリンクにとどめる。
+
 ## LLM 要約
 
 記事の要約は Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。

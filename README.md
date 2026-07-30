@@ -6,9 +6,9 @@
 
 ## 状態
 
-**開発初期。** RSS / Atom フィードからの記事収集、connpass からのイベント収集
-(API キーが必要)、Anthropic API による記事の日本語要約(API キーが必要)、
-PostgreSQL への保存、一覧表示まで実装済み。書籍・Doorkeeper 連携は未実装。
+**開発初期。** 記事・イベント・書籍の収集と一覧表示、PostgreSQL への保存、
+Anthropic API による記事の日本語要約まで実装済み。
+3種をタグで突き合わせる導線と Doorkeeper 連携は未実装。
 
 ## 構成
 

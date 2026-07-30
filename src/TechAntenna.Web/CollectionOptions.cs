@@ -22,6 +22,28 @@ public class FeedOptions
     public string Url { get; set; } = "";
 }
 
+/// <summary>書籍収集の設定。appsettings の Books セクションから読む。</summary>
+public class BooksOptions
+{
+    public const string SectionName = "Books";
+
+    /// <summary>巡回間隔(時)。書籍は記事ほど頻繁に増えないため既定を長めにする。</summary>
+    public int IntervalHours { get; set; } = 24;
+
+    /// <summary>1キーワードを検索してから次に移るまでの待ち時間(秒)。</summary>
+    public int DelayBetweenKeywordsSeconds { get; set; } = 2;
+
+    /// <summary>検索するキーワード。ここが空なら書籍収集は動かない。</summary>
+    public List<string> Keywords { get; set; } = [];
+
+    /// <summary>Google Books API キー。任意(未設定でも検索できるが1日あたりの上限が低くなる)。
+    /// 実値はコミットせず環境変数(Books__GoogleBooksApiKey)や user-secrets で渡す。</summary>
+    public string GoogleBooksApiKey { get; set; } = "";
+
+    /// <summary>openBD で日本の書誌情報を補うか。</summary>
+    public bool UseOpenBd { get; set; } = true;
+}
+
 /// <summary>Anthropic API による要約の設定。appsettings の Anthropic セクションから読む。</summary>
 public class AnthropicOptions
 {

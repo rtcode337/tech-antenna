@@ -8,9 +8,14 @@ namespace TechAntenna.Infrastructure.Persistence;
 public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options)
     : DbContext(options)
 {
+    /// <summary>書籍の重複判定キーを保持するシャドウプロパティの名前。</summary>
+    public const string BookDedupKey = "DedupKey";
+
     public DbSet<Article> Articles => Set<Article>();
 
     public DbSet<TechEvent> Events => Set<TechEvent>();
+
+    public DbSet<Book> Books => Set<Book>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,6 +54,39 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
             techEvent.HasIndex(e => e.StartsAt);
 
             ConfigureTags(techEvent.Property(e => e.Tags));
+        });
+
+        modelBuilder.Entity<Book>(book =>
+        {
+            book.HasKey(b => b.Id);
+
+            book.Property(b => b.Title).IsRequired();
+
+            book.Property(b => b.SourceName).IsRequired();
+
+            // ISBN・URL・タイトルのいずれかから作る重複判定キー(IBookStore の契約)。
+            // ドメインモデルを永続化の都合で汚さないよう、シャドウプロパティとして持つ
+            book.Property<string>(BookDedupKey).IsRequired();
+            book.HasIndex(BookDedupKey).IsUnique();
+
+            book.Property(b => b.Url)
+                .HasConversion(url => url!.ToString(), value => new Uri(value));
+
+            book.Property(b => b.CoverUrl)
+                .HasConversion(url => url!.ToString(), value => new Uri(value));
+
+            // 著者名は順序に意味があるため、タグと違って正規化せず配列のまま保存する
+            book.Property(b => b.Authors)
+                .HasConversion(
+                    value => value.ToArray(),
+                    value => value.ToList(),
+                    new ValueComparer<IReadOnlyList<string>>(
+                        (a, b) => a != null && b != null && a.SequenceEqual(b),
+                        v => v.Aggregate(0, (hash, s) => HashCode.Combine(hash, s.GetHashCode())),
+                        v => v.ToList()))
+                .HasColumnType("text[]");
+
+            ConfigureTags(book.Property(b => b.Tags));
         });
     }
 
