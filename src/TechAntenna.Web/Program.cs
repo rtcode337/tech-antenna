@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TechAntenna.Core.Abstractions;
+using TechAntenna.Infrastructure.Events;
 using TechAntenna.Infrastructure.Feeds;
 using TechAntenna.Infrastructure.Persistence;
 using TechAntenna.Infrastructure.Storage;
@@ -31,11 +32,13 @@ var connectionString = builder.Configuration.GetConnectionString("Default");
 if (string.IsNullOrWhiteSpace(connectionString))
 {
     builder.Services.AddSingleton<IArticleStore, InMemoryArticleStore>();
+    builder.Services.AddSingleton<IEventStore, InMemoryEventStore>();
 }
 else
 {
     builder.Services.AddDbContextFactory<TechAntennaDbContext>(o => o.UseNpgsql(connectionString));
     builder.Services.AddSingleton<IArticleStore, EfArticleStore>();
+    builder.Services.AddSingleton<IEventStore, EfEventStore>();
 }
 
 var collection = builder.Configuration
@@ -51,6 +54,29 @@ foreach (var feed in collection.Feeds)
 }
 
 builder.Services.AddHostedService<ArticleCollectionWorker>();
+
+// --- イベント収集(connpass)---
+var connpass = builder.Configuration
+    .GetSection(ConnpassOptions.SectionName)
+    .Get<ConnpassOptions>() ?? new ConnpassOptions();
+if (!string.IsNullOrWhiteSpace(connpass.ApiKey))
+{
+    builder.Services.AddHttpClient(ConnpassEventSource.HttpClientName, client =>
+    {
+        // v2 は X-API-Key と User-Agent が必須。連絡先はリポジトリ URL のみ
+        client.DefaultRequestHeaders.Add("X-API-Key", connpass.ApiKey);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(
+            "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
+        client.Timeout = TimeSpan.FromSeconds(30);
+    });
+
+    builder.Services.AddSingleton<IEventSource>(sp => new ConnpassEventSource(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<TimeProvider>(),
+        connpass.Keywords));
+}
+
+builder.Services.AddHostedService<EventCollectionWorker>();
 
 var app = builder.Build();
 

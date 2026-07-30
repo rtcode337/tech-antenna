@@ -21,3 +21,16 @@ public class FeedOptions
 
     public string Url { get; set; } = "";
 }
+
+/// <summary>connpass API の設定。appsettings の Connpass セクションから読む。</summary>
+public class ConnpassOptions
+{
+    public const string SectionName = "Connpass";
+
+    /// <summary>connpass API v2 の API キー。空ならイベント収集を行わない。
+    /// 実値はコミットせず、環境変数(Connpass__ApiKey)や user-secrets で渡す。</summary>
+    public string ApiKey { get; set; } = "";
+
+    /// <summary>いずれかに一致するイベントを収集するキーワード。</summary>
+    public List<string> Keywords { get; set; } = [];
+}

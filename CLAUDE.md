@@ -47,6 +47,10 @@ SDK のバージョンを変えるときは共有側の `devcontainer.json` を�
 収集対象のフィードと巡回間隔は `src/TechAntenna.Web/appsettings.json` の
 `Collection` セクションで設定する。
 
+connpass は API v2(`X-API-Key` と `User-Agent` が必須)。API キーと検索キーワードは
+`Connpass` セクションで設定し、**キーの実値はコミットせず**環境変数
+(`Connpass__ApiKey`)や user-secrets で渡す。キー未設定ならイベント収集は動かない。
+
 ## 構成
 
 - `src/TechAntenna.Core` — ドメインモデルと抽象。外部パッケージへの依存を持たない

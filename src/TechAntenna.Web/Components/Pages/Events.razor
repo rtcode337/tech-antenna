@@ -1,0 +1,47 @@
+@page "/events"
+@using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Models
+@inject IEventStore EventStore
+@inject TimeProvider Clock
+
+<PageTitle>イベント - tech-antenna</PageTitle>
+
+<h1>これからのイベント</h1>
+
+@if (_events is null)
+{
+    <p>読み込み中…</p>
+}
+else if (_events.Count == 0)
+{
+    <p>まだイベントがありません。connpass の API キーが設定されているか確認してください。</p>
+}
+else
+{
+    <ul class="list-unstyled">
+        @foreach (var techEvent in _events)
+        {
+            <li class="mb-2">
+                <a href="@techEvent.Url" target="_blank" rel="noopener">@techEvent.Title</a>
+                <br />
+                <small class="text-muted">
+                    @techEvent.StartsAt.ToString("yyyy-MM-dd HH:mm zzz")
+                    — @(techEvent.IsOnline ? "オンライン" : techEvent.Venue ?? "会場未定")
+                    @foreach (var tag in techEvent.Tags)
+                    {
+                        <span class="badge bg-secondary ms-1">@tag</span>
+                    }
+                </small>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    IReadOnlyList<TechEvent>? _events;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _events = await EventStore.GetUpcomingAsync(Clock.GetUtcNow(), 50);
+    }
+}
