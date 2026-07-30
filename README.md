@@ -6,8 +6,8 @@
 
 ## 状態
 
-**開発初期。** RSS / Atom フィードからの記事収集とトップページでの一覧表示まで実装済み
-(保存先はメモリ上で、再起動すると消える)。イベント・書籍・LLM 要約・DB は未実装。
+**開発初期。** RSS / Atom フィードからの記事収集、PostgreSQL への保存、トップページでの
+一覧表示まで実装済み。イベント・書籍・LLM 要約は未実装。
 
 ## 構成
 
@@ -35,3 +35,7 @@ dotnet build
 dotnet test
 dotnet run --project src/TechAntenna.Web
 ```
+
+DB は PostgreSQL。接続文字列 `ConnectionStrings:Default` を設定して起動すると
+未適用のマイグレーションが自動で適用される。未設定の場合はメモリ上のストアで動く
+(再起動すると消える)。

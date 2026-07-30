@@ -54,6 +54,14 @@ SDK のバージョンを変えるときは共有側の `devcontainer.json` を�
 - `src/TechAntenna.Web` — ASP.NET Core + Blazor (Server)。収集ジョブの `BackgroundService` もここでホストする
 - `tests/TechAntenna.Tests` — xUnit
 
+## DB
+
+- PostgreSQL + EF Core。接続文字列は `ConnectionStrings:Default`(環境変数なら
+  `ConnectionStrings__Default`)で渡す。**未設定ならメモリ上のストアにフォールバック**する
+- マイグレーションは起動時に自動適用される(個人運用前提)
+- マイグレーション追加:
+  `dotnet ef migrations add <名前> -p src/TechAntenna.Infrastructure -s src/TechAntenna.Web`
+
 ## コマンド
 
 - ビルド: `dotnet build`

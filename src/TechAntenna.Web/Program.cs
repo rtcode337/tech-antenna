@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Infrastructure.Feeds;
+using TechAntenna.Infrastructure.Persistence;
 using TechAntenna.Infrastructure.Storage;
 using TechAntenna.Web;
 using TechAntenna.Web.Components;
@@ -23,7 +25,18 @@ builder.Services.AddHttpClient(FeedArticleSource.HttpClientName, client =>
 });
 
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<IArticleStore, InMemoryArticleStore>();
+
+// 接続文字列があれば PostgreSQL、無ければメモリ上のストアで動かす(DB なしのお試し起動用)
+var connectionString = builder.Configuration.GetConnectionString("Default");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    builder.Services.AddSingleton<IArticleStore, InMemoryArticleStore>();
+}
+else
+{
+    builder.Services.AddDbContextFactory<TechAntennaDbContext>(o => o.UseNpgsql(connectionString));
+    builder.Services.AddSingleton<IArticleStore, EfArticleStore>();
+}
 
 var collection = builder.Configuration
     .GetSection(CollectionOptions.SectionName)
@@ -40,6 +53,15 @@ foreach (var feed in collection.Feeds)
 builder.Services.AddHostedService<ArticleCollectionWorker>();
 
 var app = builder.Build();
+
+// 個人運用前提のため、未適用のマイグレーションは起動時に適用する
+if (!string.IsNullOrWhiteSpace(connectionString))
+{
+    await using var db = await app.Services
+        .GetRequiredService<IDbContextFactory<TechAntennaDbContext>>()
+        .CreateDbContextAsync();
+    await db.Database.MigrateAsync();
+}
 
 if (!app.Environment.IsDevelopment())
 {
