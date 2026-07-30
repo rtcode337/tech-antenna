@@ -6,9 +6,9 @@
 
 ## 状態
 
-**開発着手前。** リポジトリの初期設定のみが入っている。
+**開発初期。** ソリューションとプロジェクトの雛形まで作成済み。機能は未実装。
 
-## 想定する構成
+## 構成
 
 | 領域 | 採用 |
 |---|---|
@@ -31,5 +31,6 @@
 
 ```bash
 dotnet build
-dotnet run --project src/TechAntenna.Web   # 予定
+dotnet test
+dotnet run --project src/TechAntenna.Web
 ```

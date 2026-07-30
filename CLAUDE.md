@@ -44,7 +44,15 @@ SDK のバージョンを変えるときは共有側の `devcontainer.json` を�
 外部 API を叩くコードを書くときは、**User-Agent に個人のメールアドレスを入れないこと**。
 連絡先が必要な場合はリポジトリ URL のみを記載する。
 
+## 構成
+
+- `src/TechAntenna.Core` — ドメインモデルと抽象。外部パッケージへの依存を持たない
+- `src/TechAntenna.Infrastructure` — EF Core・外部 API クライアント等の実装(Core を参照)
+- `src/TechAntenna.Web` — ASP.NET Core + Blazor (Server)。収集ジョブの `BackgroundService` もここでホストする
+- `tests/TechAntenna.Tests` — xUnit
+
 ## コマンド
 
-まだプロジェクトを作成していないため、ビルド・テストコマンドは存在しない。
-`dotnet new` でソリューションを作成したら、このセクションを実際のコマンドで埋めること。
+- ビルド: `dotnet build`
+- テスト: `dotnet test`
+- Web 起動: `dotnet run --project src/TechAntenna.Web`
