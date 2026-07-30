@@ -7,8 +7,8 @@
 ## 状態
 
 **開発初期。** RSS / Atom フィードからの記事収集、connpass からのイベント収集
-(API キーが必要)、PostgreSQL への保存、一覧表示まで実装済み。
-書籍・LLM 要約・Doorkeeper 連携は未実装。
+(API キーが必要)、Anthropic API による記事の日本語要約(API キーが必要)、
+PostgreSQL への保存、一覧表示まで実装済み。書籍・Doorkeeper 連携は未実装。
 
 ## 構成
 

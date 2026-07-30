@@ -40,4 +40,31 @@ public class InMemoryArticleStore : IArticleStore
             return Task.FromResult(result);
         }
     }
+
+    public Task<IReadOnlyList<Article>> GetUnsummarizedAsync(int count, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<Article> result = _byUrl.Values
+                .Where(a => a.Summary is null)
+                .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)
+                .Take(count)
+                .ToList();
+            return Task.FromResult(result);
+        }
+    }
+
+    public Task UpdateSummaryAsync(Guid articleId, string summary, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            var article = _byUrl.Values.FirstOrDefault(a => a.Id == articleId);
+            if (article is not null)
+            {
+                article.Summary = summary;
+            }
+
+            return Task.CompletedTask;
+        }
+    }
 }

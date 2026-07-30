@@ -13,6 +13,9 @@ public class Article
     /// <summary>収集元の名前(例: Zenn、Qiita)。</summary>
     public required string SourceName { get; init; }
 
+    /// <summary>フィードが提供する本文の抜粋(HTML 除去済み)。要約の材料に使う。</summary>
+    public string? ContentSnippet { get; init; }
+
     /// <summary>LLM による要約。未生成の間は null。</summary>
     public string? Summary { get; set; }
 

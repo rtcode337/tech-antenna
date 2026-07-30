@@ -51,6 +51,17 @@ connpass は API v2(`X-API-Key` と `User-Agent` が必須)。API キーと検�
 `Connpass` セクションで設定し、**キーの実値はコミットせず**環境変数
 (`Connpass__ApiKey`)や user-secrets で渡す。キー未設定ならイベント収集は動かない。
 
+## LLM 要約
+
+記事の要約は Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。
+設定は `Anthropic` セクション(`ApiKey` / `Model` / `IntervalMinutes` / `BatchSize`)で、
+**キーの実値はコミットせず**環境変数(`Anthropic__ApiKey`)や user-secrets で渡す。
+キー未設定なら要約ジョブは登録されない。
+
+モデルは既定で `claude-opus-5`。コストを抑えたいときは `Model` を `claude-haiku-4-5`
+(入力 $1 / 出力 $5 per MTok)に変えられる。要約はフィードの本文抜粋が入力なので
+コンテキストは短く、モデルを下げても実用になりやすい。
+
 ## 構成
 
 - `src/TechAntenna.Core` — ドメインモデルと抽象。外部パッケージへの依存を持たない

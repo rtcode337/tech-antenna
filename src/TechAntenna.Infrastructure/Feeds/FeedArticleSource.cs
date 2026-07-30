@@ -28,6 +28,7 @@ public class FeedArticleSource(
                 Title = entry.Title,
                 Url = entry.Url,
                 SourceName = name,
+                ContentSnippet = entry.Summary,
                 PublishedAt = entry.PublishedAt,
                 CollectedAt = collectedAt,
                 Tags = TagNormalizer.Normalize(entry.Tags),

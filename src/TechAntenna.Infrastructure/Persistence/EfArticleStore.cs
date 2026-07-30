@@ -33,4 +33,24 @@ public class EfArticleStore(IDbContextFactory<TechAntennaDbContext> contextFacto
             .Take(count)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Article>> GetUnsummarizedAsync(int count, CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await db.Articles
+            .Where(a => a.Summary == null)
+            .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)
+            .Take(count)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task UpdateSummaryAsync(Guid articleId, string summary, CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        await db.Articles
+            .Where(a => a.Id == articleId)
+            .ExecuteUpdateAsync(set => set.SetProperty(a => a.Summary, summary), cancellationToken);
+    }
 }

@@ -4,6 +4,7 @@ using TechAntenna.Infrastructure.Events;
 using TechAntenna.Infrastructure.Feeds;
 using TechAntenna.Infrastructure.Persistence;
 using TechAntenna.Infrastructure.Storage;
+using TechAntenna.Infrastructure.Summarization;
 using TechAntenna.Web;
 using TechAntenna.Web.Components;
 using TechAntenna.Web.Workers;
@@ -77,6 +78,20 @@ if (!string.IsNullOrWhiteSpace(connpass.ApiKey))
 }
 
 builder.Services.AddHostedService<EventCollectionWorker>();
+
+// --- LLM 要約(Anthropic API)---
+builder.Services.Configure<AnthropicOptions>(
+    builder.Configuration.GetSection(AnthropicOptions.SectionName));
+
+var anthropic = builder.Configuration
+    .GetSection(AnthropicOptions.SectionName)
+    .Get<AnthropicOptions>() ?? new AnthropicOptions();
+if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
+{
+    builder.Services.AddSingleton<ISummarizer>(
+        new AnthropicSummarizer(anthropic.ApiKey, anthropic.Model));
+    builder.Services.AddHostedService<SummaryWorker>();
+}
 
 var app = builder.Build();
 

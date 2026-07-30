@@ -22,6 +22,25 @@ public class FeedOptions
     public string Url { get; set; } = "";
 }
 
+/// <summary>Anthropic API による要約の設定。appsettings の Anthropic セクションから読む。</summary>
+public class AnthropicOptions
+{
+    public const string SectionName = "Anthropic";
+
+    /// <summary>Anthropic API キー。空なら要約を行わない。
+    /// 実値はコミットせず、環境変数(Anthropic__ApiKey)や user-secrets で渡す。</summary>
+    public string ApiKey { get; set; } = "";
+
+    /// <summary>使用するモデル ID。コストを抑えるなら claude-haiku-4-5 に変更する。</summary>
+    public string Model { get; set; } = "claude-opus-5";
+
+    /// <summary>要約ジョブの実行間隔(分)。</summary>
+    public int IntervalMinutes { get; set; } = 10;
+
+    /// <summary>1回の実行で要約する記事数の上限。</summary>
+    public int BatchSize { get; set; } = 5;
+}
+
 /// <summary>connpass API の設定。appsettings の Connpass セクションから読む。</summary>
 public class ConnpassOptions
 {

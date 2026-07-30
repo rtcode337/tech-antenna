@@ -16,6 +16,7 @@ public class FeedParserTests
               <pubDate>Tue, 28 Jul 2026 09:30:00 +0900</pubDate>
               <category>Blazor</category>
               <category>C#</category>
+              <description>&lt;p&gt;Blazor Server の&lt;strong&gt;基本&lt;/strong&gt;を解説します。&lt;/p&gt;</description>
             </item>
             <item>
               <title>日付なしの記事</title>
@@ -71,6 +72,16 @@ public class FeedParserTests
         Assert.Equal(new Uri("https://example.com/articles/blazor-server"), first.Url);
         Assert.Equal(new DateTimeOffset(2026, 7, 28, 9, 30, 0, TimeSpan.FromHours(9)), first.PublishedAt);
         Assert.Equal(["Blazor", "C#"], first.Tags);
+        // description の HTML はタグを除いたテキストになる
+        Assert.Equal("Blazor Server の 基本 を解説します。", first.Summary);
+    }
+
+    [Fact]
+    public void descriptionが無いエントリはSummaryがnullになる()
+    {
+        var entries = FeedParser.Parse(Rss20);
+
+        Assert.Null(entries[1].Summary);
     }
 
     [Fact]
