@@ -51,8 +51,9 @@ services:
       # リバースプロキシ配下で X-Forwarded-* を信頼するときだけ true にする
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: ${FORWARDED_HEADERS_ENABLED:-false}
     ports:
-      # host:container。コンテナ内は 8080 固定(Dockerfile の EXPOSE と同じ)
-      - "${PORT:-8080}:8080"
+      # host:container。コンテナ内は 8080 固定(Dockerfile の EXPOSE と同じ)で、
+      # ホスト側は 10000(開発の dotnet run と同じ番号。同時起動はできない)
+      - "${PORT:-10000}:8080"
     volumes:
       # antiforgery と Blazor が使う Data Protection の鍵。コンテナを作り直しても
       # 鍵を引き継げるようにする(消えると開いていたページの操作が一度エラーになる)

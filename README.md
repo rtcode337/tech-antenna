@@ -34,7 +34,7 @@ cp .env.example .env   # POSTGRES_PASSWORD と、使う外部 API のキーを�
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
-`http://<ホスト>:8080` で開く(`.env` の `PORT` で変更可)。データは Docker の名前付き
+`http://<ホスト>:10000` で開く(`.env` の `PORT` で変更可)。データは Docker の名前付き
 ボリューム(`pgdata`)に入り、未適用のマイグレーションは起動時に自動で当たるため、
 更新は `git pull` して同じコマンドを打つだけでよい。
 
@@ -63,7 +63,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```bash
 dotnet build
 dotnet test
-dotnet run --project src/TechAntenna.Web
+dotnet run --project src/TechAntenna.Web   # http://localhost:10000
 ```
 
 DB は PostgreSQL。接続文字列 `ConnectionStrings:Default` を設定して起動すると

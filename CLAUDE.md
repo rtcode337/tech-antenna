@@ -153,11 +153,19 @@ URL のリンクにとどめる。
   分かるときだけ有効にする(`httpsConfigured`)。TLS をリバースプロキシで終端する構成では
   コンテナは HTTP しか持たず、リダイレクト先が決まらないまま警告だけが出るため
 
+## 待ち受けポート
+
+**開発(`launchSettings.json` の HTTP)も本番の公開ポート(`docker-compose.yml` の `PORT` の
+既定)も 10000**。コンテナ内は 8080 固定(ベースイメージの `ASPNETCORE_HTTP_PORTS` の既定)で、
+外に出す番号だけを揃えている。同じホストで開発サーバーと本番コンテナを同時に上げることは
+できない(片方の `PORT` を変える)。**6000 番台は使わない** —— Chrome/Firefox が X11 用ポートとして
+拒否し(`ERR_UNSAFE_PORT`)ブラウザから開けなくなるため。
+
 ## コマンド
 
 - ビルド: `dotnet build`
 - テスト: `dotnet test`
-- Web 起動: `dotnet run --project src/TechAntenna.Web`
+- Web 起動: `dotnet run --project src/TechAntenna.Web`(http://localhost:10000)
 - 本番同等の起動(GHCR から pull): `docker compose pull && docker compose up -d`
 - 本番同等の起動(手元でビルド):
   `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`
