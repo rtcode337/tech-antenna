@@ -71,3 +71,6 @@ db/data/
 # OS
 .DS_Store
 Thumbs.db
+
+# クラッシュ時のコアダンプ(.NET は起動ディレクトリに core.<pid> を吐き、数百 MB になる)
+core.*
