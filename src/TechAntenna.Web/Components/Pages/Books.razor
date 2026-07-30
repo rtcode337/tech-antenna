@@ -1,0 +1,66 @@
+@page "/books"
+@using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Models
+@inject IBookStore BookStore
+
+<PageTitle>書籍 - tech-antenna</PageTitle>
+
+<h1>書籍</h1>
+
+@if (_books is null)
+{
+    <p>読み込み中…</p>
+}
+else if (_books.Count == 0)
+{
+    <p>まだ書籍がありません。検索キーワードが設定されているか確認してください。</p>
+}
+else
+{
+    <ul class="list-unstyled">
+        @foreach (var book in _books)
+        {
+            <li class="mb-3 d-flex gap-2">
+                @if (book.CoverUrl is { } coverUrl)
+                {
+                    <img src="@coverUrl" alt="" width="48" loading="lazy" />
+                }
+                <div>
+                    @if (book.Url is { } url)
+                    {
+                        <a href="@url" target="_blank" rel="noopener">@book.Title</a>
+                    }
+                    else
+                    {
+                        <span>@book.Title</span>
+                    }
+                    <br />
+                    <small class="text-muted">
+                        @if (book.Authors.Count > 0)
+                        {
+                            <text>@string.Join("、", book.Authors) — </text>
+                        }
+                        @(book.Publisher ?? "出版社不明")
+                        @if (book.PublishedOn is { } publishedOn)
+                        {
+                            <text> — @publishedOn.ToString("yyyy-MM")</text>
+                        }
+                        @foreach (var tag in book.Tags)
+                        {
+                            <span class="badge bg-secondary ms-1">@tag</span>
+                        }
+                    </small>
+                </div>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    IReadOnlyList<Book>? _books;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _books = await BookStore.GetRecentAsync(50);
+    }
+}

@@ -6,8 +6,8 @@
 
 ## 状態
 
-**開発初期。** RSS / Atom フィードからの記事収集とトップページでの一覧表示まで実装済み
-(保存先はメモリ上で、再起動すると消える)。イベント・書籍・LLM 要約・DB は未実装。
+**開発初期。** 記事・イベント・書籍の収集と一覧表示、タグによる3種の横断、
+PostgreSQL への保存、Anthropic API による記事の日本語要約まで実装済み。
 
 ## 構成
 
@@ -21,7 +21,7 @@
 
 ## データソース
 
-- **イベント** — connpass API / Doorkeeper API
+- **イベント** — connpass API(API キーが必要)/ Doorkeeper API(アクセストークンが必要)
 - **書籍** — openBD / Google Books API
 - **記事** — Qiita・Zenn・はてなブックマーク テクノロジー等の RSS / Atom
 
@@ -35,3 +35,7 @@ dotnet build
 dotnet test
 dotnet run --project src/TechAntenna.Web
 ```
+
+DB は PostgreSQL。接続文字列 `ConnectionStrings:Default` を設定して起動すると
+未適用のマイグレーションが自動で適用される。未設定の場合はメモリ上のストアで動く
+(再起動すると消える)。

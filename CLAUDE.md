@@ -47,12 +47,69 @@ SDK のバージョンを変えるときは共有側の `devcontainer.json` を�
 収集対象のフィードと巡回間隔は `src/TechAntenna.Web/appsettings.json` の
 `Collection` セクションで設定する。
 
+connpass は API v2(`X-API-Key` と `User-Agent` が必須)。API キーと検索キーワードは
+`Connpass` セクションで設定し、**キーの実値はコミットせず**環境変数
+(`Connpass__ApiKey`)や user-secrets で渡す。キー未設定ならイベント収集は動かない。
+
+Doorkeeper は `Authorization: Bearer` にアクセストークンが必要。`Doorkeeper` セクションで
+設定し、トークンの実値はコミットしない(`Doorkeeper__AccessToken`)。
+
+**両方ともキーワードごとに問い合わせ、見つかったイベントにその検索キーワードをタグとして
+付ける**。同じイベントが複数のキーワードで見つかったら URL でまとめてタグを足す。
+connpass は `keyword_or` で全キーワードを1リクエストにまとめることもできるが、それだと
+どのキーワードで見つかったか分からず、`hash_tag` が無いイベントがタグ無しになって
+トピック横断に乗らないため、リクエスト数と引き換えにキーワードごとに引いている。
+
+## タグによる横断
+
+記事・イベント・書籍は `TagNormalizer` を通した正規化済みタグを持ち、
+`TopicService` がそれを突き合わせて `/topics` に出す。**3種がそろったタグを上位**に出す
+(件数が多いだけのタグより、記事・イベント・書籍が全部あるタグを優先する)。
+
+EF 版のタグ関連クエリだけ生 SQL にしている。`Tags` 列には値変換をかけていて LINQ から
+翻訳できず、タグごとの件数集計には PostgreSQL の `unnest` が要るため。
+
+## 書籍収集
+
+**openBD はキーワード検索を持たず ISBN 参照専用**なので、役割を分けている。
+
+- キーワード検索は Google Books API(`IBookCatalog`)。API キーは任意で、
+  未設定でも検索できるが1日あたりの上限が低くなる
+- openBD は検索結果の書誌情報を ISBN で補う後段(`IBookEnricher`)。
+  **既に値がある項目は上書きせず、欠けている項目だけを埋める**
+
+設定は `Books` セクション(`Keywords` / `IntervalHours` / `GoogleBooksApiKey` /
+`UseOpenBd`)。`Keywords` が空なら書籍収集は動かない。
+
+取り込むのは**書誌事実(タイトル・著者・出版社・刊行日・ISBN・リンク・書影 URL)だけ**で、
+`description` や `textSnippet` といった出版社の著作物は取り込まない。書影は画像自体を保持せず
+URL のリンクにとどめる。
+
+## LLM 要約
+
+記事の要約は Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。
+設定は `Anthropic` セクション(`ApiKey` / `Model` / `IntervalMinutes` / `BatchSize`)で、
+**キーの実値はコミットせず**環境変数(`Anthropic__ApiKey`)や user-secrets で渡す。
+キー未設定なら要約ジョブは登録されない。
+
+モデルは既定で `claude-opus-5`。コストを抑えたいときは `Model` を `claude-haiku-4-5`
+(入力 $1 / 出力 $5 per MTok)に変えられる。要約はフィードの本文抜粋が入力なので
+コンテキストは短く、モデルを下げても実用になりやすい。
+
 ## 構成
 
 - `src/TechAntenna.Core` — ドメインモデルと抽象。外部パッケージへの依存を持たない
 - `src/TechAntenna.Infrastructure` — EF Core・外部 API クライアント等の実装(Core を参照)
 - `src/TechAntenna.Web` — ASP.NET Core + Blazor (Server)。収集ジョブの `BackgroundService` もここでホストする
 - `tests/TechAntenna.Tests` — xUnit
+
+## DB
+
+- PostgreSQL + EF Core。接続文字列は `ConnectionStrings:Default`(環境変数なら
+  `ConnectionStrings__Default`)で渡す。**未設定ならメモリ上のストアにフォールバック**する
+- マイグレーションは起動時に自動適用される(個人運用前提)
+- マイグレーション追加:
+  `dotnet ef migrations add <名前> -p src/TechAntenna.Infrastructure -s src/TechAntenna.Web`
 
 ## コマンド
 

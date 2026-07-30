@@ -22,7 +22,10 @@ else
         {
             <li class="mb-2">
                 <a href="@article.Url" target="_blank" rel="noopener">@article.Title</a>
-                <br />
+                @if (!string.IsNullOrEmpty(article.Summary))
+                {
+                    <div class="text-body-secondary">@article.Summary</div>
+                }
                 <small class="text-muted">
                     @article.SourceName
                     @if (article.PublishedAt is { } publishedAt)

@@ -8,7 +8,8 @@ public record FeedEntry(
     string Title,
     Uri Url,
     DateTimeOffset? PublishedAt,
-    IReadOnlyList<string> Tags);
+    IReadOnlyList<string> Tags,
+    string? Summary);
 
 /// <summary>
 /// RSS 2.0 / RSS 1.0 (RDF) / Atom のフィードを解析する。
@@ -47,7 +48,9 @@ public static class FeedParser
                     ?? (string?)entry.Element(Atom + "updated")),
                 entry.Elements(Atom + "category")
                     .Select(c => (string?)c.Attribute("term") ?? "")
-                    .ToList()))
+                    .ToList(),
+                HtmlText.Strip((string?)entry.Element(Atom + "content")
+                    ?? (string?)entry.Element(Atom + "summary"))))
             .ToList();
 
     static List<FeedEntry> ParseRss20(XElement root) =>
@@ -57,7 +60,8 @@ public static class FeedParser
                 RequireUrl((string?)item.Element("link")),
                 ParseDate((string?)item.Element("pubDate")
                     ?? (string?)item.Element(Dc + "date")),
-                item.Elements("category").Select(c => c.Value).ToList()))
+                item.Elements("category").Select(c => c.Value).ToList(),
+                HtmlText.Strip((string?)item.Element("description"))))
             .ToList();
 
     static List<FeedEntry> ParseRss10(XElement root) =>
@@ -66,7 +70,8 @@ public static class FeedParser
                 (string?)item.Element(Rss10 + "title") ?? "",
                 RequireUrl((string?)item.Element(Rss10 + "link")),
                 ParseDate((string?)item.Element(Dc + "date")),
-                item.Elements(Dc + "subject").Select(s => s.Value).ToList()))
+                item.Elements(Dc + "subject").Select(s => s.Value).ToList(),
+                HtmlText.Strip((string?)item.Element(Rss10 + "description"))))
             .ToList();
 
     static Uri RequireUrl(string? value) =>

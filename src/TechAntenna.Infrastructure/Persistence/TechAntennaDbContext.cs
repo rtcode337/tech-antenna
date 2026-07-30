@@ -1,0 +1,103 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using TechAntenna.Core.Models;
+
+namespace TechAntenna.Infrastructure.Persistence;
+
+public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options)
+    : DbContext(options)
+{
+    /// <summary>書籍の重複判定キーを保持するシャドウプロパティの名前。</summary>
+    public const string BookDedupKey = "DedupKey";
+
+    public DbSet<Article> Articles => Set<Article>();
+
+    public DbSet<TechEvent> Events => Set<TechEvent>();
+
+    public DbSet<Book> Books => Set<Book>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Article>(article =>
+        {
+            article.HasKey(a => a.Id);
+
+            article.Property(a => a.Title).IsRequired();
+
+            article.Property(a => a.Url)
+                .HasConversion(url => url.ToString(), value => new Uri(value))
+                .IsRequired();
+            // URL を重複判定のキーにする(IArticleStore の契約)
+            article.HasIndex(a => a.Url).IsUnique();
+
+            article.Property(a => a.SourceName).IsRequired();
+
+            ConfigureTags(article.Property(a => a.Tags));
+        });
+
+        modelBuilder.Entity<TechEvent>(techEvent =>
+        {
+            techEvent.HasKey(e => e.Id);
+
+            techEvent.Property(e => e.Title).IsRequired();
+
+            techEvent.Property(e => e.Url)
+                .HasConversion(url => url.ToString(), value => new Uri(value))
+                .IsRequired();
+            // URL を重複判定のキーにする(IEventStore の契約)
+            techEvent.HasIndex(e => e.Url).IsUnique();
+
+            techEvent.Property(e => e.SourceName).IsRequired();
+
+            // 「これから開催されるイベント」の問い合わせで使う
+            techEvent.HasIndex(e => e.StartsAt);
+
+            ConfigureTags(techEvent.Property(e => e.Tags));
+        });
+
+        modelBuilder.Entity<Book>(book =>
+        {
+            book.HasKey(b => b.Id);
+
+            book.Property(b => b.Title).IsRequired();
+
+            book.Property(b => b.SourceName).IsRequired();
+
+            // ISBN・URL・タイトルのいずれかから作る重複判定キー(IBookStore の契約)。
+            // ドメインモデルを永続化の都合で汚さないよう、シャドウプロパティとして持つ
+            book.Property<string>(BookDedupKey).IsRequired();
+            book.HasIndex(BookDedupKey).IsUnique();
+
+            book.Property(b => b.Url)
+                .HasConversion(url => url!.ToString(), value => new Uri(value));
+
+            book.Property(b => b.CoverUrl)
+                .HasConversion(url => url!.ToString(), value => new Uri(value));
+
+            // 著者名は順序に意味があるため、タグと違って正規化せず配列のまま保存する
+            book.Property(b => b.Authors)
+                .HasConversion(
+                    value => value.ToArray(),
+                    value => value.ToList(),
+                    new ValueComparer<IReadOnlyList<string>>(
+                        (a, b) => a != null && b != null && a.SequenceEqual(b),
+                        v => v.Aggregate(0, (hash, s) => HashCode.Combine(hash, s.GetHashCode())),
+                        v => v.ToList()))
+                .HasColumnType("text[]");
+
+            ConfigureTags(book.Property(b => b.Tags));
+        });
+    }
+
+    // IReadOnlyList<string> のままでは EF が扱えないため、PostgreSQL の text[] 列との間で変換する
+    static void ConfigureTags(PropertyBuilder<IReadOnlyList<string>> tags) =>
+        tags.HasConversion(
+                value => value.ToArray(),
+                value => value.ToList(),
+                new ValueComparer<IReadOnlyList<string>>(
+                    (a, b) => a != null && b != null && a.SequenceEqual(b),
+                    v => v.Aggregate(0, (hash, s) => HashCode.Combine(hash, s.GetHashCode())),
+                    v => v.ToList()))
+            .HasColumnType("text[]");
+}
