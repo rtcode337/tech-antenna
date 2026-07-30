@@ -9,10 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## このリポジトリの目的
 
 技術情報を自動収集し、**記事・イベント・書籍の3つを1つの導線にまとめて提示する**Webアプリ。
-「今このトピックが伸びている → 関連する勉強会が近くである → 深掘りするならこの本」をつなぐことを狙う。
-
-既存の類似サービス(Feedly + Leo、Inoreader Pro、Techfeed、FreshRSS、auto-news、Meridian など)は
-記事の収集・要約に閉じており、イベントと書籍まで統合したものは見当たらない。ここが差別化点。
+「今このトピックが伸びている → 関連する勉強会が近くである → 深掘りするならこの本」をつなぐ。
 
 **C# / .NET の学習を兼ねた個人開発プロジェクト**であることに留意する。既存OSSで代替できる場面でも、
 学習価値がある部分は自前で実装する方針を取ることがある。ライブラリ導入を提案する際は、
@@ -47,7 +44,18 @@ SDK のバージョンを変えるときは共有側の `devcontainer.json` を�
 外部 API を叩くコードを書くときは、**User-Agent に個人のメールアドレスを入れないこと**。
 連絡先が必要な場合はリポジトリ URL のみを記載する。
 
+収集対象のフィードと巡回間隔は `src/TechAntenna.Web/appsettings.json` の
+`Collection` セクションで設定する。
+
+## 構成
+
+- `src/TechAntenna.Core` — ドメインモデルと抽象。外部パッケージへの依存を持たない
+- `src/TechAntenna.Infrastructure` — EF Core・外部 API クライアント等の実装(Core を参照)
+- `src/TechAntenna.Web` — ASP.NET Core + Blazor (Server)。収集ジョブの `BackgroundService` もここでホストする
+- `tests/TechAntenna.Tests` — xUnit
+
 ## コマンド
 
-まだプロジェクトを作成していないため、ビルド・テストコマンドは存在しない。
-`dotnet new` でソリューションを作成したら、このセクションを実際のコマンドで埋めること。
+- ビルド: `dotnet build`
+- テスト: `dotnet test`
+- Web 起動: `dotnet run --project src/TechAntenna.Web`

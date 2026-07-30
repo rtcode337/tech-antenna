@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TechAntenna.Core/TechAntenna.Core.csproj" />
+    <Project Path="src/TechAntenna.Infrastructure/TechAntenna.Infrastructure.csproj" />
+    <Project Path="src/TechAntenna.Web/TechAntenna.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TechAntenna.Tests/TechAntenna.Tests.csproj" />
+  </Folder>
+</Solution>
