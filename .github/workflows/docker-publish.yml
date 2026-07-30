@@ -18,7 +18,22 @@ permissions:
   packages: write
 
 jobs:
+  # テストが落ちたコードのイメージが :latest になるのを防ぐため、publish の前に通す。
+  # イメージのビルド(SDK コンテナ)とは別に、ランナー上の SDK で dotnet test を回す
+  # (本番イメージにテストプロジェクトを含めないため)
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+
+      - run: dotnet test --nologo
+
   build-and-push:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
