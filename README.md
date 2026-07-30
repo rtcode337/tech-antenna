@@ -6,9 +6,8 @@
 
 ## 状態
 
-**開発初期。** 記事・イベント・書籍の収集と一覧表示、PostgreSQL への保存、
-Anthropic API による記事の日本語要約まで実装済み。
-3種をタグで突き合わせる導線と Doorkeeper 連携は未実装。
+**開発初期。** 記事・イベント・書籍の収集と一覧表示、タグによる3種の横断、
+PostgreSQL への保存、Anthropic API による記事の日本語要約まで実装済み。
 
 ## 構成
 
@@ -22,7 +21,7 @@ Anthropic API による記事の日本語要約まで実装済み。
 
 ## データソース
 
-- **イベント** — connpass API / Doorkeeper API
+- **イベント** — connpass API(API キーが必要)/ Doorkeeper API(アクセストークンが必要)
 - **書籍** — openBD / Google Books API
 - **記事** — Qiita・Zenn・はてなブックマーク テクノロジー等の RSS / Atom
 

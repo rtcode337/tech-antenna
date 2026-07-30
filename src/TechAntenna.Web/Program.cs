@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using Microsoft.EntityFrameworkCore;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Topics;
@@ -80,6 +81,27 @@ if (!string.IsNullOrWhiteSpace(connpass.ApiKey))
         sp.GetRequiredService<IHttpClientFactory>(),
         sp.GetRequiredService<TimeProvider>(),
         connpass.Keywords));
+}
+
+// --- イベント収集(Doorkeeper)---
+var doorkeeper = builder.Configuration
+    .GetSection(DoorkeeperOptions.SectionName)
+    .Get<DoorkeeperOptions>() ?? new DoorkeeperOptions();
+if (!string.IsNullOrWhiteSpace(doorkeeper.AccessToken) && doorkeeper.Keywords.Count > 0)
+{
+    builder.Services.AddHttpClient(DoorkeeperEventSource.HttpClientName, client =>
+    {
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", doorkeeper.AccessToken);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(
+            "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
+        client.Timeout = TimeSpan.FromSeconds(30);
+    });
+
+    builder.Services.AddSingleton<IEventSource>(sp => new DoorkeeperEventSource(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<TimeProvider>(),
+        doorkeeper.Keywords));
 }
 
 builder.Services.AddHostedService<EventCollectionWorker>();

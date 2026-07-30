@@ -22,6 +22,19 @@ public class FeedOptions
     public string Url { get; set; } = "";
 }
 
+/// <summary>Doorkeeper API の設定。appsettings の Doorkeeper セクションから読む。</summary>
+public class DoorkeeperOptions
+{
+    public const string SectionName = "Doorkeeper";
+
+    /// <summary>Doorkeeper の Public API アクセストークン。空ならイベント収集を行わない。
+    /// 実値はコミットせず、環境変数(Doorkeeper__AccessToken)や user-secrets で渡す。</summary>
+    public string AccessToken { get; set; } = "";
+
+    /// <summary>検索するキーワード。1つずつ問い合わせ、見つかったイベントのタグになる。</summary>
+    public List<string> Keywords { get; set; } = [];
+}
+
 /// <summary>書籍収集の設定。appsettings の Books セクションから読む。</summary>
 public class BooksOptions
 {
