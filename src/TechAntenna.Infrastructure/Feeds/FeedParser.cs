@@ -80,10 +80,13 @@ public static class FeedParser
             : throw new FormatException($"エントリの link が絶対 URL でない: '{value}'");
 
     // pubDate は RFC 822 形式("Tue, 29 Jul 2026 12:34:56 +0900")、
-    // Atom / dc:date は ISO 8601 形式。どちらも DateTimeOffset が解釈できる
+    // Atom / dc:date は ISO 8601 形式。どちらも DateTimeOffset が解釈できる。
+    // 解釈できた値は UTC に正規化する —— Npgsql は timestamptz へ UTC 以外の
+    // オフセットを書けず(Qiita の pubDate は +09:00 なので保存時に例外になる)、
+    // DB 側は元のオフセットを保持しないため、ここで揃えても情報は落ちない
     static DateTimeOffset? ParseDate(string? text) =>
         DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture,
             DateTimeStyles.None, out var parsed)
-            ? parsed
+            ? parsed.ToUniversalTime()
             : null;
 }

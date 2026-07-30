@@ -85,6 +85,22 @@ public class FeedParserTests
     }
 
     [Fact]
+    public void 日付は元のオフセットに関わらずUTCで返す()
+    {
+        // DateTimeOffset の比較は同じ瞬間なら true になりオフセットの違いを見ないため、
+        // Offset 自体を確かめる。+09:00 のまま返すと timestamptz への保存で例外になる
+        var rss = FeedParser.Parse(Rss20)[0].PublishedAt;
+        var atom = FeedParser.Parse(AtomFeed)[0].PublishedAt;
+        var rss10 = FeedParser.Parse(Rss10)[0].PublishedAt;
+
+        Assert.Equal(TimeSpan.Zero, rss!.Value.Offset);
+        Assert.Equal(TimeSpan.Zero, atom!.Value.Offset);
+        Assert.Equal(TimeSpan.Zero, rss10!.Value.Offset);
+        // 瞬間そのものは変えない(+09:00 の 09:30 は UTC の 00:30)
+        Assert.Equal(new DateTime(2026, 7, 28, 0, 30, 0, DateTimeKind.Utc), rss.Value.UtcDateTime);
+    }
+
+    [Fact]
     public void RSS20で日付が無いエントリはPublishedAtがnullになる()
     {
         var entries = FeedParser.Parse(Rss20);
