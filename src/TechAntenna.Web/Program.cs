@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TechAntenna.Core.Abstractions;
+using TechAntenna.Core.Topics;
 using TechAntenna.Infrastructure.Books;
 using TechAntenna.Infrastructure.Events;
 using TechAntenna.Infrastructure.Feeds;
@@ -28,6 +29,7 @@ builder.Services.AddHttpClient(FeedArticleSource.HttpClientName, client =>
 });
 
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<TopicService>();
 
 // 接続文字列があれば PostgreSQL、無ければメモリ上のストアで動かす(DB なしのお試し起動用)
 var connectionString = builder.Configuration.GetConnectionString("Default");

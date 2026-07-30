@@ -1,0 +1,104 @@
+@page "/topics/{Tag}"
+@using TechAntenna.Core.Topics
+@inject TopicService TopicService
+
+<PageTitle>@Tag - tech-antenna</PageTitle>
+
+<h1>@Tag</h1>
+
+<p><a href="/topics">← トピック一覧</a></p>
+
+@if (_detail is null)
+{
+    <p>読み込み中…</p>
+}
+else
+{
+    <h2 class="h4 mt-4">記事</h2>
+    @if (_detail.Articles.Count == 0)
+    {
+        <p class="text-muted">このトピックの記事はまだありません。</p>
+    }
+    else
+    {
+        <ul class="list-unstyled">
+            @foreach (var article in _detail.Articles)
+            {
+                <li class="mb-2">
+                    <a href="@article.Url" target="_blank" rel="noopener">@article.Title</a>
+                    @if (!string.IsNullOrEmpty(article.Summary))
+                    {
+                        <div class="text-body-secondary">@article.Summary</div>
+                    }
+                    <small class="text-muted">@article.SourceName</small>
+                </li>
+            }
+        </ul>
+    }
+
+    <h2 class="h4 mt-4">これからのイベント</h2>
+    @if (_detail.Events.Count == 0)
+    {
+        <p class="text-muted">このトピックのイベントはまだありません。</p>
+    }
+    else
+    {
+        <ul class="list-unstyled">
+            @foreach (var techEvent in _detail.Events)
+            {
+                <li class="mb-2">
+                    <a href="@techEvent.Url" target="_blank" rel="noopener">@techEvent.Title</a>
+                    <br />
+                    <small class="text-muted">
+                        @techEvent.StartsAt.ToString("yyyy-MM-dd HH:mm zzz")
+                        — @(techEvent.IsOnline ? "オンライン" : techEvent.Venue ?? "会場未定")
+                    </small>
+                </li>
+            }
+        </ul>
+    }
+
+    <h2 class="h4 mt-4">書籍</h2>
+    @if (_detail.Books.Count == 0)
+    {
+        <p class="text-muted">このトピックの書籍はまだありません。</p>
+    }
+    else
+    {
+        <ul class="list-unstyled">
+            @foreach (var book in _detail.Books)
+            {
+                <li class="mb-2">
+                    @if (book.Url is { } url)
+                    {
+                        <a href="@url" target="_blank" rel="noopener">@book.Title</a>
+                    }
+                    else
+                    {
+                        <span>@book.Title</span>
+                    }
+                    <br />
+                    <small class="text-muted">
+                        @if (book.Authors.Count > 0)
+                        {
+                            <text>@string.Join("、", book.Authors) — </text>
+                        }
+                        @(book.Publisher ?? "出版社不明")
+                    </small>
+                </li>
+            }
+        </ul>
+    }
+}
+
+@code {
+    [Parameter]
+    public string Tag { get; set; } = "";
+
+    TopicDetail? _detail;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _detail = await TopicService.GetTopicAsync(Tag, 20);
+    }
+}

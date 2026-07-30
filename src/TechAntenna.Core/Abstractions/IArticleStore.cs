@@ -16,4 +16,10 @@ public interface IArticleStore
 
     /// <summary>記事の要約を保存する。</summary>
     Task UpdateSummaryAsync(Guid articleId, string summary, CancellationToken cancellationToken = default);
+
+    /// <summary>タグ <paramref name="tag"/> が付いたものを公開日時(無ければ収集日時)の新しい順に最大 <paramref name="count"/> 件返す。</summary>
+    Task<IReadOnlyList<Article>> GetByTagAsync(string tag, int count, CancellationToken cancellationToken = default);
+
+    /// <summary>タグごとの件数を返す。</summary>
+    Task<IReadOnlyList<TagCount>> GetTagCountsAsync(CancellationToken cancellationToken = default);
 }

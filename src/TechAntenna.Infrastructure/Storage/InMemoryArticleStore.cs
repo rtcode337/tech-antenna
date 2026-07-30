@@ -54,6 +54,32 @@ public class InMemoryArticleStore : IArticleStore
         }
     }
 
+    public Task<IReadOnlyList<Article>> GetByTagAsync(string tag, int count, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<Article> result = _byUrl.Values
+                .Where(a => a.Tags.Contains(tag))
+                .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)
+                .Take(count)
+                .ToList();
+            return Task.FromResult(result);
+        }
+    }
+
+    public Task<IReadOnlyList<TagCount>> GetTagCountsAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<TagCount> result = _byUrl.Values
+                .SelectMany(a => a.Tags)
+                .GroupBy(tag => tag, StringComparer.Ordinal)
+                .Select(g => new TagCount(g.Key, g.Count()))
+                .ToList();
+            return Task.FromResult(result);
+        }
+    }
+
     public Task UpdateSummaryAsync(Guid articleId, string summary, CancellationToken cancellationToken = default)
     {
         lock (_gate)

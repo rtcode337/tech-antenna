@@ -34,4 +34,26 @@ public class EfEventStore(IDbContextFactory<TechAntennaDbContext> contextFactory
             .Take(count)
             .ToListAsync(cancellationToken);
     }
+
+    // タグ関連が生 SQL である理由は EfArticleStore を参照
+    public async Task<IReadOnlyList<TechEvent>> GetByTagAsync(string tag, int count, CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await db.Events
+            .FromSql($"""SELECT * FROM "Events" WHERE "Tags" @> ARRAY[{tag}]::text[]""")
+            .OrderBy(e => e.StartsAt)
+            .Take(count)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TagCount>> GetTagCountsAsync(CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await db.Database
+            .SqlQuery<TagCount>(
+                $"""SELECT unnest("Tags") AS "Tag", COUNT(*)::int AS "Count" FROM "Events" GROUP BY 1""")
+            .ToListAsync(cancellationToken);
+    }
 }

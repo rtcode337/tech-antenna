@@ -1,0 +1,59 @@
+@page "/topics"
+@using TechAntenna.Core.Topics
+@inject TopicService TopicService
+
+<PageTitle>トピック - tech-antenna</PageTitle>
+
+<h1>トピック</h1>
+
+<p class="text-muted">
+    記事・イベント・書籍がそろっているトピックほど上に出ます。
+</p>
+
+@if (_topics is null)
+{
+    <p>読み込み中…</p>
+}
+else if (_topics.Count == 0)
+{
+    <p>まだトピックがありません。収集が進むとタグが集まります。</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>タグ</th>
+                <th class="text-end">記事</th>
+                <th class="text-end">イベント</th>
+                <th class="text-end">書籍</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var topic in _topics)
+            {
+                <tr>
+                    <td>
+                        <a href="@($"/topics/{Uri.EscapeDataString(topic.Tag)}")">@topic.Tag</a>
+                        @if (topic.Coverage == 3)
+                        {
+                            <span class="badge bg-success ms-1">3種そろい</span>
+                        }
+                    </td>
+                    <td class="text-end">@topic.ArticleCount</td>
+                    <td class="text-end">@topic.EventCount</td>
+                    <td class="text-end">@topic.BookCount</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    IReadOnlyList<Topic>? _topics;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _topics = await TopicService.GetTopicsAsync(100);
+    }
+}

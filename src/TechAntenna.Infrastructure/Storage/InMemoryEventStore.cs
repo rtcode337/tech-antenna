@@ -41,4 +41,30 @@ public class InMemoryEventStore : IEventStore
             return Task.FromResult(result);
         }
     }
+
+    public Task<IReadOnlyList<TechEvent>> GetByTagAsync(string tag, int count, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<TechEvent> result = _byUrl.Values
+                .Where(e => e.Tags.Contains(tag))
+                .OrderBy(e => e.StartsAt)
+                .Take(count)
+                .ToList();
+            return Task.FromResult(result);
+        }
+    }
+
+    public Task<IReadOnlyList<TagCount>> GetTagCountsAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<TagCount> result = _byUrl.Values
+                .SelectMany(e => e.Tags)
+                .GroupBy(tag => tag, StringComparer.Ordinal)
+                .Select(g => new TagCount(g.Key, g.Count()))
+                .ToList();
+            return Task.FromResult(result);
+        }
+    }
 }

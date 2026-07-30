@@ -10,4 +10,10 @@ public interface IEventStore
 
     /// <summary><paramref name="from"/> 以降に開催されるイベントを開始日時の早い順に最大 <paramref name="count"/> 件返す。</summary>
     Task<IReadOnlyList<TechEvent>> GetUpcomingAsync(DateTimeOffset from, int count, CancellationToken cancellationToken = default);
+
+    /// <summary>タグ <paramref name="tag"/> が付いたものを開始日時の早い順に最大 <paramref name="count"/> 件返す。</summary>
+    Task<IReadOnlyList<TechEvent>> GetByTagAsync(string tag, int count, CancellationToken cancellationToken = default);
+
+    /// <summary>タグごとの件数を返す。</summary>
+    Task<IReadOnlyList<TagCount>> GetTagCountsAsync(CancellationToken cancellationToken = default);
 }

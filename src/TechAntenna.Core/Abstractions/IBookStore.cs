@@ -10,4 +10,10 @@ public interface IBookStore
 
     /// <summary>収集日時の新しい順に最大 <paramref name="count"/> 件返す。</summary>
     Task<IReadOnlyList<Book>> GetRecentAsync(int count, CancellationToken cancellationToken = default);
+
+    /// <summary>タグ <paramref name="tag"/> が付いたものを収集日時の新しい順に最大 <paramref name="count"/> 件返す。</summary>
+    Task<IReadOnlyList<Book>> GetByTagAsync(string tag, int count, CancellationToken cancellationToken = default);
+
+    /// <summary>タグごとの件数を返す。</summary>
+    Task<IReadOnlyList<TagCount>> GetTagCountsAsync(CancellationToken cancellationToken = default);
 }

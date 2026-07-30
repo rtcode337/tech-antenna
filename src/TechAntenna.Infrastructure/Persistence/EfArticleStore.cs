@@ -34,6 +34,30 @@ public class EfArticleStore(IDbContextFactory<TechAntennaDbContext> contextFacto
             .ToListAsync(cancellationToken);
     }
 
+    // Tags には値変換をかけているため LINQ からは翻訳できず、タグごとの件数集計には
+    // unnest が要る。そのためタグ関連の2つだけ生 SQL で書いている(tag は
+    // FormattableString 越しにパラメーター化される)。イベント・書籍のストアも同様。
+    public async Task<IReadOnlyList<Article>> GetByTagAsync(string tag, int count, CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await db.Articles
+            .FromSql($"""SELECT * FROM "Articles" WHERE "Tags" @> ARRAY[{tag}]::text[]""")
+            .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)
+            .Take(count)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TagCount>> GetTagCountsAsync(CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await db.Database
+            .SqlQuery<TagCount>(
+                $"""SELECT unnest("Tags") AS "Tag", COUNT(*)::int AS "Count" FROM "Articles" GROUP BY 1""")
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Article>> GetUnsummarizedAsync(int count, CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
