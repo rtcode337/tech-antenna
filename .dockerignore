@@ -1,0 +1,24 @@
+# ビルドコンテキストに入れないもの。手元のビルド成果物を持ち込むとコンテナ内の
+# ビルドが壊れる(別 RID の bin/obj が混ざる)ため、bin/obj の除外は必須。
+**/bin/
+**/obj/
+artifacts/
+
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+
+# ローカル実行時の Postgres のデータ(root 所有で読めないため、除外しないと build が失敗する)
+db/data/
+
+# テストは本番イメージに含めない(publish の対象は Web プロジェクトだけ)
+tests/
+TestResults/
+
+# 秘匿情報。イメージへは環境変数で渡す(.env.example 参照)
+.env
+.env.local
+secrets.json
+**/appsettings.*.local.json

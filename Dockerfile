@@ -1,0 +1,45 @@
+# 本番用イメージ。main への push で GitHub Actions(.github/workflows/docker-publish.yml)が
+# ビルドし ghcr.io/rtcode337/tech-antenna として公開する。
+#
+# ビルドは常にビルドホストのアーキ(amd64)で行い、arm64 向けは .NET のクロスコンパイル
+# (-a arm64)で出力する。QEMU エミュレーション下の dotnet publish は極端に遅いため。
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+# buildx が渡す出力先のアーキ(amd64 / arm64)。.NET の -a は x64 / arm64 表記なので読み替える
+ARG TARGETARCH
+
+# csproj だけを先に置いて復元する。ソースを変えても NuGet の復元層は使い回せる
+COPY src/TechAntenna.Core/TechAntenna.Core.csproj src/TechAntenna.Core/
+COPY src/TechAntenna.Infrastructure/TechAntenna.Infrastructure.csproj src/TechAntenna.Infrastructure/
+COPY src/TechAntenna.Web/TechAntenna.Web.csproj src/TechAntenna.Web/
+RUN dotnet restore src/TechAntenna.Web/TechAntenna.Web.csproj \
+      -a "$(echo "$TARGETARCH" | sed 's/amd64/x64/')"
+
+COPY src/ src/
+RUN dotnet publish src/TechAntenna.Web/TechAntenna.Web.csproj \
+      -c Release --no-restore \
+      -a "$(echo "$TARGETARCH" | sed 's/amd64/x64/')" \
+      -o /app/publish
+
+# Data Protection の鍵置き場。実行ステージで RUN を使わずに済むよう(RUN があると
+# arm64 向けビルドにエミュレーションが必要になる)、空ディレクトリだけここで作って COPY する
+RUN mkdir -p /app/keys
+
+# 実行用。ソースもビルドツールも含めず publish の成果物だけを載せる。
+# Alpine ではなく Debian ベースを使うのは ICU(日本語の日付・文字列の書式)を含むため
+# (Alpine 版は globalization invariant モードが既定で、ja-JP の書式が効かない)
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+ENV ASPNETCORE_ENVIRONMENT=Production
+# antiforgery と Blazor が使う Data Protection の鍵の保存先(Program.cs が読む)。
+# コンテナを作り直しても鍵が消えないよう docker-compose.yml でボリュームをマウントする
+ENV DataProtection__KeysDirectory=/app/keys
+COPY --from=build /app/publish ./
+COPY --from=build --chown=$APP_UID:$APP_UID /app/keys ./keys
+# ベースイメージが用意している非 root ユーザー(UID 1654)で動かす
+USER $APP_UID
+# ベースイメージの既定(ASPNETCORE_HTTP_PORTS=8080)に合わせる。TLS は前段のリバース
+# プロキシで終端する前提で、コンテナ自身は HTTP だけを待ち受ける
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "TechAntenna.Web.dll"]

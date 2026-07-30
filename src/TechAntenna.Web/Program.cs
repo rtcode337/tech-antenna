@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Topics;
@@ -31,6 +32,24 @@ builder.Services.AddHttpClient(FeedArticleSource.HttpClientName, client =>
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<TopicService>();
+
+// antiforgery と Blazor が使う Data Protection の鍵。既定ではコンテナ内の一時領域に
+// 置かれるため、作り直すたびに鍵が変わって発行済みトークンが無効になる。保存先が
+// 指定されていれば(Docker 運用では DataProtection__KeysDirectory)そこへ永続化する
+var keysDirectory = builder.Configuration["DataProtection:KeysDirectory"];
+if (!string.IsNullOrWhiteSpace(keysDirectory))
+{
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(keysDirectory));
+}
+
+// TLS を前段のリバースプロキシで終端する運用では、コンテナ自身は HTTP だけを待ち受ける。
+// その場合リダイレクト先のポートが決まらず UseHttpsRedirection は警告を出して素通しに
+// なるだけなので、HTTPS の待ち受けが分かるときだけ HTTPS 前提の設定を有効にする
+var httpsConfigured =
+    !string.IsNullOrWhiteSpace(builder.Configuration["HTTPS_PORT"])
+    || !string.IsNullOrWhiteSpace(builder.Configuration["ASPNETCORE_HTTPS_PORTS"])
+    || (builder.Configuration["ASPNETCORE_URLS"]?.Contains("https", StringComparison.OrdinalIgnoreCase) ?? false);
 
 // 接続文字列があれば PostgreSQL、無ければメモリ上のストアで動かす(DB なしのお試し起動用)
 var connectionString = builder.Configuration.GetConnectionString("Default");
@@ -160,10 +179,16 @@ if (!string.IsNullOrWhiteSpace(connectionString))
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    app.UseHsts();
+    if (httpsConfigured)
+    {
+        app.UseHsts();
+    }
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
+if (httpsConfigured)
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAntiforgery();
 

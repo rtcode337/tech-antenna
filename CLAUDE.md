@@ -111,8 +111,45 @@ URL のリンクにとどめる。
 - マイグレーション追加:
   `dotnet ef migrations add <名前> -p src/TechAntenna.Infrastructure -s src/TechAntenna.Web`
 
+## 本番の実行形態(Docker)
+
+本番は「GHCR のイメージを pull して docker compose で動かす」形態。アプリの構成
+(プロジェクト構成・必要な環境変数・待ち受けポート)を変えたら、同じコミットで
+`Dockerfile`・`docker-compose.yml`・`.env.example` も追従させる。
+
+- `Dockerfile` — マルチステージ。`sdk:10.0` で publish し、`aspnet:10.0` に成果物だけを載せて
+  非 root(`USER $APP_UID`=1654)で `dotnet TechAntenna.Web.dll` を実行する。HTTP 8080 のみ待ち受け
+  - **Alpine ではなく Debian ベース**を使う。Alpine 版の .NET イメージは globalization
+    invariant モードが既定で、日本語の日付・文字列の書式が効かない
+  - arm64 向けは QEMU ではなく **.NET のクロスコンパイル**(`--platform=$BUILDPLATFORM` +
+    `dotnet publish -a`)で出す。実行ステージに `RUN` を置かないのもエミュレーションを
+    避けるため(鍵置き場のディレクトリはビルドステージで作って `COPY --chown` する)
+- `docker-compose.yml` — 本番用(`app` + `db`)。イメージは pull のみでビルドしない。
+  設定は `.env` から環境変数で渡す。`docker-compose.build.yml` は手元ビルド用の上書き定義
+  - Postgres は `postgres:18-alpine`。**18 のイメージは PGDATA が
+    `/var/lib/postgresql/18/docker`** で、ボリュームの単位はその1段上の
+    `/var/lib/postgresql`(17 以前と位置が違うので、マウント先を変えると初期化し直しになる)
+  - データは名前付きボリューム(`pgdata`/`dpkeys`)に置く。bind マウントにしないのは、
+    ホスト側の所有者調整が要らないようにするため
+- `.github/workflows/docker-publish.yml` — main への push で amd64 / arm64 のマニフェストを
+  `ghcr.io/rtcode337/tech-antenna` へ公開(`latest` と `sha-xxxxxxx` の2タグ)
+
+`Program.cs` にコンテナ運用のための分岐が2つある。
+
+- **Data Protection の鍵の永続化** — `DataProtection:KeysDirectory`(Docker では
+  `DataProtection__KeysDirectory=/app/keys`)が設定されていればそこへ保存する。既定の
+  一時領域だとコンテナを作り直すたびに鍵が変わり、発行済みの antiforgery トークンが無効になる。
+  起動時に出る「No XML encryptor configured」の警告は、鍵ファイル自体の暗号化(証明書や
+  KMS が要る)を設定していないためで、ホスト内のボリュームに 0600 で置く運用のため許容している
+- **HTTPS 前提の設定の切り替え** — `UseHttpsRedirection`/`UseHsts` は HTTPS の待ち受けが
+  分かるときだけ有効にする(`httpsConfigured`)。TLS をリバースプロキシで終端する構成では
+  コンテナは HTTP しか持たず、リダイレクト先が決まらないまま警告だけが出るため
+
 ## コマンド
 
 - ビルド: `dotnet build`
 - テスト: `dotnet test`
 - Web 起動: `dotnet run --project src/TechAntenna.Web`
+- 本番同等の起動(GHCR から pull): `docker compose pull && docker compose up -d`
+- 本番同等の起動(手元でビルド):
+  `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`

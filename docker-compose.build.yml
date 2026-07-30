@@ -1,0 +1,11 @@
+# 手元でイメージをビルドして本番同等に動かす用(コードを変えたときの動作確認)。
+# docker-compose.yml に重ねて使う上書き定義で、単体では動かない:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# 違いは GHCR から pull せずその場でビルドする点だけ(タグは :local で pull 版と区別する)。
+services:
+  app:
+    build:
+      context: .
+    image: ghcr.io/rtcode337/tech-antenna:local

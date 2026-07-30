@@ -1,0 +1,61 @@
+# 本番用。イメージは GitHub Actions(.github/workflows/docker-publish.yml)が main への
+# push でビルドし GHCR へ公開する(amd64 / arm64)。本番ではビルドせず pull するだけ:
+#
+#   docker compose pull && docker compose up -d
+#
+# 障害時は :latest ではなく :sha-xxxxxxx を TECH_ANTENNA_IMAGE に指定すれば任意の時点へ戻せる。
+# 手元でイメージをビルドして本番同等に動かしたいときは docker-compose.build.yml を重ねる
+# (README「本番運用」参照)。設定値は .env(.env.example をコピーして作る)から渡す。
+name: tech-antenna
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-techantenna}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (see .env.example)}
+      POSTGRES_DB: ${POSTGRES_DB:-techantenna}
+      TZ: ${TZ:-Asia/Tokyo}
+    volumes:
+      # postgres:18 のイメージは PGDATA が /var/lib/postgresql/18/docker で、
+      # ボリュームの単位はその1段上の /var/lib/postgresql(17 以前とは位置が違う)。
+      # bind マウントではなく名前付きボリュームにして、ホスト側の所有者調整を不要にしている
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-techantenna} -d ${POSTGRES_DB:-techantenna}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    image: ${TECH_ANTENNA_IMAGE:-ghcr.io/rtcode337/tech-antenna:latest}
+    depends_on:
+      # 起動時にマイグレーションを当てるため、DB が受け付けられるまで待つ
+      db:
+        condition: service_healthy
+    environment:
+      # 未設定だとメモリ上のストアで動いてしまい再起動でデータが消えるため、必ず渡す
+      ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (see .env.example)}
+      TZ: ${TZ:-Asia/Tokyo}
+      # 外部 API のキー。未設定ならその収集ジョブが動かないだけで起動はする
+      Connpass__ApiKey: ${CONNPASS_API_KEY:-}
+      Doorkeeper__AccessToken: ${DOORKEEPER_ACCESS_TOKEN:-}
+      Books__GoogleBooksApiKey: ${GOOGLE_BOOKS_API_KEY:-}
+      Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
+      # 既定は appsettings.json と同じ。コストを抑えるなら claude-haiku-4-5 を指定する
+      Anthropic__Model: ${ANTHROPIC_MODEL:-claude-opus-5}
+      # リバースプロキシ配下で X-Forwarded-* を信頼するときだけ true にする
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: ${FORWARDED_HEADERS_ENABLED:-false}
+    ports:
+      # host:container。コンテナ内は 8080 固定(Dockerfile の EXPOSE と同じ)
+      - "${PORT:-8080}:8080"
+    volumes:
+      # antiforgery と Blazor が使う Data Protection の鍵。コンテナを作り直しても
+      # 鍵を引き継げるようにする(消えると開いていたページの操作が一度エラーになる)
+      - dpkeys:/app/keys
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  dpkeys:
