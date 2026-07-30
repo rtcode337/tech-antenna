@@ -1,7 +1,49 @@
-﻿@page "/"
+@page "/"
+@using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Models
+@inject IArticleStore ArticleStore
 
-<PageTitle>Home</PageTitle>
+<PageTitle>tech-antenna</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>最新記事</h1>
 
-Welcome to your new app.
+@if (_articles is null)
+{
+    <p>読み込み中…</p>
+}
+else if (_articles.Count == 0)
+{
+    <p>まだ記事がありません。収集ジョブの巡回を待ってください。</p>
+}
+else
+{
+    <ul class="list-unstyled">
+        @foreach (var article in _articles)
+        {
+            <li class="mb-2">
+                <a href="@article.Url" target="_blank" rel="noopener">@article.Title</a>
+                <br />
+                <small class="text-muted">
+                    @article.SourceName
+                    @if (article.PublishedAt is { } publishedAt)
+                    {
+                        <text> — @publishedAt.ToString("yyyy-MM-dd HH:mm zzz")</text>
+                    }
+                    @foreach (var tag in article.Tags)
+                    {
+                        <span class="badge bg-secondary ms-1">@tag</span>
+                    }
+                </small>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    IReadOnlyList<Article>? _articles;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _articles = await ArticleStore.GetRecentAsync(50);
+    }
+}

@@ -44,6 +44,9 @@ SDK のバージョンを変えるときは共有側の `devcontainer.json` を�
 外部 API を叩くコードを書くときは、**User-Agent に個人のメールアドレスを入れないこと**。
 連絡先が必要な場合はリポジトリ URL のみを記載する。
 
+収集対象のフィードと巡回間隔は `src/TechAntenna.Web/appsettings.json` の
+`Collection` セクションで設定する。
+
 ## 構成
 
 - `src/TechAntenna.Core` — ドメインモデルと抽象。外部パッケージへの依存を持たない
