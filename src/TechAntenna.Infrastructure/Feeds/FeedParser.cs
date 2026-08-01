@@ -14,8 +14,7 @@ public record FeedEntry(
 /// <summary>
 /// RSS 2.0 / RSS 1.0 (RDF) / Atom のフィードを解析する。
 /// 主要な収集元に対応するには3形式が必要(Zenn: RSS 2.0、Qiita: Atom、
-/// はてなブックマーク: RSS 1.0)。学習目的のため既成のパーサーは使わず
-/// XLinq で自前実装している。
+/// はてなブックマーク: RSS 1.0)。
 /// </summary>
 public static class FeedParser
 {
