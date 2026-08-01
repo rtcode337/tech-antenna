@@ -49,7 +49,7 @@ public class BooksOptions
     /// <summary>検索するキーワード。ここが空なら書籍収集は動かない。</summary>
     public List<string> Keywords { get; set; } = [];
 
-    /// <summary>Google Books API キー。任意(未設定でも検索できるが1日あたりの上限が低くなる)。
+    /// <summary>Google Books API キー。実質必須(未設定だと検索が常に 429 になる)。
     /// 実値はコミットせず環境変数(Books__GoogleBooksApiKey)や user-secrets で渡す。</summary>
     public string GoogleBooksApiKey { get; set; } = "";
 

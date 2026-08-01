@@ -73,13 +73,17 @@ EF 版のタグ関連クエリだけ生 SQL にしている。`Tags` 列には�
 
 **openBD はキーワード検索を持たず ISBN 参照専用**なので、役割を分けている。
 
-- キーワード検索は Google Books API(`IBookCatalog`)。API キーは任意で、
-  未設定でも検索できるが1日あたりの上限が低くなる
+- キーワード検索は Google Books API(`IBookCatalog`)。**API キーは実質必須** ——
+  キー無しのリクエストは Google 共有の匿名プロジェクトの枠に入り、その枠は1日あたり 0 件
+  (`defaultPerDayPerProject` が 0)なので、最初の1回から 429 が返る
 - openBD は検索結果の書誌情報を ISBN で補う後段(`IBookEnricher`)。
   **既に値がある項目は上書きせず、欠けている項目だけを埋める**
 
 設定は `Books` セクション(`Keywords` / `IntervalHours` / `GoogleBooksApiKey` /
-`UseOpenBd`)。`Keywords` が空なら書籍収集は動かない。
+`UseOpenBd`)。`Keywords` が空なら書籍収集のジョブ自体を登録しない。
+`GoogleBooksApiKey` が空の場合はジョブは動くが検索が毎回 429 で失敗する —— 原因が
+スタックトレースからは読めないため、429 のときだけキー未設定かどうかを見分けた
+メッセージを投げている(`GoogleBooksCatalog`)。
 
 取り込むのは**書誌事実(タイトル・著者・出版社・刊行日・ISBN・リンク・書影 URL)だけ**で、
 `description` や `textSnippet` といった出版社の著作物は取り込まない。書影は画像自体を保持せず

@@ -1,3 +1,4 @@
+using System.Net;
 using TechAntenna.Core;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Models;
@@ -6,7 +7,8 @@ namespace TechAntenna.Infrastructure.Books;
 
 /// <summary>
 /// Google Books API でキーワード検索を行う書籍カタログ。
-/// API キーは任意(未設定でも検索できるが、1日あたりの上限が低くなる)。
+/// API キーは実質必須(キー無しのリクエストは Google 共有の匿名プロジェクトの枠に入り、
+/// その枠は1日あたり 0 件なので最初の1回から 429 になる)。
 /// </summary>
 public class GoogleBooksCatalog(
     IHttpClientFactory httpClientFactory,
@@ -31,7 +33,20 @@ public class GoogleBooksCatalog(
             requestUri += $"&key={Uri.EscapeDataString(apiKey)}";
         }
 
-        var json = await client.GetStringAsync(requestUri, cancellationToken);
+        using var response = await client.GetAsync(requestUri, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            // 429 はキー未設定と本当の使いすぎの両方で起きるが、原因がまるで違うので切り分けて伝える。
+            // 素の EnsureSuccessStatusCode ではどちらか分からない
+            throw new HttpRequestException(string.IsNullOrWhiteSpace(apiKey)
+                ? "Google Books API が 429 を返した。API キーが未設定のため("
+                  + "キー無しのリクエストは共有の匿名プロジェクト扱いで1日あたりの上限が 0)。"
+                  + "Books__GoogleBooksApiKey を設定する"
+                : "Google Books API が 429 を返した。1日あたりの上限に達したか、短時間に送りすぎている");
+        }
+
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
 
         var collectedAt = timeProvider.GetUtcNow();
         return GoogleBooksResponseParser.Parse(json)
