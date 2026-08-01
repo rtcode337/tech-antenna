@@ -1,11 +1,17 @@
 @page "/books"
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
+@using TechAntenna.Web.Services
 @inject IBookStore BookStore
+@inject BookCollectionRunner CollectionRunner
 
 <PageTitle>書籍 - tech-antenna</PageTitle>
 
 <h1>書籍</h1>
+
+@* 開発環境では定期実行を止めてあるので(Books:AutoRun)、ここから手動で走らせる *@
+<JobButton Runner="CollectionRunner" FormName="collect-books"
+           Message="@_message" Error="@_error" OnRun="CollectAsync" />
 
 @if (_books is null)
 {
@@ -58,9 +64,25 @@ else
 
 @code {
     IReadOnlyList<Book>? _books;
+    string? _message;
+    string? _error;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    async Task CollectAsync()
     {
-        _books = await BookStore.GetRecentAsync(50);
+        try
+        {
+            _message = JobMessage.Describe(await CollectionRunner.RunOnceAsync());
+        }
+        catch (Exception ex)
+        {
+            // 画面に出す。原因が読めないと押した側は打つ手が無い
+            _error = ex.Message;
+        }
+
+        await LoadAsync();
     }
+
+    async Task LoadAsync() => _books = await BookStore.GetRecentAsync(50);
 }

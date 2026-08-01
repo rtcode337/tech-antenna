@@ -1,0 +1,47 @@
+@using TechAntenna.Web.Services
+
+@* ジョブを手動で走らせるボタン。開発環境では定期実行を止めてあるので、ここから起動する。
+
+   静的 SSR のフォーム POST にしているのは、このアプリが全ページ静的 SSR で、
+   ボタンのためだけに対話回線(WebSocket)を張る必要が無いため。@formname はフォームを
+   見分けるのに使われるので、ページ内で重複しない名前を渡すこと。 *@
+
+@if (Runner.IsConfigured)
+{
+    <form method="post" @formname="@FormName" @onsubmit="RunAsync" class="mb-3">
+        <AntiforgeryToken />
+        <button type="submit" class="btn btn-outline-primary btn-sm">@Runner.Name</button>
+        @if (Message is { Length: > 0 })
+        {
+            <span class="ms-2 text-body-secondary">@Message</span>
+        }
+        @if (Error is { Length: > 0 })
+        {
+            <span class="ms-2 text-danger">失敗: @Error</span>
+        }
+    </form>
+}
+
+@code {
+    /// <summary>ボタンが動かすジョブ。未設定(IsConfigured=false)ならボタンごと出さない。</summary>
+    [Parameter, EditorRequired]
+    public JobRunner Runner { get; set; } = default!;
+
+    /// <summary>フォームの識別子。同じページに複数置くときは別々の値にする。</summary>
+    [Parameter, EditorRequired]
+    public string FormName { get; set; } = "";
+
+    /// <summary>実行後に出す文言。</summary>
+    [Parameter]
+    public string? Message { get; set; }
+
+    /// <summary>失敗したときの理由。</summary>
+    [Parameter]
+    public string? Error { get; set; }
+
+    /// <summary>ボタンが押されたときの処理。</summary>
+    [Parameter, EditorRequired]
+    public EventCallback OnRun { get; set; }
+
+    Task RunAsync() => OnRun.InvokeAsync();
+}

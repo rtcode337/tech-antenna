@@ -5,6 +5,13 @@ public class CollectionOptions
 {
     public const string SectionName = "Collection";
 
+    /// <summary>
+    /// 記事・イベントの収集を定期実行するか。**開発環境では false**
+    /// (appsettings.Development.json)—— 開発サーバーを消し忘れると気づかないうちに
+    /// 収集先を叩き続けるため。false でも画面のボタンから手動で走らせられる。
+    /// </summary>
+    public bool AutoRun { get; set; } = true;
+
     /// <summary>巡回間隔(分)。収集先への負荷を考えて短くしすぎない。</summary>
     public int IntervalMinutes { get; set; } = 30;
 
@@ -49,6 +56,10 @@ public class BooksOptions
 {
     public const string SectionName = "Books";
 
+    /// <summary>書籍の収集を定期実行するか。既定と開発環境の扱いは
+    /// <see cref="CollectionOptions.AutoRun"/> と同じ。</summary>
+    public bool AutoRun { get; set; } = true;
+
     /// <summary>巡回間隔(時)。書籍は記事ほど頻繁に増えないため既定を長めにする。</summary>
     public int IntervalHours { get; set; } = 24;
 
@@ -77,6 +88,10 @@ public class AnthropicOptions
 
     /// <summary>使用するモデル ID。コストを抑えるなら claude-haiku-4-5 に変更する。</summary>
     public string Model { get; set; } = "claude-opus-5";
+
+    /// <summary>要約を定期実行するか。既定と開発環境の扱いは
+    /// <see cref="CollectionOptions.AutoRun"/> と同じ。</summary>
+    public bool AutoRun { get; set; } = true;
 
     /// <summary>要約ジョブの実行間隔(分)。</summary>
     public int IntervalMinutes { get; set; } = 10;

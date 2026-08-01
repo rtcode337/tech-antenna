@@ -35,6 +35,33 @@ SDK が無いホストでも、`Dockerfile` と同じ `mcr.microsoft.com/dotnet/
 docker run --rm -v "$PWD":/src -w /src -e HOME=/tmp mcr.microsoft.com/dotnet/sdk:10.0 dotnet test
 ```
 
+## 定期実行と手動実行
+
+収集(記事・イベント・書籍)と要約はどれも `BackgroundService` で定期実行するが、
+**開発環境では既定で止めてある**(`appsettings.Development.json`)。開発サーバーを
+消し忘れると、気づかないうちに収集先を叩き続けたり LLM の枠を使い続けたりするため。
+
+| ジョブ | 設定 | 既定 | 開発 | 手動ボタン |
+|---|---|---|---|---|
+| 記事の収集 | `Collection:AutoRun` | true | false | `/` |
+| イベントの収集 | `Collection:AutoRun` | true | false | `/events` |
+| 書籍の収集 | `Books:AutoRun` | true | false | `/books` |
+| 記事の要約 | `Anthropic:AutoRun` | true | false | `/` |
+
+**環境で分岐せず設定値にしている**ので、本番で一時的に止めるときも
+`Collection__AutoRun=false` のように環境変数で効く。
+
+実行の中身は `BackgroundService` ではなく **`JobRunner` の派生クラス**(`Services/`)に
+あり、**定期実行と画面のボタンが同じ経路を通る**。`JobRunner` が `SemaphoreSlim` で
+直列化するので、**自動実行中にボタンを押しても二重には走らない** —— 二重に走ると同じ
+収集先へ続けて叩きに行ったり、同じ記事を二度要約して LLM の枠を無駄にする。
+`BackgroundService` 側はタイマーを回して Runner を呼ぶだけ。
+
+ボタンは共通コンポーネント `Components/JobButton.razor`。**静的 SSR のフォーム POST**で、
+対話回線(WebSocket)は張らない —— このアプリは `<Routes />` にレンダーモードを指定して
+おらず**全ページ静的 SSR** なので、ボタンのためだけに回線を張るのは釣り合わない。
+同じページに複数置くときは `FormName` を別々にする。
+
 ## 外部データソース
 
 | 用途 | ソース | 備考 |
@@ -155,8 +182,9 @@ URL のリンクにとどめる。
 | `ClaudeCodeSummarizer` | `CLAUDE_CODE_OAUTH_TOKEN` がある(**優先**) | サブスクリプションの枠 |
 | `AnthropicSummarizer` | `Anthropic__ApiKey` がある | API の従量課金 |
 
-共通の設定は `Anthropic` セクション(`IntervalMinutes` / `BatchSize`)。指示文は
+共通の設定は `Anthropic` セクション(`AutoRun` / `IntervalMinutes` / `BatchSize`)。指示文は
 `SummaryPrompt` に集約し、方式を切り替えても要約の口調が変わらないようにしている。
+定期実行の可否と手動実行は「定期実行と手動実行」を参照。
 
 ### Claude Code 方式(`claude -p`)
 

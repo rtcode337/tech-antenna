@@ -12,6 +12,7 @@ using TechAntenna.Infrastructure.Storage;
 using TechAntenna.Infrastructure.Summarization;
 using TechAntenna.Web;
 using TechAntenna.Web.Components;
+using TechAntenna.Web.Services;
 using TechAntenna.Web.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -80,7 +81,7 @@ foreach (var feed in collection.Feeds)
         new Uri(feed.Url)));
 }
 
-builder.Services.AddHostedService<ArticleCollectionWorker>();
+builder.Services.AddSingleton<ArticleCollectionRunner>();
 
 // --- イベント収集(connpass)---
 var connpass = builder.Configuration
@@ -138,7 +139,15 @@ if (Uri.TryCreate(techPlay.FeedUrl, UriKind.Absolute, out var techPlayFeedUrl))
         techPlayFeedUrl));
 }
 
-builder.Services.AddHostedService<EventCollectionWorker>();
+builder.Services.AddSingleton<EventCollectionRunner>();
+
+// **定期実行は AutoRun のときだけ**。開発環境では既定で止めてあり、開発サーバーを
+// 消し忘れても収集先を叩き続けない(appsettings.Development.json)。手動は画面のボタンから
+if (collection.AutoRun)
+{
+    builder.Services.AddHostedService<ArticleCollectionWorker>();
+    builder.Services.AddHostedService<EventCollectionWorker>();
+}
 
 // --- 書籍収集(Google Books + openBD)---
 builder.Services.Configure<BooksOptions>(
@@ -163,8 +172,14 @@ if (books.Keywords.Count > 0)
         builder.Services.AddSingleton<IBookEnricher, OpenBdEnricher>();
     }
 
-    builder.Services.AddHostedService<BookCollectionWorker>();
+    if (books.AutoRun)
+    {
+        builder.Services.AddHostedService<BookCollectionWorker>();
+    }
 }
+
+// 画面の手動ボタンから呼ぶので、キーワードが空でも登録しておく(未設定なら何もしない)
+builder.Services.AddSingleton<BookCollectionRunner>();
 
 // --- LLM 要約 ---
 // 方式は2つあり、Claude Code(サブスクリプションの枠)を優先する。両方未設定なら要約しない。
@@ -201,7 +216,10 @@ else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
         new AnthropicSummarizer(anthropic.ApiKey, anthropic.Model));
 }
 
-if (hasClaudeCodeToken || !string.IsNullOrWhiteSpace(anthropic.ApiKey))
+// 画面の手動ボタンからも呼ぶので、要約が未設定でも常に登録する(未設定なら何もしない)
+builder.Services.AddSingleton<SummaryRunner>();
+
+if (anthropic.AutoRun && (hasClaudeCodeToken || !string.IsNullOrWhiteSpace(anthropic.ApiKey)))
 {
     builder.Services.AddHostedService<SummaryWorker>();
 }

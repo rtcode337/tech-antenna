@@ -1,12 +1,18 @@
 using Microsoft.Extensions.Options;
-using TechAntenna.Core.Abstractions;
+using TechAntenna.Web.Services;
 
 namespace TechAntenna.Web.Workers;
 
-/// <summary>登録された記事ソースを定期的に巡回し、ストアへ保存する。</summary>
+/// <summary>
+/// 記事の収集を定期的に実行する。
+///
+/// **登録されるのは <c>Collection:AutoRun</c> が true のときだけ**。開発環境では
+/// appsettings.Development.json で false にしてある —— 開発サーバーを消し忘れると、
+/// 気づかないうちに収集先を叩き続けたり LLM の枠を使い続けたりするため。
+/// 手動では画面のボタンから走らせる。
+/// </summary>
 public class ArticleCollectionWorker(
-    IEnumerable<IArticleSource> sources,
-    IArticleStore store,
+    ArticleCollectionRunner runner,
     IOptions<CollectionOptions> options,
     ILogger<ArticleCollectionWorker> logger) : BackgroundService
 {
@@ -17,37 +23,20 @@ public class ArticleCollectionWorker(
 
         do
         {
-            await CollectOnceAsync(stoppingToken);
-        }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
-    }
-
-    async Task CollectOnceAsync(CancellationToken cancellationToken)
-    {
-        // 収集先へ同時アクセスしないよう、並列化せず1本ずつ間隔を空けて読む
-        var delay = TimeSpan.FromSeconds(options.Value.DelayBetweenSourcesSeconds);
-
-        foreach (var source in sources)
-        {
             try
             {
-                var articles = await source.FetchAsync(cancellationToken);
-                var added = await store.AddRangeAsync(articles, cancellationToken);
-                logger.LogInformation(
-                    "{Source}: {Fetched} 件取得、うち {Added} 件を新規追加",
-                    source.Name, articles.Count, added);
+                await runner.RunOnceAsync(stoppingToken);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 throw;
             }
             catch (Exception ex)
             {
-                // 1ソースの失敗で巡回全体を止めない
-                logger.LogError(ex, "{Source} の収集に失敗", source.Name);
+                // 1巡の失敗で以降の巡回を止めない
+                logger.LogError(ex, "{Job} に失敗", runner.Name);
             }
-
-            await Task.Delay(delay, cancellationToken);
         }
+        while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 }

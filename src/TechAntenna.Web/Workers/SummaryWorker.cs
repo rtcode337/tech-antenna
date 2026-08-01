@@ -1,12 +1,18 @@
 using Microsoft.Extensions.Options;
-using TechAntenna.Core.Abstractions;
+using TechAntenna.Web.Services;
 
 namespace TechAntenna.Web.Workers;
 
-/// <summary>要約が未生成の記事を定期的に取り出し、LLM で要約して保存する。</summary>
+/// <summary>
+/// 記事の要約を定期的に実行する。
+///
+/// **登録されるのは <c>Anthropic:AutoRun</c> が true のときだけ**。開発環境では
+/// appsettings.Development.json で false にしてある —— 開発サーバーを消し忘れると、
+/// 気づかないうちに収集先を叩き続けたり LLM の枠を使い続けたりするため。
+/// 手動では画面のボタンから走らせる。
+/// </summary>
 public class SummaryWorker(
-    ISummarizer summarizer,
-    IArticleStore store,
+    SummaryRunner runner,
     IOptions<AnthropicOptions> options,
     ILogger<SummaryWorker> logger) : BackgroundService
 {
@@ -17,51 +23,20 @@ public class SummaryWorker(
 
         do
         {
-            await SummarizeBatchAsync(stoppingToken);
+            try
+            {
+                await runner.RunOnceAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // 1巡の失敗で以降の巡回を止めない
+                logger.LogError(ex, "{Job} に失敗", runner.Name);
+            }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
-    }
-
-    async Task SummarizeBatchAsync(CancellationToken cancellationToken)
-    {
-        var articles = await store.GetUnsummarizedAsync(options.Value.BatchSize, cancellationToken);
-        if (articles.Count == 0)
-        {
-            return;
-        }
-
-        try
-        {
-            // 記事はまとめて渡す。Claude Code 版は呼び出し1回の固定費が大きく、
-            // 1件ずつ投げると同じハーネスを何度も入力に積むことになるため
-            var results = await summarizer.SummarizeAsync(articles, cancellationToken);
-
-            foreach (var result in results)
-            {
-                // 材料不足で要約できない記事に毎回挑まないよう、空の要約として確定する
-                await store.UpdateSummaryAsync(
-                    result.ArticleId, result.Summary ?? "", cancellationToken);
-            }
-
-            logger.LogInformation(
-                "{Summarizer}: {Total} 件中 {Summarized} 件を要約",
-                summarizer.Name, articles.Count, results.Count(r => r.Summary is not null));
-
-            // 結果に含まれなかった記事は未処理のまま。次の巡回で再試行される
-            if (results.Count < articles.Count)
-            {
-                logger.LogWarning(
-                    "{Skipped} 件は結果に含まれず、次回に持ち越し", articles.Count - results.Count);
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            // バッチの失敗で巡回そのものを止めない(次回の実行で再試行される)
-            logger.LogError(ex, "{Summarizer} による要約に失敗", summarizer.Name);
-        }
     }
 }

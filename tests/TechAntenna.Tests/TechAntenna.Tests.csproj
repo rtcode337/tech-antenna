@@ -22,6 +22,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\TechAntenna.Core\TechAntenna.Core.csproj" />
     <ProjectReference Include="..\..\src\TechAntenna.Infrastructure\TechAntenna.Infrastructure.csproj" />
+    <!-- 要約の手動実行(SummaryRunner)は Web 側にあるため参照する -->
+    <ProjectReference Include="..\..\src\TechAntenna.Web\TechAntenna.Web.csproj" />
   </ItemGroup>
 
 </Project>
