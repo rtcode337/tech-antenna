@@ -50,6 +50,14 @@ public class DoorkeeperEventSource(
                     continue;
                 }
 
+                // Doorkeeper の q は説明文まで検索し、記号を落としてから照合する
+                // (「C#」が実質「C」になり、「.NET」が説明文中の URL の .net に当たる)。
+                // 検索語がタイトルに実際に含まれるものだけを採って、タグの意味を保つ
+                if (!KeywordMatcher.Contains(entry.Title, keyword))
+                {
+                    continue;
+                }
+
                 if (byUrl.TryGetValue(entry.Url, out var existing))
                 {
                     // 別のキーワードでも見つかったイベントは、タグを足す

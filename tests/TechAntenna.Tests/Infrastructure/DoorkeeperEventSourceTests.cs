@@ -9,7 +9,7 @@ public class DoorkeeperEventSourceTests
         [
           {
             "event": {
-              "title": "C# 勉強会",
+              "title": "C# と Blazor の勉強会",
               "starts_at": "2026-08-20T19:00:00.000+09:00",
               "venue_name": "東京都渋谷区の会議室",
               "public_url": "https://example.doorkeeper.jp/events/12345"
@@ -17,7 +17,7 @@ public class DoorkeeperEventSourceTests
           },
           {
             "event": {
-              "title": "オンライン LT 会",
+              "title": "オンライン C# LT 会",
               "starts_at": "2026-08-25T20:00:00.000+09:00",
               "venue_name": "オンライン",
               "public_url": "https://example.doorkeeper.jp/events/12346"
@@ -48,8 +48,8 @@ public class DoorkeeperEventSourceTests
 
         var events = await source.FetchAsync();
 
-        var onsite = events.Single(e => e.Title == "C# 勉強会");
-        var online = events.Single(e => e.Title == "オンライン LT 会");
+        var onsite = events.Single(e => e.Title == "C# と Blazor の勉強会");
+        var online = events.Single(e => e.Title == "オンライン C# LT 会");
         Assert.False(onsite.IsOnline);
         Assert.True(online.IsOnline);
     }
@@ -75,8 +75,22 @@ public class DoorkeeperEventSourceTests
 
         var events = await source.FetchAsync();
 
-        // 同じ2件が両方のキーワードで返るため、URL でまとまり件数は増えない
+        // 同じ2件が両方のリクエストで返るため、URL でまとまり件数は増えない
         Assert.Equal(2, events.Count);
-        Assert.All(events, e => Assert.Equal(["c#", "blazor"], e.Tags));
+        // タグが足されるのは、そのキーワードがタイトルにあるものだけ
+        Assert.Equal(["c#", "blazor"], events.Single(e => e.Title == "C# と Blazor の勉強会").Tags);
+        Assert.Equal(["c#"], events.Single(e => e.Title == "オンライン C# LT 会").Tags);
+    }
+
+    [Fact]
+    public async Task 検索語がタイトルに無いイベントは取り込まない()
+    {
+        // Doorkeeper の q は説明文まで当たるため、検索語と無関係なイベントが返ってくる
+        var source = new DoorkeeperEventSource(
+            new StubHttpClientFactory(Response), Clock(), ["Python"], TimeSpan.Zero);
+
+        var events = await source.FetchAsync();
+
+        Assert.Empty(events);
     }
 }
