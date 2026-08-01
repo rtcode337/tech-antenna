@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Web | ASP.NET Core + Blazor |
 | 収集ジョブ | `BackgroundService` |
 | DB | PostgreSQL + EF Core |
-| LLM 要約 | Anthropic API |
+| LLM 要約 | Claude Code ヘッドレス(`claude -p`)/ Anthropic API |
 
 .NET 9 (STS) と .NET 8 (LTS) はどちらも 2026-11 に EOL のため採用しない。
 
@@ -147,14 +147,48 @@ URL のリンクにとどめる。
 
 ## LLM 要約
 
-記事の要約は Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。
-設定は `Anthropic` セクション(`ApiKey` / `Model` / `IntervalMinutes` / `BatchSize`)で、
-**キーの実値はコミットせず**環境変数(`Anthropic__ApiKey`)や user-secrets で渡す。
-キー未設定なら要約ジョブは登録されない。
+要約の実装(`ISummarizer`)は2つあり、`Program.cs` が**環境変数を見て選ぶ**。両方無ければ
+要約ジョブを登録しない。**キー・トークンの実値はコミットせず**環境変数か user-secrets で渡す。
 
-モデルは既定で `claude-opus-5`。コストを抑えたいときは `Model` を `claude-haiku-4-5`
-(入力 $1 / 出力 $5 per MTok)に変えられる。要約はフィードの本文抜粋が入力なので
-コンテキストは短く、モデルを下げても実用になりやすい。
+| 方式 | 選ばれる条件 | 課金 |
+|---|---|---|
+| `ClaudeCodeSummarizer` | `CLAUDE_CODE_OAUTH_TOKEN` がある(**優先**) | サブスクリプションの枠 |
+| `AnthropicSummarizer` | `Anthropic__ApiKey` がある | API の従量課金 |
+
+共通の設定は `Anthropic` セクション(`IntervalMinutes` / `BatchSize`)。指示文は
+`SummaryPrompt` に集約し、方式を切り替えても要約の口調が変わらないようにしている。
+
+### Claude Code 方式(`claude -p`)
+
+Claude Code にログイン済みの端末で `claude setup-token` を実行して得た長期 OAuth トークンを
+`CLAUDE_CODE_OAUTH_TOKEN` で渡す。**ホストの `~/.claude` はマウントしない。**
+トークンは CLI が環境変数から直接読むので、アプリ側は有無を見て方式を選ぶだけ
+(`ClaudeCodeOptions` にトークンは持たせない)。設定は `ClaudeCode` セクション
+(`ExecutablePath` / `Model` / `TimeoutSeconds`)。
+
+**呼び出し1回の固定費が大きい。** 記事1件だけ渡しても Claude Code のハーネスが毎回入力に乗る
+(実測: 1件で 32,300 トークン、5件まとめて 1件あたり 6,584 トークン)。だから `ISummarizer` は
+記事1件ではなく**リストを受け取る**形にしてあり、`BatchSize` の既定も 20 と大きめにしている。
+ツールを禁じても固定費はほとんど減らないので、**まとめて渡すこと自体が唯一の対策**。
+
+実装上の勘所:
+
+- **プロンプトは引数ではなく標準入力で渡す**(`IProcessRunner`)。Linux の単一引数の長さ上限
+  (MAX_ARG_STRLEN = 128KiB)を記事をまとめると容易に超え、実行前に E2BIG で落ちる
+- **`--json-schema` で番号と要約の対応を返させる**。記事の Id(GUID)を LLM に写させない
+- **`claude` は失敗の詳細を stderr ではなく stdout の JSON に書く**(`result` と
+  `api_error_status`)。終了コードだけ見ると原因が分からないので
+  `ClaudeCodeResponseParser.DescribeError` で拾う
+- **`--bare` は使えない。** bare モードは keychain と OAuth の読み取りを飛ばすため、
+  `CLAUDE_CODE_OAUTH_TOKEN` が効かなくなる。公式ドキュメントは `--bare` を推奨し
+  「将来 `-p` の既定にする」としているので、そうなったら追従が要る(v2.1.220 時点で
+  `--no-bare` のような opt-out は無い)
+
+### Anthropic API 方式
+
+Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。呼び出しの固定費が
+小さいので記事ごとに1リクエスト。モデルは既定で `claude-opus-5`、コストを抑えたいときは
+`Anthropic__Model` を `claude-haiku-4-5`(入力 $1 / 出力 $5 per MTok)に変えられる。
 
 ## 構成
 
@@ -185,6 +219,12 @@ URL のリンクにとどめる。
 
 - `Dockerfile` — マルチステージ。`sdk:10.0` で publish し、`aspnet:10.0` に成果物だけを載せて
   非 root(`USER $APP_UID`=1654)で `dotnet TechAntenna.Web.dll` を実行する。HTTP 8080 のみ待ち受け
+  - **Claude Code の CLI を同梱する**(要約のサブスク枠方式で使う)。イメージは約 370MB →
+    730MB になる。配布物は Node に依存しない単体のネイティブバイナリなので**実行イメージに
+    Node は入れない**。npm パッケージはアーキごとに分かれていて名前で明示すればビルドホストから
+    対象アーキ用を取れるため、取得ステージも `$BUILDPLATFORM` で動かしエミュレーションを避ける
+  - `claude` は起動時にホーム配下へ設定を書くので、非 root で動かすために `HOME=/home/app` を
+    用意する(ディレクトリはビルドステージで作って `COPY --chown` する)
   - **Alpine ではなく Debian ベース**を使う。Alpine 版の .NET イメージは globalization
     invariant モードが既定で、日本語の日付・文字列の書式が効かない
   - arm64 向けは QEMU ではなく **.NET のクロスコンパイル**(`--platform=$BUILDPLATFORM` +

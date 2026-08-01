@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Topics;
+using TechAntenna.Infrastructure;
 using TechAntenna.Infrastructure.Books;
 using TechAntenna.Infrastructure.Events;
 using TechAntenna.Infrastructure.Feeds;
@@ -165,17 +166,43 @@ if (books.Keywords.Count > 0)
     builder.Services.AddHostedService<BookCollectionWorker>();
 }
 
-// --- LLM 要約(Anthropic API)---
+// --- LLM 要約 ---
+// 方式は2つあり、Claude Code(サブスクリプションの枠)を優先する。両方未設定なら要約しない。
+//  1. Claude Code のヘッドレス実行: CLAUDE_CODE_OAUTH_TOKEN があるとき。従量課金にならない
+//  2. Anthropic API: Anthropic__ApiKey があるとき。呼び出しの固定費が小さい
 builder.Services.Configure<AnthropicOptions>(
     builder.Configuration.GetSection(AnthropicOptions.SectionName));
+builder.Services.Configure<ClaudeCodeOptions>(
+    builder.Configuration.GetSection(ClaudeCodeOptions.SectionName));
 
 var anthropic = builder.Configuration
     .GetSection(AnthropicOptions.SectionName)
     .Get<AnthropicOptions>() ?? new AnthropicOptions();
-if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
+var claudeCode = builder.Configuration
+    .GetSection(ClaudeCodeOptions.SectionName)
+    .Get<ClaudeCodeOptions>() ?? new ClaudeCodeOptions();
+
+// トークンは CLI が環境変数から直接読む。アプリは有無だけを見る
+var hasClaudeCodeToken = !string.IsNullOrWhiteSpace(
+    builder.Configuration["CLAUDE_CODE_OAUTH_TOKEN"]);
+
+if (hasClaudeCodeToken)
+{
+    builder.Services.AddSingleton<IProcessRunner, SystemProcessRunner>();
+    builder.Services.AddSingleton<ISummarizer>(sp => new ClaudeCodeSummarizer(
+        sp.GetRequiredService<IProcessRunner>(),
+        claudeCode.ExecutablePath,
+        string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
+        TimeSpan.FromSeconds(claudeCode.TimeoutSeconds)));
+}
+else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
 {
     builder.Services.AddSingleton<ISummarizer>(
         new AnthropicSummarizer(anthropic.ApiKey, anthropic.Model));
+}
+
+if (hasClaudeCodeToken || !string.IsNullOrWhiteSpace(anthropic.ApiKey))
+{
     builder.Services.AddHostedService<SummaryWorker>();
 }
 

@@ -7,7 +7,7 @@
 ## 状態
 
 **開発初期。** 記事・イベント・書籍の収集と一覧表示、タグによる3種の横断、
-PostgreSQL への保存、Anthropic API による記事の日本語要約まで実装済み。
+PostgreSQL への保存、LLM による記事の日本語要約まで実装済み。
 
 ## 構成
 
@@ -17,7 +17,7 @@ PostgreSQL への保存、Anthropic API による記事の日本語要約まで�
 | Web | ASP.NET Core + Blazor |
 | 収集ジョブ | `BackgroundService` |
 | DB | PostgreSQL + EF Core |
-| 要約 | Anthropic API |
+| 要約 | Claude Code ヘッドレス(`claude -p`)/ Anthropic API |
 
 ## データソース
 

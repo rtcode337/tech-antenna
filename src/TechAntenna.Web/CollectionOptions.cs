@@ -66,12 +66,12 @@ public class BooksOptions
     public bool UseOpenBd { get; set; } = true;
 }
 
-/// <summary>Anthropic API による要約の設定。appsettings の Anthropic セクションから読む。</summary>
+/// <summary>要約の設定。appsettings の Anthropic セクションから読む(実行間隔・件数は方式共通)。</summary>
 public class AnthropicOptions
 {
     public const string SectionName = "Anthropic";
 
-    /// <summary>Anthropic API キー。空なら要約を行わない。
+    /// <summary>Anthropic API キー。空でも Claude Code 方式が使えれば要約は動く。
     /// 実値はコミットせず、環境変数(Anthropic__ApiKey)や user-secrets で渡す。</summary>
     public string ApiKey { get; set; } = "";
 
@@ -81,8 +81,28 @@ public class AnthropicOptions
     /// <summary>要約ジョブの実行間隔(分)。</summary>
     public int IntervalMinutes { get; set; } = 10;
 
-    /// <summary>1回の実行で要約する記事数の上限。</summary>
-    public int BatchSize { get; set; } = 5;
+    /// <summary>1回の実行で要約する記事数の上限。Claude Code 方式ではここが大きいほど
+    /// 呼び出しの固定費が薄まり、1件あたりの消費が下がる。</summary>
+    public int BatchSize { get; set; } = 20;
+}
+
+/// <summary>
+/// Claude Code のヘッドレス実行で要約する場合の設定。appsettings の ClaudeCode セクションから読む。
+/// 認証トークン(<c>CLAUDE_CODE_OAUTH_TOKEN</c>)はここでは持たない —— CLI が環境変数を
+/// 直接読むので、アプリは有無を見て方式を選ぶだけ。
+/// </summary>
+public class ClaudeCodeOptions
+{
+    public const string SectionName = "ClaudeCode";
+
+    /// <summary>claude CLI のパス。PATH 上にあるなら名前だけでよい。</summary>
+    public string ExecutablePath { get; set; } = "claude";
+
+    /// <summary>使うモデル。空なら CLI の既定に任せる。</summary>
+    public string Model { get; set; } = "";
+
+    /// <summary>1回の呼び出しの上限(秒)。超えたらプロセスごと落として次の巡回で再試行する。</summary>
+    public int TimeoutSeconds { get; set; } = 300;
 }
 
 /// <summary>connpass API の設定。appsettings の Connpass セクションから読む。</summary>

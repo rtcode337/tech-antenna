@@ -25,34 +25,43 @@ public class SummaryWorker(
     async Task SummarizeBatchAsync(CancellationToken cancellationToken)
     {
         var articles = await store.GetUnsummarizedAsync(options.Value.BatchSize, cancellationToken);
-
-        foreach (var article in articles)
+        if (articles.Count == 0)
         {
-            try
-            {
-                var summary = await summarizer.SummarizeAsync(article, cancellationToken);
-                if (summary is null)
-                {
-                    // 材料不足で要約できない記事に毎回挑まないよう、空の要約として確定する
-                    await store.UpdateSummaryAsync(article.Id, "", cancellationToken);
-                    continue;
-                }
+            return;
+        }
 
-                await store.UpdateSummaryAsync(article.Id, summary, cancellationToken);
-                logger.LogInformation("要約を生成: {Title}", article.Title);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        try
+        {
+            // 記事はまとめて渡す。Claude Code 版は呼び出し1回の固定費が大きく、
+            // 1件ずつ投げると同じハーネスを何度も入力に積むことになるため
+            var results = await summarizer.SummarizeAsync(articles, cancellationToken);
+
+            foreach (var result in results)
             {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                // 1件の失敗でバッチ全体を止めない(次回の実行で再試行される)
-                logger.LogError(ex, "要約の生成に失敗: {Title}", article.Title);
+                // 材料不足で要約できない記事に毎回挑まないよう、空の要約として確定する
+                await store.UpdateSummaryAsync(
+                    result.ArticleId, result.Summary ?? "", cancellationToken);
             }
 
-            // API への連続リクエストを避けるための間隔
-            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            logger.LogInformation(
+                "{Summarizer}: {Total} 件中 {Summarized} 件を要約",
+                summarizer.Name, articles.Count, results.Count(r => r.Summary is not null));
+
+            // 結果に含まれなかった記事は未処理のまま。次の巡回で再試行される
+            if (results.Count < articles.Count)
+            {
+                logger.LogWarning(
+                    "{Skipped} 件は結果に含まれず、次回に持ち越し", articles.Count - results.Count);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // バッチの失敗で巡回そのものを止めない(次回の実行で再試行される)
+            logger.LogError(ex, "{Summarizer} による要約に失敗", summarizer.Name);
         }
     }
 }
