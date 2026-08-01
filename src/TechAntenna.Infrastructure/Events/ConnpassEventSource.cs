@@ -64,8 +64,7 @@ public class ConnpassEventSource(
                     EndsAt = entry.EndsAt,
                     Venue = entry.Place,
                     // connpass にオンライン開催のフラグは無いため会場表記から推定する
-                    IsOnline = (entry.Place ?? "").Contains("オンライン")
-                        || (entry.Address ?? "").Contains("オンライン"),
+                    IsOnline = VenueClassifier.IsOnline(entry.Place, entry.Address),
                     CollectedAt = collectedAt,
                     // 検索キーワードに加え、あればハッシュタグもタグにする
                     Tags = TagNormalizer.Normalize(

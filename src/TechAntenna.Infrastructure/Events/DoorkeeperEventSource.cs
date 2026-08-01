@@ -74,7 +74,7 @@ public class DoorkeeperEventSource(
                     EndsAt = entry.EndsAt,
                     Venue = entry.VenueName,
                     // Doorkeeper にオンライン開催のフラグは無いため会場表記から推定する
-                    IsOnline = IsOnlineVenue(entry.VenueName) || IsOnlineVenue(entry.Address),
+                    IsOnline = VenueClassifier.IsOnline(entry.VenueName, entry.Address),
                     CollectedAt = collectedAt,
                     // 検索キーワードをタグにして、記事・書籍と突き合わせられるようにする
                     Tags = TagNormalizer.Normalize([keyword]),
@@ -90,10 +90,6 @@ public class DoorkeeperEventSource(
 
         return byUrl.Values.ToList();
     }
-
-    static bool IsOnlineVenue(string? text) =>
-        text is not null
-        && (text.Contains("オンライン") || text.Contains("online", StringComparison.OrdinalIgnoreCase));
 
     static TechEvent WithTags(TechEvent source, IEnumerable<string> tags) => new()
     {

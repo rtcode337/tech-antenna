@@ -123,6 +123,20 @@ if (!string.IsNullOrWhiteSpace(doorkeeper.AccessToken) && doorkeeper.Keywords.Co
         doorkeeper.Keywords));
 }
 
+// --- イベント収集(TECH PLAY の RSS)---
+// キーも申請も要らない代わりに検索ができず、最新のイベントが流れてくるだけなので、
+// 巡回して差分を溜める。企業主催のウェビナーはこの経路が一番厚い
+var techPlay = builder.Configuration
+    .GetSection(TechPlayOptions.SectionName)
+    .Get<TechPlayOptions>() ?? new TechPlayOptions();
+if (Uri.TryCreate(techPlay.FeedUrl, UriKind.Absolute, out var techPlayFeedUrl))
+{
+    builder.Services.AddSingleton<IEventSource>(sp => new TechPlayEventSource(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<TimeProvider>(),
+        techPlayFeedUrl));
+}
+
 builder.Services.AddHostedService<EventCollectionWorker>();
 
 // --- 書籍収集(Google Books + openBD)---

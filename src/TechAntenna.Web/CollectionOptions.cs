@@ -35,6 +35,15 @@ public class DoorkeeperOptions
     public List<string> Keywords { get; set; } = [];
 }
 
+/// <summary>TECH PLAY のイベント RSS の設定。appsettings の TechPlay セクションから読む。</summary>
+public class TechPlayOptions
+{
+    public const string SectionName = "TechPlay";
+
+    /// <summary>イベント RSS の URL。空なら TECH PLAY からの収集を行わない。</summary>
+    public string FeedUrl { get; set; } = "";
+}
+
 /// <summary>書籍収集の設定。appsettings の Books セクションから読む。</summary>
 public class BooksOptions
 {
