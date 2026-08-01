@@ -57,8 +57,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 ## 開発環境
 
-.NET SDK はワークスペース共有の devcontainer から提供される。
-このリポジトリ単体で開く場合は .NET 10 SDK を別途用意すること。
+.NET 10 SDK が要る(Ubuntu 26.04 なら `sudo apt install -y dotnet-sdk-10.0`)。
 
 ```bash
 dotnet build

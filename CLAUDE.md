@@ -2,10 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## 回答言語
-
-ユーザーとの会話・説明・コミットメッセージ等は常に日本語で行うこと(コード自体・コード中の識別子・英語サイトからの引用・エラーメッセージの原文などはこの限りではない)。
-
 ## このリポジトリの目的
 
 技術情報を自動収集し、**記事・イベント・書籍の3つを1つの導線にまとめて提示する**Webアプリ。
@@ -29,9 +25,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 開発環境
 
-.NET SDK はワークスペース共有の devcontainer(`/workspaces/vscode/.devcontainer/`)で
-`ghcr.io/devcontainers/features/dotnet:2` により提供される。**このリポジトリ配下に devcontainer 定義は持たない**。
-SDK のバージョンを変えるときは共有側の `devcontainer.json` を編集し、コンテナをリビルドする。
+**ホストに .NET SDK を直接入れて開発する**(devcontainer は使わない)。Ubuntu 26.04 では
+公式アーカイブに .NET 10 があるので、Microsoft のフィードを足さずに入る:
+
+```
+sudo apt install -y dotnet-sdk-10.0
+```
+
+SDK が無いホストでも、`Dockerfile` と同じ `mcr.microsoft.com/dotnet/sdk:10.0` で
+ビルドやテストは通せる:
+
+```
+docker run --rm -v "$PWD":/src -w /src -e HOME=/tmp mcr.microsoft.com/dotnet/sdk:10.0 dotnet test
+```
 
 ## 外部データソース
 
