@@ -2,7 +2,11 @@ using System.Text.Json;
 
 namespace TechAntenna.Infrastructure.Events;
 
-/// <summary>Doorkeeper API のレスポンスから取り出した1イベント。</summary>
+/// <summary>
+/// Doorkeeper API のレスポンスから取り出した1イベント。
+/// 取り込むのは事実情報だけで、<c>description</c> は取らない —— API 経由のコンテンツは
+/// Doorkeeper とその顧客に帰属する(API Terms of Use の Ownership)ため。
+/// </summary>
 public record DoorkeeperEventEntry(
     string Title,
     Uri Url,

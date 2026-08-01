@@ -47,6 +47,8 @@ else
             @foreach (var techEvent in _detail.Events)
             {
                 <li class="mb-2">
+                    @* Doorkeeper の API Terms of Use により、イベントには必ず元のイベントページへの
+                       リンクを付け、nofollow 等を指定してはならない(Events.razor と同じ) *@
                     <a href="@techEvent.Url" target="_blank" rel="noopener">@techEvent.Title</a>
                     <br />
                     <small class="text-muted">

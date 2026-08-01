@@ -58,7 +58,27 @@ connpass は API v2(`X-API-Key` と `User-Agent` が必須)。API キーと検�
 (`Connpass__ApiKey`)や user-secrets で渡す。キー未設定ならイベント収集は動かない。
 
 Doorkeeper は `Authorization: Bearer` にアクセストークンが必要。`Doorkeeper` セクションで
-設定し、トークンの実値はコミットしない(`Doorkeeper__AccessToken`)。
+設定し、トークンの実値はコミットしない(`Doorkeeper__AccessToken`)。レート制限は
+認証済みで 300 リクエスト / 300 秒。**API は alpha 扱いで破壊的変更が予期されている**ため、
+レスポンス形式が変わりうる前提で読むこと。
+
+### Doorkeeper API Terms of Use で課される義務
+
+規約(<https://www.doorkeeper.jp/developer/api> の API Terms of Use)のうち、**コードを見ても
+分からないもの**を挙げる。`/terms`・`/privacy`・`/personal_information` は Doorkeeper に
+投稿する側と Doorkeeper 社自身の個人情報取扱いの規定で、API 利用者への条件はこちらにある。
+
+- **イベントを表示するときは必ず Doorkeeper のイベントページ(`public_url`)へのリンクを
+  含め、そのリンクに `nofollow` 等を付けてはならない**(Must Have Information)。
+  外部リンクの扱いを変えるときは規約違反にならないか確認する
+- **説明文は取り込まない**。API 経由のコンテンツは Doorkeeper とその顧客に帰属する
+  (Ownership)ため、取り込むのはイベントの事実情報(タイトル・URL・日時・会場)だけに
+  とどめる。書籍で書誌事実だけを取り込むのと同じ方針
+- **外部公開するなら、このアプリ自身の利用規約とプライバシーポリシーが必要**
+  (Responsibility)。個人が手元で動かす分には不要だが、公開の前提条件として残しておく
+- **Doorkeeper と競合するサービスに使ってはならない**(Restrictions)。本アプリは
+  イベント管理・集客ではなく記事/イベント/書籍の横断発見なので競合しないと解しているが、
+  イベント検索側を作り込むときは読み直す
 
 **両方ともキーワードごとに問い合わせ、見つかったイベントにその検索キーワードをタグとして
 付ける**。同じイベントが複数のキーワードで見つかったら URL でまとめてタグを足す。
