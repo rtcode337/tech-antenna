@@ -6,10 +6,9 @@ namespace TechAntenna.Web.Workers;
 /// <summary>
 /// 書籍の収集を定期的に実行する。
 ///
-/// **登録されるのは <c>Books:AutoRun</c> が true のときだけ**。開発環境では
-/// appsettings.Development.json で false にしてある —— 開発サーバーを消し忘れると、
-/// 気づかないうちに収集先を叩き続けたり LLM の枠を使い続けたりするため。
-/// 手動では画面のボタンから走らせる。
+/// **登録されるのは <c>Books:AutoRun</c> が true のときだけで、既定は false**
+/// —— 消し忘れたサーバーが気づかないうちに収集先を叩き続けたり、LLM の枠を
+/// 使い続けたりするため。既定では画面のボタンを押したときだけ走る。
 /// </summary>
 public class BookCollectionWorker(
     BookCollectionRunner runner,

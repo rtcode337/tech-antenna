@@ -141,8 +141,8 @@ if (Uri.TryCreate(techPlay.FeedUrl, UriKind.Absolute, out var techPlayFeedUrl))
 
 builder.Services.AddSingleton<EventCollectionRunner>();
 
-// **定期実行は AutoRun のときだけ**。開発環境では既定で止めてあり、開発サーバーを
-// 消し忘れても収集先を叩き続けない(appsettings.Development.json)。手動は画面のボタンから
+// **定期実行は AutoRun のときだけで、既定は false**。消し忘れたサーバーが
+// 収集先を叩き続けないようにするため。既定では手動(画面のボタン)だけで動く
 if (collection.AutoRun)
 {
     builder.Services.AddHostedService<ArticleCollectionWorker>();

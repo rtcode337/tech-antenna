@@ -41,6 +41,11 @@ services:
       # 未設定だとメモリ上のストアで動いてしまい再起動でデータが消えるため、必ず渡す
       ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (see .env.example)}
       TZ: ${TZ:-Asia/Tokyo}
+      # 収集・要約の定期実行。**既定は false(画面のボタンを押したときだけ動く)** で、
+      # 定期実行に切り替えるときだけ .env で true にする
+      Collection__AutoRun: ${COLLECTION_AUTORUN:-false}
+      Books__AutoRun: ${BOOKS_AUTORUN:-false}
+      Anthropic__AutoRun: ${SUMMARY_AUTORUN:-false}
       # 外部 API のキー。未設定ならその収集ジョブが動かないだけで起動はする
       Connpass__ApiKey: ${CONNPASS_API_KEY:-}
       Doorkeeper__AccessToken: ${DOORKEEPER_ACCESS_TOKEN:-}

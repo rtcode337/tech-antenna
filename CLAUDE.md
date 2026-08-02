@@ -37,19 +37,22 @@ docker run --rm -v "$PWD":/src -w /src -e HOME=/tmp mcr.microsoft.com/dotnet/sdk
 
 ## 定期実行と手動実行
 
-収集(記事・イベント・書籍)と要約はどれも `BackgroundService` で定期実行するが、
-**開発環境では既定で止めてある**(`appsettings.Development.json`)。開発サーバーを
-消し忘れると、気づかないうちに収集先を叩き続けたり LLM の枠を使い続けたりするため。
+収集(記事・イベント・書籍)と要約はどれも `BackgroundService` で定期実行できるが、
+**既定はすべて無効で、動くのは画面のボタンを押したときだけ**。消し忘れたサーバーが
+気づかないうちに収集先を叩き続けたり、LLM や外部 API の無料枠を使い切ったりするため。
+定期実行への切り替えは将来の課題。
 
-| ジョブ | 設定 | 既定 | 開発 | 手動ボタン |
-|---|---|---|---|---|
-| 記事の収集 | `Collection:AutoRun` | true | false | `/` |
-| イベントの収集 | `Collection:AutoRun` | true | false | `/events` |
-| 書籍の収集 | `Books:AutoRun` | true | false | `/books` |
-| 記事の要約 | `Anthropic:AutoRun` | true | false | `/` |
+| ジョブ | 設定 | 既定 | 手動ボタン |
+|---|---|---|---|
+| 記事の収集 | `Collection:AutoRun` | false | `/` |
+| イベントの収集 | `Collection:AutoRun` | false | `/events` |
+| 書籍の収集 | `Books:AutoRun` | false | `/books` |
+| 記事の要約 | `Anthropic:AutoRun` | false | `/` |
 
-**環境で分岐せず設定値にしている**ので、本番で一時的に止めるときも
-`Collection__AutoRun=false` のように環境変数で効く。
+**環境で分岐せず設定値にしている**ので、定期実行を有効にするときは
+`Collection__AutoRun=true` のように環境変数で効く(開発・本番で挙動が変わらない)。
+docker compose では `.env` の `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` /
+`SUMMARY_AUTORUN`(既定 false)がその環境変数に渡る。
 
 実行の中身は `BackgroundService` ではなく **`JobRunner` の派生クラス**(`Services/`)に
 あり、**定期実行と画面のボタンが同じ経路を通る**。`JobRunner` が `SemaphoreSlim` で

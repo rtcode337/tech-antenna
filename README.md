@@ -54,6 +54,9 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
   デプロイ先で特定のイメージを使うときは `.env` の `TECH_ANTENNA_IMAGE` に指定する
 - TLS は前段のリバースプロキシで終端する前提(コンテナは HTTP のみ待ち受ける)。
   プロキシ配下に置くときは `.env` で `FORWARDED_HEADERS_ENABLED=true`
+- **収集と要約は既定では自動実行しない**(画面のボタンを押したときだけ動く)。
+  外部 API や LLM の無料枠を意図せず使い切らないため。定期実行にするときは `.env` で
+  `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` / `SUMMARY_AUTORUN` を `true` にする
 
 ## 開発環境
 
