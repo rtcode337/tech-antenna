@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="tech antenna">
+  <!-- 左上のロゴ（NavMenu.razor の .brand-mark）と同じアンテナ。
+       形を変えるときは tools/generate-icons.py も揃えること -->
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#052767" />
+      <stop offset="1" stop-color="#2c0a4f" />
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#plate)" />
+  <!-- マークは 24 単位で描いてある。外接を測って余白ぶんだけ縮めて中央へ置く -->
+  <g transform="translate(16 16) scale(1.226) translate(-12 -10.25)">
+    <g fill="none" stroke="#6fd3ff" stroke-width="1.9" stroke-linecap="round">
+      <path opacity=".55" d="M6.34 2.84A8 8 0 0 0 6.34 14.16" />
+      <path opacity=".55" d="M17.66 2.84A8 8 0 0 1 17.66 14.16" />
+      <path opacity=".95" d="M8.46 4.96A5 5 0 0 0 8.46 12.04" />
+      <path opacity=".95" d="M15.54 4.96A5 5 0 0 1 15.54 12.04" />
+    </g>
+    <g fill="none" stroke="#f4f7fb" stroke-width="1.9" stroke-linecap="round">
+      <path d="M12 11.2V20" />
+      <path d="M9.2 20h5.6" />
+    </g>
+    <circle cx="12" cy="8.5" r="2.1" fill="#6fd3ff" />
+  </g>
+</svg>

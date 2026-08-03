@@ -10,7 +10,12 @@
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["TechAntenna.Web.styles.css"]" />
     <ImportMap />
-    <link rel="icon" type="image/png" href="favicon.png" />
+    @* 対応ブラウザは SVG を使う。PNG は fallback、/favicon.ico は link を見ない相手向け *@
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png" />
+    @* iOS のホーム画面追加用。名前はページごとの <title> ではなくこちらを使わせる *@
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="tech antenna" />
     <HeadOutlet />
 </head>
 

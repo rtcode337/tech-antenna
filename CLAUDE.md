@@ -221,6 +221,30 @@ Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。�
 小さいので記事ごとに1リクエスト。モデルは既定で `claude-opus-5`、コストを抑えたいときは
 `Anthropic__Model` を `claude-haiku-4-5`(入力 $1 / 出力 $5 per MTok)に変えられる。
 
+## アイコン
+
+ファビコンは**左上のロゴと同じアンテナ**(`Components/Layout/NavMenu.razor` の
+`.brand-mark`)を、サイドバーと同じ紺〜紫のグラデーションの角丸プレートに載せたもの。
+
+- `wwwroot/favicon.svg` — 対応ブラウザはこれを使う(拡大しても崩れない)
+- `wwwroot/favicon.png`(32px) — fallback。`wwwroot/favicon.ico` は `<link>` を見ずに
+  `/favicon.ico` を取りに来る相手向け(中身は同じ 32px の PNG)
+- `wwwroot/apple-touch-icon.png`(180px) — iOS のホーム画面追加用。**角丸なしの全面塗り**で
+  出す(角丸は OS 側がかけるので、こちらで丸めると二重に丸まって縁が痩せる)。
+  ホーム画面での名前はページごとの `<title>` ではなく `apple-mobile-web-app-title` から取らせる
+
+PNG / ICO は `tools/generate-icons.py` で生成する。ImageMagick も PIL も要らないよう、
+距離関数でアンチエイリアスをかけて自前でラスタライズし、zlib で PNG を組んでいる
+(標準ライブラリのみ)。
+
+```
+python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
+```
+
+**形の定義が `favicon.svg` と `tools/generate-icons.py` の 2 か所にある。**
+片方だけ変えると SVG と PNG で絵が食い違うので、必ず両方そろえて直すこと。
+ロゴ自体(`NavMenu.razor`)を変えたときも同じ。
+
 ## 構成
 
 - `src/TechAntenna.Core` — ドメインモデルと抽象。外部パッケージへの依存を持たない

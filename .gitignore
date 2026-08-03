@@ -74,3 +74,6 @@ Thumbs.db
 
 # クラッシュ時のコアダンプ(.NET は起動ディレクトリに core.<pid> を吐き、数百 MB になる)
 core.*
+
+# Python(tools/ のアイコン生成スクリプト)のバイトコードキャッシュ
+__pycache__/
