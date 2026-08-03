@@ -303,11 +303,21 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
 (プロジェクト構成・必要な環境変数・待ち受けポート)を変えたら、同じコミットで
 `Dockerfile`・`docker-compose.yml`・`.env.example` も追従させる。
 
-**リポジトリが非公開の間は、イメージをビルド・公開する GitHub Actions を置かない**
-(非公開リポジトリでは Actions の実行時間も GHCR のストレージ・転送量もプラン付属の枠を
-消費し、イメージはベース層だけで圧縮後 90MB/アーキ 積まれるため)。本番起動は
-デプロイ先でのビルド(`docker-compose.build.yml` を重ねる)で行い、GHCR に置きたいときは
-手元でタグを打って push する。公開リポジトリに切り替えるときにワークフローを追加する。
+イメージは **main への push で GitHub Actions がビルドし GHCR へ公開する**
+(`.github/workflows/build-and-push-image.yml`)。タグは `latest` とコミット識別用の
+`sha-xxxxxxx`、および `v*` タグを打ったときのバージョン。
+
+**非公開リポジトリでは Actions の実行時間も GHCR のストレージ・転送量もプラン付属の枠を
+消費する**(このイメージはベース層だけで圧縮後 90MB/アーキ)。枠を使いすぎないよう、
+ワークフローには次の制限を掛けてある。外すときは枠の消費が増えることを承知して外すこと。
+
+- **amd64 のみ**ビルドする。arm64 のネイティブランナーは公開リポジトリでないと無料枠で
+  使えず、QEMU 上の `dotnet publish` は極端に遅い。arm64 が要るときは Dockerfile が
+  クロスコンパイルに対応しているので手元で `docker buildx build --platform linux/arm64` する
+- **`paths-ignore` で文書だけの変更を除外**する(`**.md`・`docker-compose*.yml`・
+  `.env.example`)。イメージの中身が変わらない push で実行時間を使わないため
+- **`concurrency` で同じ ref の古い実行を打ち切る**
+- レイヤーキャッシュ(`type=gha`)を実行間で使い回す
 
 - `Dockerfile` — マルチステージ。`sdk:10.0` で publish し、`aspnet:10.0` に成果物だけを載せて
   非 root(`USER $APP_UID`=1654)で `dotnet TechAntenna.Web.dll` を実行する。HTTP 8080 のみ待ち受け
@@ -324,12 +334,17 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
     避けるため(鍵置き場のディレクトリはビルドステージで作って `COPY --chown` する)
 - `docker-compose.yml` — 本番用(`app` + `db`)。この定義自体はビルドせず GHCR のイメージを
   参照する。設定は `.env` から環境変数で渡す。`docker-compose.build.yml` はその場でビルドする
-  上書き定義(`:local` タグ)で、非公開の間の本番起動と手元の動作確認はこちらを重ねて使う
+  上書き定義(`:local` タグ)で、手元での動作確認や GHCR を使わない起動はこちらを重ねて使う
   - Postgres は `postgres:18-alpine`。**18 のイメージは PGDATA が
     `/var/lib/postgresql/18/docker`** で、ボリュームの単位はその1段上の
     `/var/lib/postgresql`(17 以前と位置が違うので、マウント先を変えると初期化し直しになる)
   - データは名前付きボリューム(`pgdata`/`dpkeys`)に置く。bind マウントにしないのは、
     ホスト側の所有者調整が要らないようにするため
+- `docker-compose.standalone.yml` — **`.env` もシェルの環境変数も無い環境**向けの単体定義。
+  管理画面に YAML を貼り付けて起動するタイプ(NAS のコンテナマネージャー等)では `${...}` を
+  解決できないため、値を直接書いてある。**`docker-compose.yml` を変えたらこちらも追従させること**
+  —— 値が直書きなぶん古くなりやすい。パスワードは `CHANGE-ME` を置いてあり、db と app の
+  両方(`POSTGRES_PASSWORD` と接続文字列の `Password=`)を同じ値に書き換えて使う
 - GHCR に置く場合の公開先は `ghcr.io/rtcode337/tech-antenna`。`latest` だけでなく
   `sha-xxxxxxx` も打つ(どのコミットが動いているか後から特定できるようにするため。
   手順は README「本番運用」)

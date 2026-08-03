@@ -2,13 +2,14 @@
 #
 #   docker compose pull && docker compose up -d
 #
-# 非公開リポジトリの間はイメージを自動公開する GitHub Actions を置いていないため、
-# デプロイ先でビルドするときは docker-compose.build.yml を重ねる(README「本番運用」参照):
+# イメージは main への push で GitHub Actions がビルドして GHCR へ公開する。
+# デプロイ先でその場からビルドしたいときは docker-compose.build.yml を重ねる:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 #
 # 特定のイメージを指定したいときは TECH_ANTENNA_IMAGE(:sha-xxxxxxx 等)を使う。
 # 設定値は .env(.env.example をコピーして作る)から渡す。
+# リポジトリを置けない環境向けには docker-compose.standalone.yml を用意している。
 name: tech-antenna
 
 services:

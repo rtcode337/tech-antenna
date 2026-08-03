@@ -1,0 +1,80 @@
+# リポジトリのクローンができない実行環境向けの単体定義。
+# (NAS のコンテナマネージャー等、管理画面に YAML を貼り付けて起動するタイプの環境を想定)
+#
+# docker-compose.yml との違いは2点だけ:
+#   1. `${...}` を使わず、値を YAML に直接書く(シェルの環境変数も `.env` も無い前提)
+#   2. `docker-compose.build.yml` を重ねられない(ソースが手元に無いので GHCR から pull するだけ)
+#
+# 使い方:
+#   1. 下の内容をそのまま管理画面に貼り付ける
+#   2. **CHANGE-ME と書いた値を必ず書き換える**(DB のパスワード)
+#   3. 起動して http://<ホスト>:10000/ を開く
+#
+# 非公開リポジトリのため GHCR のパッケージも非公開。pull する前に、そのホストで
+# `read:packages` スコープの Personal Access Token を使って
+# `docker login ghcr.io -u <GitHub ユーザー名>` を済ませておくこと。
+#
+# 障害時は :latest ではなく :sha-xxxxxxx を指定すれば任意の時点のイメージに戻せる。
+#
+# 通常の(リポジトリを配置できる)環境では docker-compose.yml を使う
+# —— こちらは値の直書きぶん古くなりやすい。**docker-compose.yml を変えたらこちらも追従させること。**
+name: tech-antenna
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: techantenna
+      # ★ 必ず書き換える(推奨: openssl rand -base64 24)。app 側の Password= と同じ値にすること
+      POSTGRES_PASSWORD: CHANGE-ME
+      POSTGRES_DB: techantenna
+      TZ: Asia/Tokyo
+    volumes:
+      # postgres:18 のイメージは PGDATA が /var/lib/postgresql/18/docker で、
+      # ボリュームの単位はその1段上の /var/lib/postgresql(17 以前とは位置が違う)
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U techantenna -d techantenna"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    image: ghcr.io/rtcode337/tech-antenna:latest
+    depends_on:
+      # 起動時にマイグレーションを当てるため、DB が受け付けられるまで待つ
+      db:
+        condition: service_healthy
+    environment:
+      # ★ Password= を db 側の POSTGRES_PASSWORD と同じ値に書き換える。
+      # 未設定だとメモリ上のストアで動いてしまい、再起動でデータが消える
+      ConnectionStrings__Default: Host=db;Port=5432;Database=techantenna;Username=techantenna;Password=CHANGE-ME
+      TZ: Asia/Tokyo
+      # 収集・要約の定期実行。**既定は false(画面のボタンを押したときだけ動く)**。
+      # 消し忘れたサーバーが収集先を叩き続けたり、LLM の枠を使い切ったりしないための既定
+      Collection__AutoRun: "false"
+      Books__AutoRun: "false"
+      Anthropic__AutoRun: "false"
+      # 外部 API のキー。未設定ならその収集ジョブが動かないだけで起動はする
+      Connpass__ApiKey: ""
+      Doorkeeper__AccessToken: ""
+      Books__GoogleBooksApiKey: ""
+      Anthropic__ApiKey: ""
+      # 記事の要約。CLAUDE_CODE_OAUTH_TOKEN があれば API キーより優先され、
+      # 従量課金ではなくサブスクリプションの枠を使う(`claude setup-token` で発行)
+      CLAUDE_CODE_OAUTH_TOKEN: ""
+      # リバースプロキシ配下で X-Forwarded-* を信頼するときだけ true にする
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "false"
+    ports:
+      # host:container。コンテナ内は 8080 固定なので、変えるなら左だけ
+      - "10000:8080"
+    volumes:
+      # antiforgery と Blazor が使う Data Protection の鍵。コンテナを作り直しても
+      # 鍵を引き継げるようにする(消えると開いていたページの操作が一度エラーになる)
+      - dpkeys:/app/keys
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  dpkeys:

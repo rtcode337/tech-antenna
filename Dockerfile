@@ -1,5 +1,5 @@
-# 本番用イメージ。リポジトリが非公開の間は GitHub Actions を置かず、デプロイ先か手元で
-# ビルドする(README「本番運用」参照)。
+# 本番用イメージ。main への push で GitHub Actions がビルドし GHCR へ公開する
+# (.github/workflows/build-and-push-image.yml)。手元でビルドすることもできる。
 #
 # ビルドは常にビルドホストのアーキで行い、別アーキ向け(--platform linux/arm64 など)は
 # .NET のクロスコンパイル(-a arm64)で出力する。QEMU エミュレーション下の

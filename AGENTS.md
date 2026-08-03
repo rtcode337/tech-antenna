@@ -100,4 +100,4 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 - サブスクリプション方式の要約用に Claude Code CLI をイメージへ残し、設定用の `HOME=/home/app` を書き込み可能にする。
 - PostgreSQL 18 の `PGDATA` は `/var/lib/postgresql/18/docker`。名前付きボリュームは親の `/var/lib/postgresql` にマウントする。
 - `pgdata` と `dpkeys` は bind mount でなく名前付きボリュームを使う。`DataProtection__KeysDirectory=/app/keys` で Data Protection キーを永続化する。
-- リポジトリが非公開の間はイメージ公開用 GitHub Actions を追加しない。GHCR へ手動 push する場合は `latest` とコミット識別用 `sha-xxxxxxx` を併用する。
+- イメージは `.github/workflows/build-and-push-image.yml` が main への push でビルドし GHCR へ公開する。タグは `latest` とコミット識別用の `sha-xxxxxxx`。非公開リポジトリなので Actions の実行時間と GHCR の容量はプラン付属の枠を消費する —— ワークフローは amd64 のみ・`paths-ignore` で文書だけの変更を除外している。
