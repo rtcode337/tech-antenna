@@ -10,6 +10,15 @@
           "ASPNETCORE_ENVIRONMENT": "Development"
         }
       },
+      "watch": {
+        "commandName": "Project",
+        "dotnetRunMessages": true,
+        "launchBrowser": false,
+        "applicationUrl": "http://localhost:10001",
+        "environmentVariables": {
+          "ASPNETCORE_ENVIRONMENT": "Development"
+        }
+      },
       "https": {
         "commandName": "Project",
         "dotnetRunMessages": true,

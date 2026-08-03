@@ -66,6 +66,9 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 dotnet build
 dotnet test
 dotnet run --project src/TechAntenna.Web   # http://localhost:10000
+
+# 画面を触るときはホットリロード付きで(保存すると再起動なしでブラウザに反映される)
+dotnet watch --project src/TechAntenna.Web --launch-profile watch   # http://localhost:10001
 ```
 
 DB は PostgreSQL。接続文字列 `ConnectionStrings:Default` を設定して起動すると

@@ -15,13 +15,81 @@
     background-color: rgba(255, 255, 255, 0.5);
 }
 
+/* ロゴ（マーク＋ワードマーク）。電波はアクセント色、支柱と文字は紙色 */
 .top-row {
+    /* 高さは main 側の top-row（3.5rem）と揃える */
     min-height: 3.5rem;
-    background-color: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    padding: 0 1rem;
+    background-color: rgba(0,0,0,0.28);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
-.navbar-brand {
-    font-size: 1.1rem;
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: #f4f7fb;
+    text-decoration: none;
+    border-radius: 6px;
+    padding: 0.25rem 0.35rem;
+}
+
+.brand:focus-visible {
+    outline: 2px solid #6fd3ff;
+    outline-offset: 2px;
+}
+
+.brand-mark {
+    width: 2.15rem;
+    height: 2.15rem;
+    flex: none;
+    overflow: visible;
+}
+
+.brand-mark .waves {
+    stroke: #6fd3ff;
+    opacity: 0.55;
+    transition: opacity 0.2s ease;
+}
+
+/* 内側の波ほど濃く見せて、外へ広がっている感じを出す */
+.brand-mark .waves path:nth-child(-n+2) {
+    opacity: 0.95;
+}
+
+.brand-mark .hub {
+    fill: #6fd3ff;
+}
+
+.brand:hover .brand-mark .waves {
+    opacity: 0.85;
+}
+
+.brand-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+}
+
+.brand-name {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+}
+
+.brand-name-sub {
+    font-weight: 400;
+    color: rgba(255,255,255,0.72);
+}
+
+.brand-tagline {
+    margin-top: 0.2rem;
+    font-size: 0.58rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
+    color: rgba(111,211,255,0.85);
 }
 
 .bi {

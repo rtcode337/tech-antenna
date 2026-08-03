@@ -289,14 +289,39 @@ Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。�
 **開発(`launchSettings.json` の HTTP)も本番の公開ポート(`docker-compose.yml` の `PORT` の
 既定)も 10000**。コンテナ内は 8080 固定(ベースイメージの `ASPNETCORE_HTTP_PORTS` の既定)で、
 外に出す番号だけを揃えている。同じホストで開発サーバーと本番コンテナを同時に上げることは
-できない(片方の `PORT` を変える)。**6000 番台は使わない** —— Chrome/Firefox が X11 用ポートとして
-拒否し(`ERR_UNSAFE_PORT`)ブラウザから開けなくなるため。
+できない(片方の `PORT` を変える)。**ホットリロード用の `watch` プロファイルだけは 10001** で、
+本番同等のコンテナ(10000)を上げたまま並べられるようにしてある。**6000 番台は使わない**
+—— Chrome/Firefox が X11 用ポートとして拒否し(`ERR_UNSAFE_PORT`)ブラウザから開けなくなるため。
+
+## ホットリロード(開発中)
+
+`dotnet watch` が `.razor` / `.razor.css` / `.cs` の変更を拾い、**プロセスを再起動せずに**
+反映する。ブラウザ側も自動で更新される —— Development では ASP.NET Core が
+`aspnetcore-browser-refresh.js` を注入するため(注入されるのは `Accept: text/html` の
+リクエストだけなので、`curl` で確かめるときはヘッダを付ける)。
+
+```
+dotnet watch --project src/TechAntenna.Web --launch-profile watch
+# → http://localhost:10001
+```
+
+- **効く**: Razor のマークアップ、scoped CSS(`*.razor.css`)、メソッド本体の C#
+- **効かない**: DI の登録・`Program.cs` の構成・型の追加といった rude edit。
+  この場合は watch がビルドし直してアプリを再起動する(数秒かかる)
+- **コンテナには効かない。** 動いているコンテナに反映するにはイメージを作り直す
+  (`docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`)
+- 接続文字列を渡さなければ In-Memory ストアで起動するので **DB 無しで画面を触れる**
+  (データは空。compose の db は 5432 をホストへ公開していないので、実データを見るならコンテナ側)
+- **始める前に `free -h` を見る。** ビルドとコンテナを同時に走らせるとメモリを使い切り、
+  swap の無い環境では OOM でホストごと巻き込まれる
 
 ## コマンド
 
 - ビルド: `dotnet build`
 - テスト: `dotnet test`
 - Web 起動: `dotnet run --project src/TechAntenna.Web`(http://localhost:10000)
+- ホットリロード付きで起動:
+  `dotnet watch --project src/TechAntenna.Web --launch-profile watch`(http://localhost:10001)
 - 本番同等の起動(GHCR から pull): `docker compose pull && docker compose up -d`
 - 本番同等の起動(手元でビルド):
   `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`
