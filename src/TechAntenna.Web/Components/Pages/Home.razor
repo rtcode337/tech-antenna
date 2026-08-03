@@ -1,98 +1,72 @@
 @page "/"
 @using TechAntenna.Core.Abstractions
-@using TechAntenna.Core.Models
-@using TechAntenna.Web.Services
-@inject IArticleStore ArticleStore
-@inject ArticleCollectionRunner CollectionRunner
-@inject SummaryRunner SummaryRunner
+@using TechAntenna.Core.Topics
+@inject ITopicStore TopicStore
 
 <PageTitle>tech-antenna</PageTitle>
 
-<h1>最新記事</h1>
+<div class="home-layout">
+    <div class="home-main">
+        <header class="home-heading">
+            <p class="eyebrow">YOUR TECH RADAR</p>
+            <h1>いま気になる技術を、ひとつの導線に。</h1>
+            <p>記事・イベント・書籍を、あなたの関心からつなげます。</p>
+        </header>
 
-@* 開発環境では定期実行を止めてあるので(Collection:AutoRun / Anthropic:AutoRun)、
-   ここから手動で走らせる *@
-<JobButton Runner="CollectionRunner" FormName="collect-articles"
-           Message="@_collectMessage" Error="@_collectError" OnRun="CollectAsync" />
-<JobButton Runner="SummaryRunner" FormName="summarize"
-           Message="@_summaryMessage" Error="@_summaryError" OnRun="SummarizeAsync" />
+        <section class="summary-card" aria-labelledby="summary-heading">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">DAILY SUMMARY</p>
+                    <h2 id="summary-heading">今日のサマリー</h2>
+                </div>
+                <span class="status-pill">準備中</span>
+            </div>
+            <div class="summary-placeholder">
+                <span aria-hidden="true">✦</span>
+                <p>関心トピックに沿って、いま読むべき記事と近いイベントをここへ届けます。</p>
+            </div>
+        </section>
 
-@if (_articles is null)
-{
-    <p>読み込み中…</p>
-}
-else if (_articles.Count == 0)
-{
-    <p>まだ記事がありません。収集ジョブの巡回を待ってください。</p>
-}
-else
-{
-    <ul class="list-unstyled">
-        @foreach (var article in _articles)
+    </div>
+
+    <aside class="topic-rail" aria-labelledby="topic-rail-heading">
+        <div class="topic-rail-heading">
+            <div>
+                <p class="eyebrow">EXPLORE</p>
+                <h2 id="topic-rail-heading">トピック</h2>
+            </div>
+            <a href="/settings">一覧を管理</a>
+        </div>
+
+        @if (_topics is null)
         {
-            <li class="mb-2">
-                <a href="@article.Url" target="_blank" rel="noopener">@article.Title</a>
-                @if (!string.IsNullOrEmpty(article.Summary))
-                {
-                    <div class="text-body-secondary">@article.Summary</div>
-                }
-                <small class="text-muted">
-                    @article.SourceName
-                    @if (article.PublishedAt is { } publishedAt)
-                    {
-                        <text> — @publishedAt.ToString("yyyy-MM-dd HH:mm zzz")</text>
-                    }
-                    @foreach (var tag in article.Tags)
-                    {
-                        <span class="badge bg-secondary ms-1">@tag</span>
-                    }
-                </small>
-            </li>
+            <p class="topic-empty">読み込み中…</p>
         }
-    </ul>
-}
+        else if (_topics.Count == 0)
+        {
+            <p class="topic-empty">収集が進むと、ここにトピックが並びます。</p>
+        }
+        else
+        {
+            <ul class="topic-list">
+                @foreach (var topic in _topics)
+                {
+                    <li>
+                        <a href="@($"/topics/{Uri.EscapeDataString(topic.Tag)}")">
+                            <span>@(topic.Display is { Length: > 0 } display ? display : topic.Tag)</span>
+                            <small>話題度 @(topic.TrendScore.ToString("0.0"))</small>
+                        </a>
+                    </li>
+                }
+            </ul>
+        }
+    </aside>
+</div>
 
 @code {
-    IReadOnlyList<Article>? _articles;
-    string? _collectMessage;
-    string? _collectError;
-    string? _summaryMessage;
-    string? _summaryError;
-
+    IReadOnlyList<StoredTopic>? _topics;
     protected override async Task OnInitializedAsync()
     {
-        _articles = await ArticleStore.GetRecentAsync(50);
+        _topics = await TopicStore.GetTopicsAsync(10);
     }
-
-    async Task CollectAsync()
-    {
-        try
-        {
-            _collectMessage = JobMessage.Describe(await CollectionRunner.RunOnceAsync());
-        }
-        catch (Exception ex)
-        {
-            // 画面に出す。原因が読めないと押した側は打つ手が無い
-            _collectError = ex.Message;
-        }
-
-        await LoadArticlesAsync();
-    }
-
-    async Task SummarizeAsync()
-    {
-        try
-        {
-            _summaryMessage = JobMessage.Describe(await SummaryRunner.RunOnceAsync());
-        }
-        catch (Exception ex)
-        {
-            _summaryError = ex.Message;
-        }
-
-        await LoadArticlesAsync();
-    }
-
-    // 収集・要約が反映された状態で一覧を出し直す
-    async Task LoadArticlesAsync() => _articles = await ArticleStore.GetRecentAsync(50);
 }

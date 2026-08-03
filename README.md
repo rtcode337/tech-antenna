@@ -7,7 +7,7 @@
 ## 状態
 
 **開発初期。** 記事・イベント・書籍の収集と一覧表示、タグによる3種の横断、
-PostgreSQL への保存、LLM による記事の日本語要約まで実装済み。
+PostgreSQL への保存、タグからのトピック一覧生成、LLM による記事の日本語要約まで実装済み。
 
 ## 構成
 
@@ -74,3 +74,20 @@ dotnet watch --project src/TechAntenna.Web --launch-profile watch   # http://loc
 DB は PostgreSQL。接続文字列 `ConnectionStrings:Default` を設定して起動すると
 未適用のマイグレーションが自動で適用される。未設定の場合はメモリ上のストアで動く
 (再起動すると消える)。
+
+記事・イベント・書籍を収集した後は、画面の「設定」から「トピックを収集」を実行する。
+保存済みデータのタグを集計して DB のトピック一覧を更新し、ホームには話題度順の上位 10 件を表示する。
+
+開発サーバーから compose の DB の実データを読むときは、`docker-compose.dev.yml` を
+重ねて 5432 を開ける(`127.0.0.1` のみ。本番では重ねない)。
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+set -a; . ./.env; set +a
+ConnectionStrings__Default="Host=localhost;Port=${POSTGRES_PORT:-5432};Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=$POSTGRES_PASSWORD" \
+  dotnet run --project src/TechAntenna.Web
+```
+
+**本番コンテナと同じ DB を見ることになる**ので、開発中のマイグレーションを流したくない
+ときは重ねないこと(起動時に自動適用される)。SQL で覗くだけなら開ける必要はない
+—— `docker compose exec db psql -U techantenna -d techantenna`。

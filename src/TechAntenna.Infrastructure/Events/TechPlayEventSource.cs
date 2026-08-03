@@ -1,4 +1,5 @@
 using TechAntenna.Core;
+using TechAntenna.Core.Topics;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Models;
 using TechAntenna.Infrastructure.Feeds;
@@ -18,7 +19,8 @@ namespace TechAntenna.Infrastructure.Events;
 public class TechPlayEventSource(
     IHttpClientFactory httpClientFactory,
     TimeProvider timeProvider,
-    Uri feedUrl) : IEventSource
+    Uri feedUrl,
+    TopicCatalog? catalog = null) : IEventSource
 {
     /// <summary>記事フィードと同じ HttpClient を使う(User-Agent 等の設定を共有するため)。</summary>
     public const string HttpClientName = FeedArticleSource.HttpClientName;
@@ -53,8 +55,9 @@ public class TechPlayEventSource(
                 Venue = entry.Place,
                 IsOnline = VenueClassifier.IsOnline(entry.Place, entry.Address),
                 CollectedAt = collectedAt,
-                Tags = TagNormalizer.Normalize(
+                Tags = (catalog ?? TopicCatalog.Empty).Normalize(
                     entry.Categories.Where(c => !BoilerplateCategories.Contains(c))),
+                RawTags = entry.Categories,
             })
             .ToList();
     }

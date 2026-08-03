@@ -7,6 +7,7 @@ namespace TechAntenna.Web.Services;
 public class ArticleCollectionRunner(
     IEnumerable<IArticleSource> sources,
     IArticleStore store,
+    ITopicStore topicStore,
     IOptions<CollectionOptions> options,
     ILogger<ArticleCollectionRunner> logger) : JobRunner
 {
@@ -24,6 +25,14 @@ public class ArticleCollectionRunner(
     {
         // 収集先へ同時アクセスしないよう、並列化せず1本ずつ間隔を空けて読む
         var delay = TimeSpan.FromSeconds(options.Value.DelayBetweenSourcesSeconds);
+        // RSS は検索できないので、集めたものを選択トピックで絞る。
+        // 比べる相手は記事の正規化済みタグなので、**キーのほう**を使う
+        var selectedTags = (await topicStore.GetSelectedAsync(cancellationToken))
+            .Select(topic => topic.Tag).ToList();
+        if (selectedTags.Count == 0)
+        {
+            return CollectionRunResult.Nothing;
+        }
         int fetched = 0, added = 0, failed = 0;
 
         for (var i = 0; i < _sources.Count; i++)
@@ -32,6 +41,7 @@ public class ArticleCollectionRunner(
             try
             {
                 var articles = await source.FetchAsync(cancellationToken);
+                articles = articles.Where(article => article.Tags.Intersect(selectedTags, StringComparer.Ordinal).Any()).ToList();
                 var newlyAdded = await store.AddRangeAsync(articles, cancellationToken);
                 fetched += articles.Count;
                 added += newlyAdded;

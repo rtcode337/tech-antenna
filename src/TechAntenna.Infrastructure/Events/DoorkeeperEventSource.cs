@@ -1,4 +1,5 @@
 using TechAntenna.Core;
+using TechAntenna.Core.Topics;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Models;
 
@@ -13,7 +14,9 @@ public class DoorkeeperEventSource(
     IHttpClientFactory httpClientFactory,
     TimeProvider timeProvider,
     IReadOnlyList<string> keywords,
-    TimeSpan? delayBetweenKeywords = null) : IEventSource
+    TimeSpan? delayBetweenKeywords = null,
+    ITopicStore? topicStore = null,
+    TopicCatalog? catalog = null) : IEventSource
 {
     public const string HttpClientName = "doorkeeper";
 
@@ -31,9 +34,15 @@ public class DoorkeeperEventSource(
         // 同じイベントが複数のキーワードで見つかることがあるので URL でまとめる
         var byUrl = new Dictionary<Uri, TechEvent>();
 
-        for (var i = 0; i < keywords.Count; i++)
+        // 選択されたトピックがあればそれを検索語にする(**正式表記のほう** —— 検索語に
+        // 正規化で崩れたキー `生成ai` を投げても当たらない)。未設定なら設定ファイルの keywords
+        var activeKeywords = topicStore is null
+            ? keywords
+            : (await topicStore.GetSelectedAsync(cancellationToken)).Select(topic => topic.Display).ToList();
+
+        for (var i = 0; i < activeKeywords.Count; i++)
         {
-            var keyword = keywords[i];
+            var keyword = activeKeywords[i];
 
             // 過ぎたイベントを拾わないよう、今日以降に絞る
             var since = collectedAt.UtcDateTime.ToString("yyyy-MM-dd");
@@ -61,7 +70,7 @@ public class DoorkeeperEventSource(
                 if (byUrl.TryGetValue(entry.Url, out var existing))
                 {
                     // 別のキーワードでも見つかったイベントは、タグを足す
-                    byUrl[entry.Url] = WithTags(existing, [.. existing.Tags, keyword]);
+                    byUrl[entry.Url] = WithTags(existing, [.. existing.RawTags, keyword]);
                     continue;
                 }
 
@@ -77,12 +86,13 @@ public class DoorkeeperEventSource(
                     IsOnline = VenueClassifier.IsOnline(entry.VenueName, entry.Address),
                     CollectedAt = collectedAt,
                     // 検索キーワードをタグにして、記事・書籍と突き合わせられるようにする
-                    Tags = TagNormalizer.Normalize([keyword]),
+                    Tags = (catalog ?? TopicCatalog.Empty).Normalize([keyword]),
+                    RawTags = [keyword],
                 };
             }
 
             // 最後のキーワードの後は待たない
-            if (i < keywords.Count - 1 && _delayBetweenKeywords > TimeSpan.Zero)
+            if (i < activeKeywords.Count - 1 && _delayBetweenKeywords > TimeSpan.Zero)
             {
                 await Task.Delay(_delayBetweenKeywords, cancellationToken);
             }
@@ -91,17 +101,24 @@ public class DoorkeeperEventSource(
         return byUrl.Values.ToList();
     }
 
-    static TechEvent WithTags(TechEvent source, IEnumerable<string> tags) => new()
+    // 受け取るのは**生のタグ**。正規化をここ 1 か所でだけ行い、RawTags と Tags がずれないようにする
+    TechEvent WithTags(TechEvent source, IEnumerable<string> rawTags)
     {
-        Id = source.Id,
-        Title = source.Title,
-        Url = source.Url,
-        SourceName = source.SourceName,
-        StartsAt = source.StartsAt,
-        EndsAt = source.EndsAt,
-        Venue = source.Venue,
-        IsOnline = source.IsOnline,
-        CollectedAt = source.CollectedAt,
-        Tags = TagNormalizer.Normalize(tags),
-    };
+        var raw = rawTags.ToList();
+
+        return new TechEvent
+        {
+            Id = source.Id,
+            Title = source.Title,
+            Url = source.Url,
+            SourceName = source.SourceName,
+            StartsAt = source.StartsAt,
+            EndsAt = source.EndsAt,
+            Venue = source.Venue,
+            IsOnline = source.IsOnline,
+            CollectedAt = source.CollectedAt,
+            Tags = (catalog ?? TopicCatalog.Empty).Normalize(raw),
+            RawTags = raw,
+        };
+    }
 }

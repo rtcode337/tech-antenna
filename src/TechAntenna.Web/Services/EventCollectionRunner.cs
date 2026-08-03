@@ -7,6 +7,7 @@ namespace TechAntenna.Web.Services;
 public class EventCollectionRunner(
     IEnumerable<IEventSource> sources,
     IEventStore store,
+    ITopicStore topicStore,
     IOptions<CollectionOptions> options,
     ILogger<EventCollectionRunner> logger) : JobRunner
 {
@@ -24,6 +25,14 @@ public class EventCollectionRunner(
     {
         // 収集先へ同時アクセスしないよう、並列化せず1本ずつ間隔を空けて読む
         var delay = TimeSpan.FromSeconds(options.Value.DelayBetweenSourcesSeconds);
+        // connpass と Doorkeeper は選択トピックを検索語として自分で引くが、TECH PLAY の RSS は
+        // 検索できないため、ここで絞る。比べる相手はイベントの正規化済みタグなのでキーを使う
+        var selectedTags = (await topicStore.GetSelectedAsync(cancellationToken))
+            .Select(topic => topic.Tag).ToList();
+        if (selectedTags.Count == 0)
+        {
+            return CollectionRunResult.Nothing;
+        }
         int fetched = 0, added = 0, failed = 0;
 
         for (var i = 0; i < _sources.Count; i++)
@@ -32,6 +41,7 @@ public class EventCollectionRunner(
             try
             {
                 var events = await source.FetchAsync(cancellationToken);
+                events = events.Where(techEvent => techEvent.Tags.Intersect(selectedTags, StringComparer.Ordinal).Any()).ToList();
                 var newlyAdded = await store.AddRangeAsync(events, cancellationToken);
                 fetched += events.Count;
                 added += newlyAdded;

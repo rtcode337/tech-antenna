@@ -27,6 +27,16 @@ public class Book
 
     public required DateTimeOffset CollectedAt { get; init; }
 
-    /// <summary>正規化済みのタグ(<see cref="TagNormalizer"/> を通した値)。</summary>
-    public IReadOnlyList<string> Tags { get; init; } = [];
+    /// <summary>
+    /// 正規化済みのタグ(<see cref="TagNormalizer"/> を通した値)。突き合わせに使う。
+    /// init ではなく set なのは、正規化の規則を変えたときに <c>RawTags</c> から作り直すため。
+    /// </summary>
+    public IReadOnlyList<string> Tags { get; set; } = [];
+
+    /// <summary>
+    /// 収集元から受け取ったままのタグ。**正規化の規則を変えたら、ここから引き直す**。
+    /// 正規化後の値しか持たないと、別名カタログを直しても過去のデータに反映できない
+    /// (`claude code` を `claudecode` に寄せた後で分けたくなっても、元の表記が残っていない)。
+    /// </summary>
+    public IReadOnlyList<string> RawTags { get; init; } = [];
 }

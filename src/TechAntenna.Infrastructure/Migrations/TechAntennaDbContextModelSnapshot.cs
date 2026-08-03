@@ -37,6 +37,10 @@ namespace TechAntenna.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("PublishedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string[]>("RawTags")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
                     b.Property<string>("SourceName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -93,6 +97,10 @@ namespace TechAntenna.Infrastructure.Migrations
                     b.Property<string>("Publisher")
                         .HasColumnType("text");
 
+                    b.Property<string[]>("RawTags")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
                     b.Property<string>("SourceName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -131,6 +139,10 @@ namespace TechAntenna.Infrastructure.Migrations
                     b.Property<bool>("IsOnline")
                         .HasColumnType("boolean");
 
+                    b.Property<string[]>("RawTags")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
                     b.Property<string>("SourceName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -161,6 +173,48 @@ namespace TechAntenna.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Events");
+                });
+
+            modelBuilder.Entity("TechAntenna.Core.Topics.StoredTopic", b =>
+                {
+                    b.Property<string>("Tag")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ArticleCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BookCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CollectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Display")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("EventCount")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsSelected")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Parent")
+                        .HasColumnType("text");
+
+                    b.Property<int>("SourceCount")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("TrendScore")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Tag");
+
+                    b.HasIndex("CollectedAt");
+
+                    b.HasIndex("IsSelected");
+
+                    b.ToTable("Topics");
                 });
 #pragma warning restore 612, 618
         }

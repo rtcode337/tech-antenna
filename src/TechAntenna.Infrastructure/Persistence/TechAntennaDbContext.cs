@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TechAntenna.Core.Models;
+using TechAntenna.Core.Topics;
 
 namespace TechAntenna.Infrastructure.Persistence;
 
@@ -16,6 +17,8 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
     public DbSet<TechEvent> Events => Set<TechEvent>();
 
     public DbSet<Book> Books => Set<Book>();
+
+    public DbSet<StoredTopic> Topics => Set<StoredTopic>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +37,7 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
             article.Property(a => a.SourceName).IsRequired();
 
             ConfigureTags(article.Property(a => a.Tags));
+            ConfigureTags(article.Property(a => a.RawTags));
         });
 
         modelBuilder.Entity<TechEvent>(techEvent =>
@@ -54,6 +58,7 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
             techEvent.HasIndex(e => e.StartsAt);
 
             ConfigureTags(techEvent.Property(e => e.Tags));
+            ConfigureTags(techEvent.Property(e => e.RawTags));
         });
 
         modelBuilder.Entity<Book>(book =>
@@ -87,6 +92,15 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
                 .HasColumnType("text[]");
 
             ConfigureTags(book.Property(b => b.Tags));
+            ConfigureTags(book.Property(b => b.RawTags));
+        });
+
+        modelBuilder.Entity<StoredTopic>(topic =>
+        {
+            topic.HasKey(t => t.Tag);
+            topic.Property(t => t.Tag).IsRequired();
+            topic.HasIndex(t => t.CollectedAt);
+            topic.HasIndex(t => t.IsSelected);
         });
     }
 

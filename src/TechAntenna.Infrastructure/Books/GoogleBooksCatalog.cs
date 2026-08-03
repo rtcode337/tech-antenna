@@ -1,5 +1,6 @@
 using System.Net;
 using TechAntenna.Core;
+using TechAntenna.Core.Topics;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Models;
 
@@ -14,7 +15,8 @@ public class GoogleBooksCatalog(
     IHttpClientFactory httpClientFactory,
     TimeProvider timeProvider,
     string? apiKey,
-    int maxResults = 20) : IBookCatalog
+    int maxResults = 20,
+    TopicCatalog? catalog = null) : IBookCatalog
 {
     public const string HttpClientName = "googlebooks";
 
@@ -63,7 +65,8 @@ public class GoogleBooksCatalog(
                 SourceName = Name,
                 CollectedAt = collectedAt,
                 // 検索に使ったキーワードを、記事・イベントと突き合わせるためのタグにする
-                Tags = TagNormalizer.Normalize([keyword]),
+                Tags = (catalog ?? TopicCatalog.Empty).Normalize([keyword]),
+                RawTags = [keyword],
             })
             .ToList();
     }

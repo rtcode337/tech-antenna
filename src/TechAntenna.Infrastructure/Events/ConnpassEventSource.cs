@@ -1,4 +1,5 @@
 using TechAntenna.Core;
+using TechAntenna.Core.Topics;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Models;
 
@@ -13,7 +14,9 @@ public class ConnpassEventSource(
     IHttpClientFactory httpClientFactory,
     TimeProvider timeProvider,
     IReadOnlyList<string> keywords,
-    TimeSpan? delayBetweenKeywords = null) : IEventSource
+    TimeSpan? delayBetweenKeywords = null,
+    ITopicStore? topicStore = null,
+    TopicCatalog? catalog = null) : IEventSource
 {
     public const string HttpClientName = "connpass";
 
@@ -35,9 +38,15 @@ public class ConnpassEventSource(
         // キーワードごとに問い合わせて検索キーワードをタグにする
         var byUrl = new Dictionary<Uri, TechEvent>();
 
-        for (var i = 0; i < keywords.Count; i++)
+        // 選択されたトピックがあればそれを検索語にする(**正式表記のほう** —— 検索語に
+        // 正規化で崩れたキー `生成ai` を投げても当たらない)。未設定なら設定ファイルの keywords
+        var activeKeywords = topicStore is null
+            ? keywords
+            : (await topicStore.GetSelectedAsync(cancellationToken)).Select(topic => topic.Display).ToList();
+
+        for (var i = 0; i < activeKeywords.Count; i++)
         {
-            var keyword = keywords[i];
+            var keyword = activeKeywords[i];
             var requestUri = string.Format(EndpointFormat, Uri.EscapeDataString(keyword));
             var json = await client.GetStringAsync(requestUri, cancellationToken);
 
@@ -51,7 +60,7 @@ public class ConnpassEventSource(
                 if (byUrl.TryGetValue(entry.Url, out var existing))
                 {
                     // 別のキーワードでも見つかったイベントは、タグを足す
-                    byUrl[entry.Url] = WithTags(existing, [.. existing.Tags, keyword]);
+                    byUrl[entry.Url] = WithTags(existing, [.. existing.RawTags, keyword]);
                     continue;
                 }
 
@@ -67,13 +76,16 @@ public class ConnpassEventSource(
                     IsOnline = VenueClassifier.IsOnline(entry.Place, entry.Address),
                     CollectedAt = collectedAt,
                     // 検索キーワードに加え、あればハッシュタグもタグにする
-                    Tags = TagNormalizer.Normalize(
+                    Tags = (catalog ?? TopicCatalog.Empty).Normalize(
                         entry.HashTag is { Length: > 0 } hashTag ? [keyword, hashTag] : [keyword]),
+                    RawTags = entry.HashTag is { Length: > 0 } raw
+                        ? new List<string> { keyword, raw }
+                        : new List<string> { keyword },
                 };
             }
 
             // 最後のキーワードの後は待たない
-            if (i < keywords.Count - 1 && _delayBetweenKeywords > TimeSpan.Zero)
+            if (i < activeKeywords.Count - 1 && _delayBetweenKeywords > TimeSpan.Zero)
             {
                 await Task.Delay(_delayBetweenKeywords, cancellationToken);
             }
@@ -82,17 +94,24 @@ public class ConnpassEventSource(
         return byUrl.Values.ToList();
     }
 
-    static TechEvent WithTags(TechEvent source, IEnumerable<string> tags) => new()
+    // 受け取るのは**生のタグ**。正規化をここ 1 か所でだけ行い、RawTags と Tags がずれないようにする
+    TechEvent WithTags(TechEvent source, IEnumerable<string> rawTags)
     {
-        Id = source.Id,
-        Title = source.Title,
-        Url = source.Url,
-        SourceName = source.SourceName,
-        StartsAt = source.StartsAt,
-        EndsAt = source.EndsAt,
-        Venue = source.Venue,
-        IsOnline = source.IsOnline,
-        CollectedAt = source.CollectedAt,
-        Tags = TagNormalizer.Normalize(tags),
-    };
+        var raw = rawTags.ToList();
+
+        return new TechEvent
+        {
+            Id = source.Id,
+            Title = source.Title,
+            Url = source.Url,
+            SourceName = source.SourceName,
+            StartsAt = source.StartsAt,
+            EndsAt = source.EndsAt,
+            Venue = source.Venue,
+            IsOnline = source.IsOnline,
+            CollectedAt = source.CollectedAt,
+            Tags = (catalog ?? TopicCatalog.Empty).Normalize(raw),
+            RawTags = raw,
+        };
+    }
 }

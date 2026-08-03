@@ -48,6 +48,7 @@ docker run --rm -v "$PWD":/src -w /src -e HOME=/tmp mcr.microsoft.com/dotnet/sdk
 | イベントの収集 | `Collection:AutoRun` | false | `/events` |
 | 書籍の収集 | `Books:AutoRun` | false | `/books` |
 | 記事の要約 | `Anthropic:AutoRun` | false | `/` |
+| タグの再正規化 | (定期実行しない) | — | `/settings` |
 
 **環境で分岐せず設定値にしている**ので、定期実行を有効にするときは
 `Collection__AutoRun=true` のように環境変数で効く(開発・本番で挙動が変わらない)。
@@ -155,6 +156,34 @@ connpass は `keyword_or` で全キーワードを1リクエストにまとめ�
 EF 版のタグ関連クエリだけ生 SQL にしている。`Tags` 列には値変換をかけていて LINQ から
 翻訳できず、タグごとの件数集計には PostgreSQL の `unnest` が要るため。
 
+### 正規化でやること・やらないこと
+
+`TagNormalizer` が潰すのは**機械的な表記ゆれだけ**。
+
+- NFKC で全角英数と半角カナをそろえ、小文字化する(`ＡＩ` と `AI`、`ｼﾞｪﾈﾚｰﾃｨﾌﾞ` と `ジェネレーティブ`)
+- 区切り(空白・`-`・`_`・`・`・`/`)を落とす(`Claude Code` と `claudecode` を同じキーにする)。
+  **`.` `#` `+` は残す** —— 落とすと `.net` が `net` に、`c#` が `c` になって別の語と衝突する
+- **トピックでない語(ストップワード)を落とす。** 収集元の分類名や読み手の行動を表す語
+  (`テクノロジー`・`あとで読む`・`初心者`)。実データでは 772 タグ中の上位 5 件のうち 2 件が
+  これで、残すと話題度の上位を占めてトピック一覧が使い物にならない
+
+**やらないこと**が 2 つある。`ai` と `人工知能` のような**同義語は機械的に潰せない**ので
+別名カタログの仕事にする。`ai` ⊃ `生成ai` ⊃ `llm` は同義ではなく**粒度の違い**なので、
+そもそも統合しない —— まとめると上位の語だけが巨大化して、何の話題か分からなくなる。
+
+### 生タグを保存する(`RawTags`)
+
+記事・イベント・書籍は、収集元から受け取ったままのタグを `RawTags` に持つ。
+**正規化後の値しか持たないと、規則を変えても過去のデータに反映できない**ため
+(`Tags` が `init` ではなく `set` なのも、ここから作り直すため)。
+
+規則を変えたら `/settings` の「タグを再正規化」(`TagRenormalizationRunner`)を実行する。
+`RawTags` から `Tags` を作り直すだけで外部へは出ないので、何度走らせても同じ結果になる。
+
+`RawTags` を足したマイグレーション(`AddRawTags`)は、**既存行の `RawTags` を当時の `Tags` で
+埋める**。元の表記はもう取り戻せないので、手元にある値で埋めて再正規化が空にならないように
+してある。以降に収集した行には収集元の値がそのまま入る。
+
 ## 書籍収集
 
 **openBD はキーワード検索を持たず ISBN 参照専用**なので、役割を分けている。
@@ -259,6 +288,14 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
 - マイグレーションは起動時に自動適用される(個人運用前提)
 - マイグレーション追加:
   `dotnet ef migrations add <名前> -p src/TechAntenna.Infrastructure -s src/TechAntenna.Web`
+- **compose の db は 5432 をホストへ公開しない**(本番の DB を外に出す理由が無いため)。
+  ホストの開発サーバーから実データを読みたいときだけ、上書き定義
+  `docker-compose.dev.yml` を重ねて `127.0.0.1:5432` に開ける(手順は README「開発環境」)。
+  **開発サーバーも起動時にマイグレーションを自動適用する**ので、未コミットの
+  マイグレーションを持ったまま本番の DB へ繋がないこと。SQL で覗くだけなら開ける必要は
+  なく、`docker compose exec db psql -U techantenna -d techantenna` で足りる
+- **テストは PostgreSQL を使わない**(`tests/` が触るのは `InMemory*Store` だけ)。
+  DB を上げていなくても `dotnet test` は通る
 
 ## 本番の実行形態(Docker)
 

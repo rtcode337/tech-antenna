@@ -1,0 +1,16 @@
+# ホストで動かす開発サーバー(`dotnet run` / `dotnet watch`)から compose の DB を
+# 読むための上書き定義。docker-compose.yml に重ねて使う。単体では動かない:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+#
+# 接続文字列を渡さない開発サーバーは In-Memory ストアで起動する(データは空)。
+# 実データを見たいときだけこれを重ねて 5432 を開け、接続文字列を渡す(README「開発環境」)。
+#
+# **本番では重ねない。** 開けた口は 127.0.0.1 に限っているので同じホストからしか
+# 繋がらないが、本番の DB を外に出す理由が無い。
+services:
+  db:
+    ports:
+      # 127.0.0.1 を明示して LAN には出さない(省略すると 0.0.0.0 で待ち受ける)。
+      # ホスト側で 5432 が埋まっているときだけ .env の POSTGRES_PORT で逃がす
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"

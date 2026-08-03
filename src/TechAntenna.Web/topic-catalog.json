@@ -1,0 +1,62 @@
+{
+  "$comment": [
+    "トピックの語彙と別名の対応表。TagNormalizer が潰すのは機械的な表記ゆれ(大小文字・全角半角・区切り)だけなので、",
+    "「ai と 人工知能」のような同義語はここでまとめる。コードではなくデータにしてあるのは、人が直せて差分が読めるようにするため。",
+    "display = 画面に出す正式表記。外部 API へ投げる検索語にもこれを使う。",
+    "aliases = 同じものを指す別の書き方。突き合わせのときに display へ寄せる(機械的な表記ゆれは書かなくてよい)。",
+    "parent  = 1つ上の粒度。統合はしない —— まとめると上位の語だけが巨大化して何の話題か分からなくなるため。",
+    "ここに無いタグは捨てずにそのまま残る。未知のタグは新しいトピックの候補なので、落とすと情勢が拾えなくなる。",
+    "編集したら /settings の「タグを再正規化」を実行して、保存済みのデータを追従させること。"
+  ],
+  "topics": [
+    { "display": "AI", "aliases": ["人工知能", "artificial intelligence", "ai技術"] },
+    { "display": "生成AI", "parent": "AI", "aliases": ["ジェネレーティブAI", "generative ai", "genai", "生成系AI"] },
+    { "display": "LLM", "parent": "生成AI", "aliases": ["大規模言語モデル", "large language model", "言語モデル"] },
+    { "display": "AIエージェント", "parent": "生成AI", "aliases": ["ai agent", "エージェント", "autonomous agent"] },
+    { "display": "RAG", "parent": "生成AI", "aliases": ["retrieval augmented generation", "検索拡張生成"] },
+    { "display": "プロンプトエンジニアリング", "parent": "生成AI", "aliases": ["prompt engineering", "プロンプト"] },
+    { "display": "Claude Code", "parent": "AIエージェント", "aliases": ["claude", "claudecode"] },
+    { "display": "GitHub Copilot", "parent": "AIエージェント", "aliases": ["copilot"] },
+    { "display": "機械学習", "parent": "AI", "aliases": ["machine learning", "ml"] },
+    { "display": "ディープラーニング", "parent": "機械学習", "aliases": ["deep learning", "深層学習"] },
+    { "display": "MLOps", "parent": "機械学習", "aliases": ["mlops"] },
+
+    { "display": "データ分析", "aliases": ["データ解析", "data analysis", "analytics"] },
+    { "display": "データサイエンス", "parent": "データ分析", "aliases": ["data science"] },
+    { "display": "データエンジニアリング", "parent": "データ分析", "aliases": ["data engineering", "データ基盤"] },
+    { "display": "ビッグデータ", "parent": "データ分析", "aliases": ["big data"] },
+    { "display": "統計", "parent": "データ分析", "aliases": ["統計学", "statistics"] },
+    { "display": "BI", "parent": "データ分析", "aliases": ["ビジネスインテリジェンス", "business intelligence"] },
+
+    { "display": "クラウド", "aliases": ["cloud"] },
+    { "display": "AWS", "parent": "クラウド", "aliases": ["amazon web services"] },
+    { "display": "Azure", "parent": "クラウド", "aliases": ["microsoft azure"] },
+    { "display": "Google Cloud", "parent": "クラウド", "aliases": ["gcp", "google cloud platform"] },
+    { "display": "Kubernetes", "parent": "クラウド", "aliases": ["k8s"] },
+    { "display": "コンテナ", "parent": "クラウド", "aliases": ["docker", "container"] },
+    { "display": "DevOps", "parent": "クラウド", "aliases": ["devops"] },
+    { "display": "SRE", "parent": "DevOps", "aliases": ["site reliability engineering"] },
+    { "display": "オブザーバビリティ", "parent": "DevOps", "aliases": ["observability", "可観測性", "監視"] },
+
+    { "display": "セキュリティ", "aliases": ["security", "情報セキュリティ", "サイバーセキュリティ"] },
+    { "display": "ゼロトラスト", "parent": "セキュリティ", "aliases": ["zero trust"] },
+
+    { "display": "Web開発", "aliases": ["web", "webdev", "フロントエンド", "frontend"] },
+    { "display": "モバイル開発", "aliases": ["mobile", "アプリ開発"] },
+    { "display": "データベース", "aliases": ["database", "db", "rdb"] },
+    { "display": "分散システム", "aliases": ["distributed systems"] },
+
+    { "display": "DX", "aliases": ["デジタルトランスフォーメーション", "digital transformation"] },
+    { "display": "SEO", "aliases": ["検索エンジン最適化"] },
+    { "display": "Webマーケティング", "parent": "DX", "aliases": ["web マーケティング", "デジタルマーケティング"] },
+
+    { "display": "Python", "aliases": ["python3"] },
+    { "display": "TypeScript", "aliases": ["ts"] },
+    { "display": "JavaScript", "aliases": ["js"] },
+    { "display": "Go", "aliases": ["golang"] },
+    { "display": "Rust", "aliases": [] },
+    { "display": "C#", "aliases": ["csharp"] },
+    { "display": ".NET", "aliases": ["dotnet", "asp.net core"] },
+    { "display": "Tableau", "aliases": [] }
+  ]
+}

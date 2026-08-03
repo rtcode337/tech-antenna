@@ -1,0 +1,150 @@
+@page "/settings"
+@using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Topics
+@using TechAntenna.Web.Services
+@inject ITopicStore TopicStore
+@inject TopicCollectionRunner CollectionRunner
+@inject TagRenormalizationRunner RenormalizationRunner
+
+<PageTitle>設定 - tech-antenna</PageTitle>
+
+<h1>設定</h1>
+
+<section class="mb-4" aria-labelledby="topics-heading">
+    <h2 id="topics-heading">トピック</h2>
+    <p class="text-muted">
+        <code>topic-catalog.json</code> の語彙と、外部トレンドで見つかった語、すでに集めた記事・イベント・書籍のタグを
+        まとめてトピック一覧にします。話題度は<strong>収集元ごとのシェアに直してから合算</strong>するので、
+        件数の桁が違う収集元どうしでも比べられます。在庫（3種そろい）は表示だけで、順位には足していません
+        —— 足すと選択済みのトピックが上位に張り付き、新しいトピックが出てこなくなるためです。
+    </p>
+
+    <JobButton Runner="CollectionRunner" FormName="collect-topics"
+               Message="@_message" Error="@_error" OnRun="CollectAsync" />
+
+    @if (_topics is null)
+    {
+        <p>読み込み中…</p>
+    }
+    else if (_topics.Count == 0)
+    {
+        <p>まだトピックがありません。「トピックを収集」を実行してください。</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>タグ</th>
+                    <th class="text-end">話題度</th>
+                    <th>収集対象</th>
+                    <th>更新日時</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var topic in _topics)
+                {
+                    <tr>
+                        <td>
+                            <a href="@($"/topics/{Uri.EscapeDataString(topic.Tag)}")">@Label(topic)</a>
+                            @if (topic.Coverage == 3)
+                            {
+                                <span class="badge bg-success ms-1">3種そろい</span>
+                            }
+                        </td>
+                        <td class="text-end">@(topic.TrendScore.ToString("0.0"))</td>
+                        <td>@(topic.IsSelected ? "選択済み" : "未選択")</td>
+                        <td>@topic.CollectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (_topics is { Count: > 0 })
+    {
+        <form method="post" @formname="save-topic-selection" @onsubmit="SaveSelectionAsync" class="mb-3">
+            <AntiforgeryToken />
+            <p>収集したいトピックを選択してください。</p>
+            @foreach (var topic in _topics)
+            {
+                <label class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" name="SelectedTopics" value="@topic.Tag" checked="@topic.IsSelected" />
+                    <span class="form-check-label">@Label(topic)</span>
+                </label>
+            }
+            <div><button type="submit" class="btn btn-primary">選択を保存</button></div>
+        </form>
+    }
+</section>
+
+<section class="mb-4" aria-labelledby="maintenance-heading">
+    <h2 id="maintenance-heading">メンテナンス</h2>
+    <p class="text-muted">
+        タグの正規化の規則(表記ゆれの吸収・トピックとして扱わない語)を変えたときに実行します。
+        保存済みの記事・イベント・書籍のタグを、収集時に受け取った生のタグから作り直します。
+        外部へは問い合わせません。
+    </p>
+
+    <JobButton Runner="RenormalizationRunner" FormName="renormalize-tags"
+               Message="@_renormalizeMessage" Error="@_error" OnRun="RenormalizeAsync" />
+</section>
+
+@code {
+    IReadOnlyList<StoredTopic>? _topics;
+    string? _message;
+    string? _error;
+    string? _renormalizeMessage;
+
+    [SupplyParameterFromForm(FormName = "save-topic-selection")]
+    string[]? SelectedTopics { get; set; }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    async Task CollectAsync()
+    {
+        try
+        {
+            var result = await CollectionRunner.RunOnceAsync();
+            _message = $"{result.Count} 件のトピックを更新しました（うち {result.Trending} 件に話題度が付きました）。"
+                + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : "");
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+
+        await LoadAsync();
+    }
+
+    async Task RenormalizeAsync()
+    {
+        try
+        {
+            var result = await RenormalizationRunner.RunOnceAsync();
+            _renormalizeMessage = result.Total == 0
+                ? "タグの変更はありませんでした。"
+                : $"記事 {result.Articles} 件・イベント {result.Events} 件・書籍 {result.Books} 件のタグを直しました。";
+            _error = null;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+
+        await LoadAsync();
+    }
+
+    // 画面に出すのはキー(生成ai)ではなくカタログの正式表記(生成AI)
+    static string Label(StoredTopic topic) => topic.Display is { Length: > 0 } display ? display : topic.Tag;
+
+    async Task LoadAsync() => _topics = await TopicStore.GetTopicsAsync(100);
+
+    async Task SaveSelectionAsync()
+    {
+        await TopicStore.UpdateSelectionAsync(SelectedTopics ?? []);
+        _message = "収集対象のトピックを保存しました。";
+        await LoadAsync();
+    }
+}

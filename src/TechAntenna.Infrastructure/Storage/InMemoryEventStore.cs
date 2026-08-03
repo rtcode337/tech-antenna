@@ -1,4 +1,6 @@
+using TechAntenna.Core;
 using TechAntenna.Core.Abstractions;
+using TechAntenna.Core.Topics;
 using TechAntenna.Core.Models;
 
 namespace TechAntenna.Infrastructure.Storage;
@@ -65,6 +67,27 @@ public class InMemoryEventStore : IEventStore
                 .Select(g => new TagCount(g.Key, g.Count()))
                 .ToList();
             return Task.FromResult(result);
+        }
+    }
+
+    public Task<int> RenormalizeTagsAsync(TopicCatalog catalog, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            var updated = 0;
+            foreach (var techEvent in _byUrl.Values)
+            {
+                var tags = catalog.Normalize(techEvent.RawTags);
+                if (techEvent.Tags.SequenceEqual(tags, StringComparer.Ordinal))
+                {
+                    continue;
+                }
+
+                techEvent.Tags = tags;
+                updated++;
+            }
+
+            return Task.FromResult(updated);
         }
     }
 }

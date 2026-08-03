@@ -1,0 +1,93 @@
+@page "/articles"
+@using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Models
+@using TechAntenna.Web.Services
+@inject IArticleStore ArticleStore
+@inject ArticleCollectionRunner CollectionRunner
+@inject SummaryRunner SummaryRunner
+
+<PageTitle>記事 - tech-antenna</PageTitle>
+
+<h1>最新記事</h1>
+
+@* 開発環境では定期実行を止めてあるので(Collection:AutoRun / Anthropic:AutoRun)、
+   ここから手動で走らせる *@
+<JobButton Runner="CollectionRunner" FormName="collect-articles"
+           Message="@_collectMessage" Error="@_collectError" OnRun="CollectAsync" />
+<JobButton Runner="SummaryRunner" FormName="summarize"
+           Message="@_summaryMessage" Error="@_summaryError" OnRun="SummarizeAsync" />
+
+@if (_articles is null)
+{
+    <p>読み込み中…</p>
+}
+else if (_articles.Count == 0)
+{
+    <p>まだ記事がありません。収集ジョブの巡回を待ってください。</p>
+}
+else
+{
+    <ul class="list-unstyled">
+        @foreach (var article in _articles)
+        {
+            <li class="mb-2">
+                <a href="@article.Url" target="_blank" rel="noopener">@article.Title</a>
+                @if (!string.IsNullOrEmpty(article.Summary))
+                {
+                    <div class="text-body-secondary">@article.Summary</div>
+                }
+                <small class="text-muted">
+                    @article.SourceName
+                    @if (article.PublishedAt is { } publishedAt)
+                    {
+                        <text> — @publishedAt.ToString("yyyy-MM-dd HH:mm zzz")</text>
+                    }
+                    @foreach (var tag in article.Tags)
+                    {
+                        <span class="badge bg-secondary ms-1">@tag</span>
+                    }
+                </small>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    IReadOnlyList<Article>? _articles;
+    string? _collectMessage;
+    string? _collectError;
+    string? _summaryMessage;
+    string? _summaryError;
+
+    protected override async Task OnInitializedAsync() => await LoadArticlesAsync();
+
+    async Task CollectAsync()
+    {
+        try
+        {
+            _collectMessage = JobMessage.Describe(await CollectionRunner.RunOnceAsync());
+        }
+        catch (Exception ex)
+        {
+            _collectError = ex.Message;
+        }
+
+        await LoadArticlesAsync();
+    }
+
+    async Task SummarizeAsync()
+    {
+        try
+        {
+            _summaryMessage = JobMessage.Describe(await SummaryRunner.RunOnceAsync());
+        }
+        catch (Exception ex)
+        {
+            _summaryError = ex.Message;
+        }
+
+        await LoadArticlesAsync();
+    }
+
+    async Task LoadArticlesAsync() => _articles = await ArticleStore.GetRecentAsync(50);
+}

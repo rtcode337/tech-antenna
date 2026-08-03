@@ -1,4 +1,6 @@
+using TechAntenna.Core;
 using TechAntenna.Core.Abstractions;
+using TechAntenna.Core.Topics;
 using TechAntenna.Core.Models;
 
 namespace TechAntenna.Infrastructure.Storage;
@@ -91,6 +93,27 @@ public class InMemoryArticleStore : IArticleStore
             }
 
             return Task.CompletedTask;
+        }
+    }
+
+    public Task<int> RenormalizeTagsAsync(TopicCatalog catalog, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            var updated = 0;
+            foreach (var article in _byUrl.Values)
+            {
+                var tags = catalog.Normalize(article.RawTags);
+                if (article.Tags.SequenceEqual(tags, StringComparer.Ordinal))
+                {
+                    continue;
+                }
+
+                article.Tags = tags;
+                updated++;
+            }
+
+            return Task.FromResult(updated);
         }
     }
 }

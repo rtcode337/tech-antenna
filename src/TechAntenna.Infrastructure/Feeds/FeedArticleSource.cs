@@ -1,4 +1,5 @@
 using TechAntenna.Core;
+using TechAntenna.Core.Topics;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Models;
 
@@ -9,7 +10,8 @@ public class FeedArticleSource(
     IHttpClientFactory httpClientFactory,
     TimeProvider timeProvider,
     string name,
-    Uri feedUrl) : IArticleSource
+    Uri feedUrl,
+    TopicCatalog? catalog = null) : IArticleSource
 {
     /// <summary>使用する名前付き HttpClient。User-Agent 等はホスト側の登録で設定する。</summary>
     public const string HttpClientName = "feeds";
@@ -31,7 +33,8 @@ public class FeedArticleSource(
                 ContentSnippet = entry.Summary,
                 PublishedAt = entry.PublishedAt,
                 CollectedAt = collectedAt,
-                Tags = TagNormalizer.Normalize(entry.Tags),
+                Tags = (catalog ?? TopicCatalog.Empty).Normalize(entry.Tags),
+                RawTags = entry.Tags,
             })
             .ToList();
     }

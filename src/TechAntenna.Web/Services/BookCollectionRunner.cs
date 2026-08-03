@@ -9,6 +9,7 @@ public class BookCollectionRunner(
     IEnumerable<IBookCatalog> catalogs,
     IEnumerable<IBookEnricher> enrichers,
     IBookStore store,
+    ITopicStore topicStore,
     IOptions<BooksOptions> options,
     ILogger<BookCollectionRunner> logger) : JobRunner
 {
@@ -16,7 +17,7 @@ public class BookCollectionRunner(
 
     public override string Name => "書籍の収集";
 
-    public override bool IsConfigured => _catalog is not null && options.Value.Keywords.Count > 0;
+    public override bool IsConfigured => _catalog is not null;
 
     public Task<CollectionRunResult> RunOnceAsync(CancellationToken cancellationToken = default) =>
         RunExclusiveAsync(() => CollectAsync(_catalog!, cancellationToken),
@@ -27,7 +28,13 @@ public class BookCollectionRunner(
     {
         // 検索先へ同時アクセスしないよう、キーワードを1つずつ間隔を空けて処理する
         var delay = TimeSpan.FromSeconds(options.Value.DelayBetweenKeywordsSeconds);
-        var keywords = options.Value.Keywords;
+        // Google Books へ投げる検索語。**正式表記のほう**(`生成ai` ではなく `生成AI`)
+        var keywords = (await topicStore.GetSelectedAsync(cancellationToken))
+            .Select(topic => topic.Display).ToList();
+        if (keywords.Count == 0)
+        {
+            return CollectionRunResult.Nothing;
+        }
         int found = 0, added = 0, failed = 0;
 
         for (var i = 0; i < keywords.Count; i++)

@@ -52,8 +52,11 @@ public class TechPlayEventSourceTests
         var events = await Source().FetchAsync();
 
         var handson = events.Single(e => e.Title == "生成AI 実践ハンズオン");
-        // どのイベントにも付く IT・テクノロジー・イベントは落とす
-        Assert.Equal(["生成ai", "初心者"], handson.Tags);
+        // どのイベントにも付く IT・テクノロジー・イベントは落とす。
+        // 「初心者」は何の話題かを表さないため TagNormalizer 側でも落ちる
+        Assert.Equal(["生成ai"], handson.Tags);
+        // 生タグは落とさずに残す(正規化の規則を変えたときに引き直せるようにするため)
+        Assert.Contains("初心者", handson.RawTags);
     }
 
     [Fact]

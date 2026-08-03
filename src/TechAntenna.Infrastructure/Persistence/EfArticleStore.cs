@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using TechAntenna.Core;
 using TechAntenna.Core.Abstractions;
+using TechAntenna.Core.Topics;
 using TechAntenna.Core.Models;
 
 namespace TechAntenna.Infrastructure.Persistence;
@@ -76,5 +78,31 @@ public class EfArticleStore(IDbContextFactory<TechAntennaDbContext> contextFacto
         await db.Articles
             .Where(a => a.Id == articleId)
             .ExecuteUpdateAsync(set => set.SetProperty(a => a.Summary, summary), cancellationToken);
+    }
+
+    public async Task<int> RenormalizeTagsAsync(TopicCatalog catalog, CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // 全件を読み直す。個人運用の規模(数千件)を前提にページングはしていない
+        var updated = 0;
+        foreach (var article in await db.Articles.ToListAsync(cancellationToken))
+        {
+            var tags = catalog.Normalize(article.RawTags);
+            if (article.Tags.SequenceEqual(tags, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            article.Tags = tags;
+            updated++;
+        }
+
+        if (updated > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return updated;
     }
 }

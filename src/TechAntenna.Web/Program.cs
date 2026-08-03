@@ -10,6 +10,8 @@ using TechAntenna.Infrastructure.Feeds;
 using TechAntenna.Infrastructure.Persistence;
 using TechAntenna.Infrastructure.Storage;
 using TechAntenna.Infrastructure.Summarization;
+using TechAntenna.Infrastructure.Topics;
+using TechAntenna.Infrastructure.Trends;
 using TechAntenna.Web;
 using TechAntenna.Web.Components;
 using TechAntenna.Web.Services;
@@ -34,6 +36,22 @@ builder.Services.AddHttpClient(FeedArticleSource.HttpClientName, client =>
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<TopicService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<InterestTopicCookie>();
+
+builder.Services.AddHttpClient(QiitaTrendTopicSource.HttpClientName, client =>
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+        "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddSingleton<ITrendTopicSource, QiitaTrendTopicSource>();
+
+// トピックの語彙と別名の対応表。**コードではなくデータ**として持ち、人が直せるようにしている。
+// 読めなくても起動は止めない(別名がまとまらないだけで、収集も表示も成立する)。
+var topicCatalog = JsonTopicCatalogLoader.Load(
+    Path.Combine(builder.Environment.ContentRootPath, "topic-catalog.json"));
+builder.Services.AddSingleton(topicCatalog);
 
 // antiforgery と Blazor が使う Data Protection の鍵。既定ではコンテナ内の一時領域に
 // 置かれるため、作り直すたびに鍵が変わって発行済みトークンが無効になる。保存先が
@@ -60,6 +78,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
     builder.Services.AddSingleton<IArticleStore, InMemoryArticleStore>();
     builder.Services.AddSingleton<IEventStore, InMemoryEventStore>();
     builder.Services.AddSingleton<IBookStore, InMemoryBookStore>();
+    builder.Services.AddSingleton<ITopicStore, InMemoryTopicStore>();
 }
 else
 {
@@ -67,6 +86,7 @@ else
     builder.Services.AddSingleton<IArticleStore, EfArticleStore>();
     builder.Services.AddSingleton<IEventStore, EfEventStore>();
     builder.Services.AddSingleton<IBookStore, EfBookStore>();
+    builder.Services.AddSingleton<ITopicStore, EfTopicStore>();
 }
 
 var collection = builder.Configuration
@@ -78,7 +98,8 @@ foreach (var feed in collection.Feeds)
         sp.GetRequiredService<IHttpClientFactory>(),
         sp.GetRequiredService<TimeProvider>(),
         feed.Name,
-        new Uri(feed.Url)));
+        new Uri(feed.Url),
+        topicCatalog));
 }
 
 builder.Services.AddSingleton<ArticleCollectionRunner>();
@@ -101,7 +122,9 @@ if (!string.IsNullOrWhiteSpace(connpass.ApiKey))
     builder.Services.AddSingleton<IEventSource>(sp => new ConnpassEventSource(
         sp.GetRequiredService<IHttpClientFactory>(),
         sp.GetRequiredService<TimeProvider>(),
-        connpass.Keywords));
+        connpass.Keywords,
+        topicStore: sp.GetRequiredService<ITopicStore>(),
+        catalog: topicCatalog));
 }
 
 // --- イベント収集(Doorkeeper)---
@@ -122,7 +145,9 @@ if (!string.IsNullOrWhiteSpace(doorkeeper.AccessToken) && doorkeeper.Keywords.Co
     builder.Services.AddSingleton<IEventSource>(sp => new DoorkeeperEventSource(
         sp.GetRequiredService<IHttpClientFactory>(),
         sp.GetRequiredService<TimeProvider>(),
-        doorkeeper.Keywords));
+        doorkeeper.Keywords,
+        topicStore: sp.GetRequiredService<ITopicStore>(),
+        catalog: topicCatalog));
 }
 
 // --- イベント収集(TECH PLAY の RSS)---
@@ -136,7 +161,8 @@ if (Uri.TryCreate(techPlay.FeedUrl, UriKind.Absolute, out var techPlayFeedUrl))
     builder.Services.AddSingleton<IEventSource>(sp => new TechPlayEventSource(
         sp.GetRequiredService<IHttpClientFactory>(),
         sp.GetRequiredService<TimeProvider>(),
-        techPlayFeedUrl));
+        techPlayFeedUrl,
+        topicCatalog));
 }
 
 builder.Services.AddSingleton<EventCollectionRunner>();
@@ -163,7 +189,8 @@ if (books.Keywords.Count > 0)
     builder.Services.AddSingleton<IBookCatalog>(sp => new GoogleBooksCatalog(
         sp.GetRequiredService<IHttpClientFactory>(),
         sp.GetRequiredService<TimeProvider>(),
-        books.GoogleBooksApiKey));
+        books.GoogleBooksApiKey,
+        catalog: topicCatalog));
 
     // openBD はキーワード検索を持たないため、検索結果を補う後段として使う
     if (books.UseOpenBd)
@@ -180,6 +207,9 @@ if (books.Keywords.Count > 0)
 
 // 画面の手動ボタンから呼ぶので、キーワードが空でも登録しておく(未設定なら何もしない)
 builder.Services.AddSingleton<BookCollectionRunner>();
+builder.Services.AddSingleton<TopicCollectionRunner>();
+// タグの正規化規則を変えたときに保存済みデータを追従させる(外部へは出ないので常に登録する)
+builder.Services.AddSingleton<TagRenormalizationRunner>();
 
 // --- LLM 要約 ---
 // 方式は2つあり、Claude Code(サブスクリプションの枠)を優先する。両方未設定なら要約しない。
