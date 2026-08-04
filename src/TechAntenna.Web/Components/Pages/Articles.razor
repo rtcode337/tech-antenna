@@ -1,8 +1,11 @@
 @page "/articles"
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
+@using TechAntenna.Core.Topics
 @using TechAntenna.Web.Services
 @inject IArticleStore ArticleStore
+@inject ITopicStore TopicStore
+@inject TopicCatalog Catalog
 @inject ArticleCollectionRunner CollectionRunner
 @inject SummaryRunner SummaryRunner
 
@@ -27,10 +30,22 @@ else if (_articles.Count == 0)
 }
 else
 {
+    <p class="text-muted">
+        流れてきた記事はすべて並べています。
+        @if (_selected.Count > 0)
+        {
+            <text>選んだトピック(@string.Join("・", _selected.Select(Catalog.DisplayOf)))の記事は<strong>強調</strong>しています。</text>
+        }
+        else
+        {
+            <text><a href="/settings">設定</a>でトピックを選ぶと、その記事が強調されます。</text>
+        }
+    </p>
+
     <ul class="list-unstyled">
         @foreach (var article in _articles)
         {
-            <li class="mb-2">
+            <li class="article @(IsSelected(article) ? "selected" : "")">
                 <a href="@article.Url" target="_blank" rel="noopener">@article.Title</a>
                 @if (!string.IsNullOrEmpty(article.Summary))
                 {
@@ -42,9 +57,10 @@ else
                     {
                         <text> — @publishedAt.ToString("yyyy-MM-dd HH:mm zzz")</text>
                     }
+                    @* 選んだトピックのタグだけ色を変える(なぜ強調されているかが分かるように) *@
                     @foreach (var tag in article.Tags)
                     {
-                        <span class="badge bg-secondary ms-1">@tag</span>
+                        <span class="badge ms-1 @(_selected.Contains(tag) ? "bg-primary" : "bg-secondary")">@tag</span>
                     }
                 </small>
             </li>
@@ -54,6 +70,8 @@ else
 
 @code {
     IReadOnlyList<Article>? _articles;
+    /// <summary>選択中のトピックのキー(記事の正規化済みタグと突き合わせる)。</summary>
+    HashSet<string> _selected = new(StringComparer.Ordinal);
     string? _collectMessage;
     string? _collectError;
     string? _summaryMessage;
@@ -89,5 +107,14 @@ else
         await LoadArticlesAsync();
     }
 
-    async Task LoadArticlesAsync() => _articles = await ArticleStore.GetRecentAsync(50);
+    async Task LoadArticlesAsync()
+    {
+        _articles = await ArticleStore.GetRecentAsync(50);
+        _selected = (await TopicStore.GetSelectedAsync())
+            .Select(topic => topic.Tag)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>選んだトピックの記事か。強調するかどうかの判定にだけ使う(収集では絞らない)。</summary>
+    bool IsSelected(Article article) => article.Tags.Any(_selected.Contains);
 }

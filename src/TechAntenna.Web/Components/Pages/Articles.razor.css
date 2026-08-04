@@ -1,0 +1,20 @@
+.article {
+    margin-bottom: 0.6rem;
+    padding-left: 0.75rem;
+    /* 強調したときにタイトルの位置がずれないよう、非強調でも同じ幅の帯を置いておく */
+    border-left: 3px solid transparent;
+}
+
+/* 選んだトピックの記事。太字とわずかな拡大に、左の帯とうっすらした背景を足している
+   —— 文字の大きさだけだと、流し読みでは他の記事に埋もれるため */
+.article.selected {
+    border-left-color: #7657c7;
+    background: #f7f5fd;
+    border-radius: 0 0.4rem 0.4rem 0;
+    padding: 0.35rem 0.5rem 0.4rem 0.75rem;
+}
+
+.article.selected > a {
+    font-size: 1.12rem;
+    font-weight: 700;
+}

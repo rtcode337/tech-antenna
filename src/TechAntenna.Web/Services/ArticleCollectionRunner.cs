@@ -3,11 +3,17 @@ using TechAntenna.Core.Abstractions;
 
 namespace TechAntenna.Web.Services;
 
-/// <summary>登録された記事ソースを1巡し、ストアへ保存する。</summary>
+/// <summary>
+/// 登録された記事ソースを1巡し、ストアへ保存する。
+///
+/// **選択トピックで絞らず、流れてきた記事はすべて保存する。** 以前は選択したタグを含むものだけ
+/// 残していたが、それだと「選んだトピックの外で何が起きているか」が画面に一切出てこない。
+/// イベントや書籍と違って RSS は検索ではなく巡回なので、絞っても収集先への負荷は変わらない
+/// —— 捨てる意味がほとんど無い。選択トピックは<b>表示側での強調</b>にだけ使う(`/articles`)。
+/// </summary>
 public class ArticleCollectionRunner(
     IEnumerable<IArticleSource> sources,
     IArticleStore store,
-    ITopicStore topicStore,
     IOptions<CollectionOptions> options,
     ILogger<ArticleCollectionRunner> logger) : JobRunner
 {
@@ -25,14 +31,6 @@ public class ArticleCollectionRunner(
     {
         // 収集先へ同時アクセスしないよう、並列化せず1本ずつ間隔を空けて読む
         var delay = TimeSpan.FromSeconds(options.Value.DelayBetweenSourcesSeconds);
-        // RSS は検索できないので、集めたものを選択トピックで絞る。
-        // 比べる相手は記事の正規化済みタグなので、**キーのほう**を使う
-        var selectedTags = (await topicStore.GetSelectedAsync(cancellationToken))
-            .Select(topic => topic.Tag).ToList();
-        if (selectedTags.Count == 0)
-        {
-            return CollectionRunResult.Nothing;
-        }
         int fetched = 0, added = 0, failed = 0;
 
         for (var i = 0; i < _sources.Count; i++)
@@ -41,7 +39,6 @@ public class ArticleCollectionRunner(
             try
             {
                 var articles = await source.FetchAsync(cancellationToken);
-                articles = articles.Where(article => article.Tags.Intersect(selectedTags, StringComparer.Ordinal).Any()).ToList();
                 var newlyAdded = await store.AddRangeAsync(articles, cancellationToken);
                 fetched += articles.Count;
                 added += newlyAdded;
