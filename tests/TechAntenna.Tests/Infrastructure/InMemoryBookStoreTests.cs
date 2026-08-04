@@ -76,6 +76,40 @@ public class InMemoryBookStoreTests
     }
 
     [Fact]
+    public async Task 既にある本のレビューは新しい値で更新する()
+    {
+        // 書誌情報と違ってレビューは増えていくので、次に見つけたときの値に差し替える
+        var store = new InMemoryBookStore();
+        var first = Tagged("A", "9784111111111", "ai", "AI");
+        first.ReviewCount = 10;
+        first.ReviewAverage = 4.0;
+        await store.AddRangeAsync([first]);
+
+        var again = Tagged("A", "9784111111111", "ai", "AI");
+        again.ReviewCount = 25;
+        again.ReviewAverage = 4.2;
+        await store.AddRangeAsync([again]);
+
+        var book = Assert.Single(await store.GetRecentAsync(10));
+        Assert.Equal(25, book.ReviewCount);
+        Assert.Equal(4.2, book.ReviewAverage);
+    }
+
+    [Fact]
+    public async Task レビューが取れなかった回に既存の値を消さない()
+    {
+        // 取得元が一時的に落ちただけで指標が消えると、並び順が回ごとに入れ替わる
+        var store = new InMemoryBookStore();
+        var first = Tagged("A", "9784111111111", "ai", "AI");
+        first.ReviewCount = 10;
+        await store.AddRangeAsync([first]);
+
+        await store.AddRangeAsync([Tagged("A", "9784111111111", "ai", "AI")]);
+
+        Assert.Equal(10, Assert.Single(await store.GetRecentAsync(10)).ReviewCount);
+    }
+
+    [Fact]
     public async Task 収集日時の新しい順に返す()
     {
         var store = new InMemoryBookStore();

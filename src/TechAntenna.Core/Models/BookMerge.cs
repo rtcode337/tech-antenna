@@ -10,24 +10,25 @@ namespace TechAntenna.Core.Models;
 public static class BookMerge
 {
     /// <summary>
-    /// <paramref name="incoming"/> のタグを <paramref name="stored"/> へ足す。足すものがあれば true。
-    /// **書誌情報そのものは上書きしない** —— 既に保存してある値を、後から来た検索結果で
-    /// 壊さないため。
+    /// <paramref name="incoming"/> の内容を <paramref name="stored"/> へ取り込む。変化があれば true。
+    ///
+    /// **書誌情報そのものは上書きしない**(既に保存してある値を後から来た検索結果で壊さないため)。
+    /// 例外は**レビュー**で、これは時間とともに増える数値なので新しい値で上書きする。
     /// </summary>
-    public static bool MergeTags(Book stored, Book incoming)
+    public static bool Merge(Book stored, Book incoming)
     {
-        var tags = Union(stored.Tags, incoming.Tags);
-        var rawTags = Union(stored.RawTags, incoming.RawTags);
+        var changed = MergeTags(stored, incoming);
 
-        // 和集合なので、件数が変わらない = 増えていない
-        if (tags.Count == stored.Tags.Count && rawTags.Count == stored.RawTags.Count)
+        // レビューは「今どれだけ読まれているか」なので、取れたら最新の値に差し替える。
+        // 取れなかった(null)ときに上書きすると、取得元が一時的に落ちただけで指標が消える
+        if (incoming.ReviewCount is { } count && count != stored.ReviewCount)
         {
-            return false;
+            stored.ReviewCount = count;
+            stored.ReviewAverage = incoming.ReviewAverage;
+            changed = true;
         }
 
-        stored.Tags = tags;
-        stored.RawTags = rawTags;
-        return true;
+        return changed;
     }
 
     /// <summary>
@@ -43,7 +44,7 @@ public static class BookMerge
             var key = BookKey.For(book);
             if (byKey.TryGetValue(key, out var stored))
             {
-                MergeTags(stored, book);
+                Merge(stored, book);
                 continue;
             }
 
@@ -51,6 +52,22 @@ public static class BookMerge
         }
 
         return byKey.Values.ToList();
+    }
+
+    static bool MergeTags(Book stored, Book incoming)
+    {
+        var tags = Union(stored.Tags, incoming.Tags);
+        var rawTags = Union(stored.RawTags, incoming.RawTags);
+
+        // 和集合なので、件数が変わらない = 増えていない
+        if (tags.Count == stored.Tags.Count && rawTags.Count == stored.RawTags.Count)
+        {
+            return false;
+        }
+
+        stored.Tags = tags;
+        stored.RawTags = rawTags;
+        return true;
     }
 
     static IReadOnlyList<string> Union(IReadOnlyList<string> stored, IReadOnlyList<string> incoming) =>

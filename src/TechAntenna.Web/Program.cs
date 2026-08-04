@@ -200,6 +200,23 @@ if (books.UseOpenBd)
     builder.Services.AddSingleton<IBookEnricher, OpenBdEnricher>();
 }
 
+// 楽天ブックスはレビュー(読まれている度合い)専用の後段。アプリ ID が無ければ登録しない
+builder.Services.Configure<RakutenOptions>(
+    builder.Configuration.GetSection(RakutenOptions.SectionName));
+
+var rakuten = builder.Configuration
+    .GetSection(RakutenOptions.SectionName)
+    .Get<RakutenOptions>() ?? new RakutenOptions();
+if (rakuten.ApplicationId.Length > 0)
+{
+    builder.Services.AddHttpClient(RakutenBooksEnricher.HttpClientName, ConfigureBookClient);
+    builder.Services.AddSingleton<IBookEnricher>(sp => new RakutenBooksEnricher(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        rakuten.ApplicationId,
+        rakuten.AccessKey,
+        TimeSpan.FromSeconds(rakuten.DelaySeconds)));
+}
+
 if (books.AutoRun)
 {
     builder.Services.AddHostedService<BookCollectionWorker>();

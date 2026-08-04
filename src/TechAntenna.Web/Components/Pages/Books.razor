@@ -28,6 +28,8 @@ else
     <p class="text-muted">
         トピックごとにまとめています。トピック名を押すと開きます。
         複数のトピックで見つかった本は、そのすべてに出ます。
+        並びは<strong>読まれている順</strong>(レビュー件数と平均評価から算出)で、
+        レビューが取れていない本は後ろに置いています。
     </p>
 
     @foreach (var group in _groups)
@@ -66,6 +68,13 @@ else
                                 {
                                     <text> — @publishedOn.ToString("yyyy-MM")</text>
                                 }
+                                @if (book.ReviewCount is { } reviewCount and > 0)
+                                {
+                                    <span class="review ms-1">
+                                        ★ @(book.ReviewAverage?.ToString("0.0") ?? "—")
+                                        <span class="text-muted">(@reviewCount 件)</span>
+                                    </span>
+                                }
                                 @* この見出し以外のトピックだけ出す(同じ名前を繰り返さない) *@
                                 @foreach (var tag in book.Tags.Where(tag => tag != group.Tag))
                                 {
@@ -78,6 +87,15 @@ else
             </ul>
         </details>
     }
+
+    @if (_hasReviews)
+    {
+        @* 楽天ウェブサービスのレビューを出すときはクレジット表記が要る(利用規約 Article 13)。
+           指定の HTML は改変不可なので、テキスト版をそのまま置いている *@
+        <p class="credit">
+            <a href="https://developers.rakuten.com/" target="_blank">Supported by Rakuten Developers</a>
+        </p>
+    }
 }
 
 @code {
@@ -85,6 +103,7 @@ else
     const int Limit = 200;
 
     IReadOnlyList<TopicGroup>? _groups;
+    bool _hasReviews;
     string? _message;
     string? _error;
 
@@ -105,24 +124,32 @@ else
         await LoadAsync();
     }
 
-    async Task LoadAsync() => _groups = Group(await BookStore.GetRecentAsync(Limit));
+    async Task LoadAsync()
+    {
+        var books = await BookStore.GetRecentAsync(Limit);
+        _groups = Group(books);
+        // クレジット表記は楽天のデータを実際に出しているときだけ置く
+        _hasReviews = books.Any(book => book.ReviewCount is > 0);
+    }
 
     /// <summary>
     /// 本をトピックごとに振り分ける。**1冊が複数のトピックに出る**(タグの数だけ重複して並ぶ)
     /// —— 収集も「AI でも LLM でも当たる本」をどちらのタグでも持たせているため。
-    /// タグが1つも無い本は最後の「トピックなし」にまとめる(取りこぼしを見えるようにする)。
+    /// 中は<b>読まれている順</b>(<see cref="BookPopularity"/>)。タグが1つも無い本は
+    /// 最後の「トピックなし」にまとめる(取りこぼしを見えるようにする)。
     /// </summary>
     IReadOnlyList<TopicGroup> Group(IReadOnlyList<Book> books)
     {
         var groups = books
             .SelectMany(book => book.Tags.Select(tag => (Tag: tag, Book: book)))
             .GroupBy(pair => pair.Tag, StringComparer.Ordinal)
-            .Select(g => new TopicGroup(g.Key, Catalog.DisplayOf(g.Key), g.Select(pair => pair.Book).ToList()))
+            .Select(g => new TopicGroup(
+                g.Key, Catalog.DisplayOf(g.Key), g.Select(pair => pair.Book).ByPopularity().ToList()))
             .OrderByDescending(group => group.Books.Count)
             .ThenBy(group => group.Display, StringComparer.Ordinal)
             .ToList();
 
-        var untagged = books.Where(book => book.Tags.Count == 0).ToList();
+        var untagged = books.Where(book => book.Tags.Count == 0).ByPopularity().ToList();
         if (untagged.Count > 0)
         {
             groups.Add(new TopicGroup("", "トピックなし", untagged));

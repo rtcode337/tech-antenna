@@ -51,6 +51,9 @@ services:
       Connpass__ApiKey: ${CONNPASS_API_KEY:-}
       Doorkeeper__AccessToken: ${DOORKEEPER_ACCESS_TOKEN:-}
       Books__GoogleBooksApiKey: ${GOOGLE_BOOKS_API_KEY:-}
+      # 書籍のレビュー(読まれている度合い)。未設定なら読まれている順に並べられないだけ
+      Rakuten__ApplicationId: ${RAKUTEN_APPLICATION_ID:-}
+      Rakuten__AccessKey: ${RAKUTEN_ACCESS_KEY:-}
       Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
       # 既定は appsettings.json と同じ。コストを抑えるなら claude-haiku-4-5 を指定する
       Anthropic__Model: ${ANTHROPIC_MODEL:-claude-opus-5}

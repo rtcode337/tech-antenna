@@ -26,10 +26,13 @@ public class GoogleBooksCatalog(
     {
         using var client = httpClientFactory.CreateClient(HttpClientName);
 
-        // 日本語の技術書を拾いたいので言語を絞る
+        // 日本語の技術書を拾いたいので言語を絞る。
+        // **並びは既定の関連度順**(orderBy を付けない) —— 集めたいのは新刊ではなく
+        // 「その分野で読んでおくべき本」だから。`orderBy=newest` は取りこぼしも大きく、
+        // 実測では `機械学習` が 0 件(関連度順なら 300 件)だった
         var requestUri =
             $"https://www.googleapis.com/books/v1/volumes?q={Uri.EscapeDataString(keyword)}"
-            + $"&maxResults={maxResults}&langRestrict=ja&orderBy=newest";
+            + $"&maxResults={maxResults}&langRestrict=ja";
         if (!string.IsNullOrWhiteSpace(apiKey))
         {
             requestUri += $"&key={Uri.EscapeDataString(apiKey)}";

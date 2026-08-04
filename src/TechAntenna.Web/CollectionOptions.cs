@@ -74,6 +74,32 @@ public class BooksOptions
 
     /// <summary>openBD で日本の書誌情報を補うか。</summary>
     public bool UseOpenBd { get; set; } = true;
+
+    /// <summary>
+    /// 保存するのに必要なレビュー件数の下限。**レビューが取れた本だけが対象**で、
+    /// 取れていない本(null)は通す —— 楽天のアプリ ID を設定していない状態で
+    /// 足切りが効くと、1冊も保存されなくなるため。既定 0 は足切り無し。
+    /// </summary>
+    public int MinReviewCount { get; set; } = 0;
+}
+
+/// <summary>
+/// 楽天ウェブサービスの設定。appsettings の Rakuten セクションから読む。
+/// レビュー件数(「どのくらい読まれているか」の代理指標)の取得に使う。
+/// </summary>
+public class RakutenOptions
+{
+    public const string SectionName = "Rakuten";
+
+    /// <summary>楽天ウェブサービスのアプリ ID。空ならレビューを取りに行かない。
+    /// 実値はコミットせず環境変数(Rakuten__ApplicationId)や user-secrets で渡す。</summary>
+    public string ApplicationId { get; set; } = "";
+
+    /// <summary>アプリ ID と一緒に発行されるアクセスキー。要る場合だけ設定する。</summary>
+    public string AccessKey { get; set; } = "";
+
+    /// <summary>1 ISBN 引くごとに空ける間隔(秒)。ISBN の一括指定ができないため件数分のリクエストになる。</summary>
+    public double DelaySeconds { get; set; } = 1;
 }
 
 /// <summary>要約の設定。appsettings の Anthropic セクションから読む(実行間隔・件数は方式共通)。</summary>

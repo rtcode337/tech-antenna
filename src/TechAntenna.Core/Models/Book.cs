@@ -25,6 +25,16 @@ public class Book
     /// <summary>収集元の名前(例: openBD、Google Books)。</summary>
     public required string SourceName { get; init; }
 
+    /// <summary>
+    /// レビュー件数。**「どのくらい読まれているか」の代理指標**で、定番書ほど積み上がる。
+    /// 取得元(楽天ブックス)を設定していない・その本が見つからないときは null
+    /// (「0 件」とは意味が違う —— 0 は読まれていない、null は分からない)。
+    /// </summary>
+    public int? ReviewCount { get; set; }
+
+    /// <summary>平均評価(5点満点)。レビューが無ければ null。</summary>
+    public double? ReviewAverage { get; set; }
+
     public required DateTimeOffset CollectedAt { get; init; }
 
     /// <summary>

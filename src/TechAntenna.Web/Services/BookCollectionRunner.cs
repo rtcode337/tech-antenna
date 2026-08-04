@@ -44,6 +44,7 @@ public class BookCollectionRunner(
             {
                 var books = await catalog.SearchAsync(keyword, cancellationToken);
                 books = await EnrichAsync(books, cancellationToken);
+                books = ApplyReviewFloor(books);
 
                 var newlyAdded = await store.AddRangeAsync(books, cancellationToken);
                 found += books.Count;
@@ -71,6 +72,20 @@ public class BookCollectionRunner(
         }
 
         return new CollectionRunResult(found, added, failed);
+    }
+
+    /// <summary>
+    /// レビューが少なすぎる本を落とす(`Books:MinReviewCount`、既定 0 = 落とさない)。
+    /// **レビューが取れた本だけが対象** —— 取れていない本(null)まで落とすと、
+    /// 楽天のアプリ ID を設定していない環境で 1 冊も保存されなくなる。
+    /// </summary>
+    IReadOnlyList<Book> ApplyReviewFloor(IReadOnlyList<Book> books)
+    {
+        var floor = options.Value.MinReviewCount;
+
+        return floor <= 0
+            ? books
+            : books.Where(book => book.ReviewCount is not { } count || count >= floor).ToList();
     }
 
     async Task<IReadOnlyList<Book>> EnrichAsync(

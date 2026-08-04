@@ -31,3 +31,13 @@
 .topic-name {
     margin-left: 0.25rem;
 }
+
+.review {
+    color: #b8860b;
+    white-space: nowrap;
+}
+
+.credit {
+    margin-top: 1.25rem;
+    font-size: 0.8rem;
+}
