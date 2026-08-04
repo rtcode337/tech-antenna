@@ -13,21 +13,25 @@ public class EfBookStore(IDbContextFactory<TechAntennaDbContext> contextFactory)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var incoming = books.DistinctBy(BookKey.For).ToList();
+        var incoming = BookMerge.Coalesce(books);
         var keys = incoming.Select(BookKey.For).ToList();
 
-        // 重複判定キーはドメインモデルに持たせず、EF のシャドウプロパティとして列に持つ
-        var existingKeys = await db.Books
-            .Select(b => EF.Property<string>(b, TechAntennaDbContext.BookDedupKey))
-            .Where(key => keys.Contains(key))
+        // 重複判定キーはドメインモデルに持たせず、EF のシャドウプロパティとして列に持つ。
+        // タグを足すために、キーだけでなく行そのものを読む(追跡された実体を書き換える)
+        var existing = await db.Books
+            .Where(b => keys.Contains(EF.Property<string>(b, TechAntennaDbContext.BookDedupKey)))
             .ToListAsync(cancellationToken);
+        // 列の値は BookKey.For で書いているので、読み直した行からも同じキーを作れる
+        var byKey = existing.ToDictionary(BookKey.For, StringComparer.Ordinal);
 
         var added = 0;
         foreach (var book in incoming)
         {
             var key = BookKey.For(book);
-            if (existingKeys.Contains(key))
+            if (byKey.TryGetValue(key, out var stored))
             {
+                // 既にある本は書誌情報を上書きせず、別のトピックで見つかったぶんのタグだけ足す
+                BookMerge.MergeTags(stored, book);
                 continue;
             }
 

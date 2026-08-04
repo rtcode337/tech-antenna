@@ -13,6 +13,16 @@ public class InMemoryBookStoreTests
         CollectedAt = collectedAt ?? new DateTimeOffset(2026, 7, 30, 0, 0, 0, TimeSpan.Zero),
     };
 
+    static Book Tagged(string title, string isbn13, string tag, string rawTag) => new()
+    {
+        Title = title,
+        Isbn13 = isbn13,
+        SourceName = "テスト",
+        CollectedAt = new DateTimeOffset(2026, 7, 30, 0, 0, 0, TimeSpan.Zero),
+        Tags = [tag],
+        RawTags = [rawTag],
+    };
+
     [Fact]
     public async Task 同じISBNの書籍は二重に追加されない()
     {
@@ -31,6 +41,38 @@ public class InMemoryBookStoreTests
         Assert.Equal(2, first);
         Assert.Equal(1, second);
         Assert.Equal(3, (await store.GetRecentAsync(10)).Count);
+    }
+
+    [Fact]
+    public async Task 同じ本が別のトピックで見つかったらタグを足す()
+    {
+        // 足さないと、最初に見つかったトピックの一覧にしか出てこない
+        var store = new InMemoryBookStore();
+        await store.AddRangeAsync([Tagged("A", "9784111111111", "ai", "AI")]);
+
+        var added = await store.AddRangeAsync([Tagged("A", "9784111111111", "llm", "LLM")]);
+
+        var book = Assert.Single(await store.GetRecentAsync(10));
+        Assert.Equal(0, added);
+        Assert.Equal(["ai", "llm"], book.Tags);
+        // 生タグも足す —— 片方しか無いと、再正規化でもう片方のタグが消える
+        Assert.Equal(["AI", "LLM"], book.RawTags);
+        Assert.Single(await store.GetByTagAsync("llm", 10));
+    }
+
+    [Fact]
+    public async Task 同じ保存の中に同じ本が複数あってもタグをまとめる()
+    {
+        var store = new InMemoryBookStore();
+
+        var added = await store.AddRangeAsync([
+            Tagged("A", "9784111111111", "ai", "AI"),
+            Tagged("A", "9784111111111", "llm", "LLM"),
+        ]);
+
+        var book = Assert.Single(await store.GetRecentAsync(10));
+        Assert.Equal(1, added);
+        Assert.Equal(["ai", "llm"], book.Tags);
     }
 
     [Fact]

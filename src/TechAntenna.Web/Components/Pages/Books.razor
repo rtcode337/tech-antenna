@@ -1,8 +1,10 @@
 @page "/books"
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
+@using TechAntenna.Core.Topics
 @using TechAntenna.Web.Services
 @inject IBookStore BookStore
+@inject TopicCatalog Catalog
 @inject BookCollectionRunner CollectionRunner
 
 <PageTitle>書籍 - tech-antenna</PageTitle>
@@ -13,57 +15,76 @@
 <JobButton Runner="CollectionRunner" FormName="collect-books"
            Message="@_message" Error="@_error" OnRun="CollectAsync" />
 
-@if (_books is null)
+@if (_groups is null)
 {
     <p>読み込み中…</p>
 }
-else if (_books.Count == 0)
+else if (_groups.Count == 0)
 {
-    <p>まだ書籍がありません。検索キーワードが設定されているか確認してください。</p>
+    <p>まだ書籍がありません。「設定」でトピックを選んでから「書籍の収集」を実行してください。</p>
 }
 else
 {
-    <ul class="list-unstyled">
-        @foreach (var book in _books)
-        {
-            <li class="mb-3 d-flex gap-2">
-                @if (book.CoverUrl is { } coverUrl)
+    <p class="text-muted">
+        トピックごとにまとめています。トピック名を押すと開きます。
+        複数のトピックで見つかった本は、そのすべてに出ます。
+    </p>
+
+    @foreach (var group in _groups)
+    {
+        @* 折りたたみは details/summary。静的 SSR のまま、JS も対話回線も無しで開閉できる *@
+        <details class="topic-group" open="@(group == _groups[0])">
+            <summary>
+                <span class="topic-name">@group.Display</span>
+                <span class="badge bg-secondary ms-1">@group.Books.Count</span>
+            </summary>
+            <ul class="list-unstyled">
+                @foreach (var book in group.Books)
                 {
-                    <img src="@coverUrl" alt="" width="48" loading="lazy" />
+                    <li class="mb-3 d-flex gap-2">
+                        @if (book.CoverUrl is { } coverUrl)
+                        {
+                            <img src="@coverUrl" alt="" width="48" loading="lazy" />
+                        }
+                        <div>
+                            @if (book.Url is { } url)
+                            {
+                                <a href="@url" target="_blank" rel="noopener">@book.Title</a>
+                            }
+                            else
+                            {
+                                <span>@book.Title</span>
+                            }
+                            <br />
+                            <small class="text-muted">
+                                @if (book.Authors.Count > 0)
+                                {
+                                    <text>@string.Join("、", book.Authors) — </text>
+                                }
+                                @(book.Publisher ?? "出版社不明")
+                                @if (book.PublishedOn is { } publishedOn)
+                                {
+                                    <text> — @publishedOn.ToString("yyyy-MM")</text>
+                                }
+                                @* この見出し以外のトピックだけ出す(同じ名前を繰り返さない) *@
+                                @foreach (var tag in book.Tags.Where(tag => tag != group.Tag))
+                                {
+                                    <span class="badge bg-light text-dark ms-1">@Catalog.DisplayOf(tag)</span>
+                                }
+                            </small>
+                        </div>
+                    </li>
                 }
-                <div>
-                    @if (book.Url is { } url)
-                    {
-                        <a href="@url" target="_blank" rel="noopener">@book.Title</a>
-                    }
-                    else
-                    {
-                        <span>@book.Title</span>
-                    }
-                    <br />
-                    <small class="text-muted">
-                        @if (book.Authors.Count > 0)
-                        {
-                            <text>@string.Join("、", book.Authors) — </text>
-                        }
-                        @(book.Publisher ?? "出版社不明")
-                        @if (book.PublishedOn is { } publishedOn)
-                        {
-                            <text> — @publishedOn.ToString("yyyy-MM")</text>
-                        }
-                        @foreach (var tag in book.Tags)
-                        {
-                            <span class="badge bg-secondary ms-1">@tag</span>
-                        }
-                    </small>
-                </div>
-            </li>
-        }
-    </ul>
+            </ul>
+        </details>
+    }
 }
 
 @code {
-    IReadOnlyList<Book>? _books;
+    /// <summary>読み込む冊数。トピックごとに振り分けるので一覧表示より多めに取る。</summary>
+    const int Limit = 200;
+
+    IReadOnlyList<TopicGroup>? _groups;
     string? _message;
     string? _error;
 
@@ -84,5 +105,32 @@ else
         await LoadAsync();
     }
 
-    async Task LoadAsync() => _books = await BookStore.GetRecentAsync(50);
+    async Task LoadAsync() => _groups = Group(await BookStore.GetRecentAsync(Limit));
+
+    /// <summary>
+    /// 本をトピックごとに振り分ける。**1冊が複数のトピックに出る**(タグの数だけ重複して並ぶ)
+    /// —— 収集も「AI でも LLM でも当たる本」をどちらのタグでも持たせているため。
+    /// タグが1つも無い本は最後の「トピックなし」にまとめる(取りこぼしを見えるようにする)。
+    /// </summary>
+    IReadOnlyList<TopicGroup> Group(IReadOnlyList<Book> books)
+    {
+        var groups = books
+            .SelectMany(book => book.Tags.Select(tag => (Tag: tag, Book: book)))
+            .GroupBy(pair => pair.Tag, StringComparer.Ordinal)
+            .Select(g => new TopicGroup(g.Key, Catalog.DisplayOf(g.Key), g.Select(pair => pair.Book).ToList()))
+            .OrderByDescending(group => group.Books.Count)
+            .ThenBy(group => group.Display, StringComparer.Ordinal)
+            .ToList();
+
+        var untagged = books.Where(book => book.Tags.Count == 0).ToList();
+        if (untagged.Count > 0)
+        {
+            groups.Add(new TopicGroup("", "トピックなし", untagged));
+        }
+
+        return groups;
+    }
+
+    /// <summary>トピック1つぶんの見出しと中身。</summary>
+    record TopicGroup(string Tag, string Display, IReadOnlyList<Book> Books);
 }

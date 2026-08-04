@@ -37,6 +37,10 @@ public class Book
     /// 収集元から受け取ったままのタグ。**正規化の規則を変えたら、ここから引き直す**。
     /// 正規化後の値しか持たないと、別名カタログを直しても過去のデータに反映できない
     /// (`claude code` を `claudecode` に寄せた後で分けたくなっても、元の表記が残っていない)。
+    ///
+    /// 記事・イベントと違って init ではなく set なのは、**同じ本が別のトピックでも見つかったときに
+    /// タグを足す**ため(<see cref="BookMerge"/>)。ここを足し忘れると、再正規化した瞬間に
+    /// 後から足したトピックのタグだけが消える。
     /// </summary>
-    public IReadOnlyList<string> RawTags { get; init; } = [];
+    public IReadOnlyList<string> RawTags { get; set; } = [];
 }

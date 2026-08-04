@@ -27,7 +27,22 @@ public class OpenBdEnricherTests
         SourceName = "Google Books",
         CollectedAt = new DateTimeOffset(2026, 7, 30, 0, 0, 0, TimeSpan.Zero),
         Tags = ["c#"],
+        RawTags = ["C#"],
     };
+
+    [Fact]
+    public async Task 補完してもタグと生タグを保つ()
+    {
+        // 生タグを落とすと、再正規化(RawTags から Tags を作り直す)でタグが空になり、
+        // 補完できた本ほどトピック横断から落ちる
+        var enricher = new OpenBdEnricher(new StubHttpClientFactory(Response));
+
+        var result = await enricher.EnrichAsync([NewBook("9784123456789")]);
+
+        var book = Assert.Single(result);
+        Assert.Equal(["c#"], book.Tags);
+        Assert.Equal(["C#"], book.RawTags);
+    }
 
     [Fact]
     public async Task 欠けている項目を補う()

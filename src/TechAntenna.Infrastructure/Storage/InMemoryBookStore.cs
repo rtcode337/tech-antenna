@@ -19,12 +19,18 @@ public class InMemoryBookStore : IBookStore
         lock (_gate)
         {
             var added = 0;
-            foreach (var book in books)
+            foreach (var book in BookMerge.Coalesce(books))
             {
-                if (_byKey.TryAdd(BookKey.For(book), book))
+                var key = BookKey.For(book);
+                if (_byKey.TryGetValue(key, out var stored))
                 {
-                    added++;
+                    // 既にある本は書誌情報を上書きせず、別のトピックで見つかったぶんのタグだけ足す
+                    BookMerge.MergeTags(stored, book);
+                    continue;
                 }
+
+                _byKey[key] = book;
+                added++;
             }
 
             return Task.FromResult(added);

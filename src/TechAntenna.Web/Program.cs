@@ -182,30 +182,29 @@ builder.Services.Configure<BooksOptions>(
 var books = builder.Configuration
     .GetSection(BooksOptions.SectionName)
     .Get<BooksOptions>() ?? new BooksOptions();
-if (books.Keywords.Count > 0)
+// 検索語は選択中のトピックなので、設定を見ずに常に登録する(選択が空なら何もしないだけ)。
+// API キーが無くても登録するのは、ボタンごと消えるより 429 の理由を画面に出したほうが
+// 打つ手が分かるため(GoogleBooksCatalog がキー未設定かどうかを見分けて投げる)
+builder.Services.AddHttpClient(GoogleBooksCatalog.HttpClientName, ConfigureBookClient);
+
+builder.Services.AddSingleton<IBookCatalog>(sp => new GoogleBooksCatalog(
+    sp.GetRequiredService<IHttpClientFactory>(),
+    sp.GetRequiredService<TimeProvider>(),
+    books.GoogleBooksApiKey,
+    catalog: topicCatalog));
+
+// openBD はキーワード検索を持たないため、検索結果を補う後段として使う
+if (books.UseOpenBd)
 {
-    builder.Services.AddHttpClient(GoogleBooksCatalog.HttpClientName, ConfigureBookClient);
-
-    builder.Services.AddSingleton<IBookCatalog>(sp => new GoogleBooksCatalog(
-        sp.GetRequiredService<IHttpClientFactory>(),
-        sp.GetRequiredService<TimeProvider>(),
-        books.GoogleBooksApiKey,
-        catalog: topicCatalog));
-
-    // openBD はキーワード検索を持たないため、検索結果を補う後段として使う
-    if (books.UseOpenBd)
-    {
-        builder.Services.AddHttpClient(OpenBdEnricher.HttpClientName, ConfigureBookClient);
-        builder.Services.AddSingleton<IBookEnricher, OpenBdEnricher>();
-    }
-
-    if (books.AutoRun)
-    {
-        builder.Services.AddHostedService<BookCollectionWorker>();
-    }
+    builder.Services.AddHttpClient(OpenBdEnricher.HttpClientName, ConfigureBookClient);
+    builder.Services.AddSingleton<IBookEnricher, OpenBdEnricher>();
 }
 
-// 画面の手動ボタンから呼ぶので、キーワードが空でも登録しておく(未設定なら何もしない)
+if (books.AutoRun)
+{
+    builder.Services.AddHostedService<BookCollectionWorker>();
+}
+
 builder.Services.AddSingleton<BookCollectionRunner>();
 builder.Services.AddSingleton<TopicCollectionRunner>();
 // タグの正規化規則を変えたときに保存済みデータを追従させる(外部へは出ないので常に登録する)

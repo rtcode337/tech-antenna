@@ -64,11 +64,9 @@ public class BooksOptions
     /// <summary>巡回間隔(時)。書籍は記事ほど頻繁に増えないため既定を長めにする。</summary>
     public int IntervalHours { get; set; } = 24;
 
-    /// <summary>1キーワードを検索してから次に移るまでの待ち時間(秒)。</summary>
+    /// <summary>1キーワードを検索してから次に移るまでの待ち時間(秒)。
+    /// **検索語は設定ではなく選択中のトピック**(<c>ITopicStore.GetSelectedAsync</c>)から取る。</summary>
     public int DelayBetweenKeywordsSeconds { get; set; } = 2;
-
-    /// <summary>検索するキーワード。ここが空なら書籍収集は動かない。</summary>
-    public List<string> Keywords { get; set; } = [];
 
     /// <summary>Google Books API キー。実質必須(未設定だと検索が常に 429 になる)。
     /// 実値はコミットせず環境変数(Books__GoogleBooksApiKey)や user-secrets で渡す。</summary>

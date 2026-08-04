@@ -75,6 +75,9 @@ public class OpenBdEnricher(IHttpClientFactory httpClientFactory) : IBookEnriche
             SourceName = book.SourceName,
             CollectedAt = book.CollectedAt,
             Tags = book.Tags,
+            // 生タグを写し忘れると、再正規化(RawTags から Tags を作り直す)でタグが空になり、
+            // 補完できた本ほどトピック横断から落ちる
+            RawTags = book.RawTags,
         };
     }
 }
