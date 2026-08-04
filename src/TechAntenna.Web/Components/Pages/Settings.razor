@@ -17,6 +17,8 @@
         まとめてトピック一覧にします。話題度は<strong>収集元ごとのシェアに直してから合算</strong>するので、
         件数の桁が違う収集元どうしでも比べられます。在庫（3種そろい）は表示だけで、順位には足していません
         —— 足すと選択済みのトピックが上位に張り付き、新しいトピックが出てこなくなるためです。
+        <strong>収集対象に選んだトピックは一覧の先頭に固定します</strong>。再収集で見つからなくなっても
+        一覧から消えないので（話題度が 0 になるだけ）、選択が勝手に外れることはありません。
     </p>
 
     <JobButton Runner="CollectionRunner" FormName="collect-topics"
@@ -32,48 +34,45 @@
     }
     else
     {
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>タグ</th>
-                    <th class="text-end">話題度</th>
-                    <th>収集対象</th>
-                    <th>更新日時</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var topic in _topics)
-                {
-                    <tr>
-                        <td>
-                            <a href="@($"/topics/{Uri.EscapeDataString(topic.Tag)}")">@Label(topic)</a>
-                            @if (topic.Coverage == 3)
-                            {
-                                <span class="badge bg-success ms-1">3種そろい</span>
-                            }
-                        </td>
-                        <td class="text-end">@(topic.TrendScore.ToString("0.0"))</td>
-                        <td>@(topic.IsSelected ? "選択済み" : "未選択")</td>
-                        <td>@topic.CollectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
-
-    @if (_topics is { Count: > 0 })
-    {
         <form method="post" @formname="save-topic-selection" @onsubmit="SaveSelectionAsync" class="mb-3">
             <AntiforgeryToken />
-            <p>収集したいトピックを選択してください。</p>
-            @foreach (var topic in _topics)
+            <p>左のチェックボックスで収集したいトピックを選び、「選択を保存」を押してください。</p>
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col">収集</th>
+                        <th scope="col">タグ</th>
+                        <th scope="col" class="text-end">話題度</th>
+                        <th scope="col">更新日時</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var topic in _topics)
+                    {
+                        <tr>
+                            <td>
+                                <input class="form-check-input" type="checkbox" name="SelectedTopics"
+                                       value="@topic.Tag" checked="@topic.IsSelected"
+                                       aria-label="@($"{Label(topic)} を収集対象にする")" />
+                            </td>
+                            <td>
+                                <a href="@($"/topics/{Uri.EscapeDataString(topic.Tag)}")">@Label(topic)</a>
+                                @if (topic.Coverage == 3)
+                                {
+                                    <span class="badge bg-success ms-1">3種そろい</span>
+                                }
+                            </td>
+                            <td class="text-end">@(topic.TrendScore.ToString("0.0"))</td>
+                            <td>@topic.CollectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <button type="submit" class="btn btn-primary">選択を保存</button>
+            @if (_selectionMessage is { Length: > 0 })
             {
-                <label class="form-check form-check-inline">
-                    <input class="form-check-input" type="checkbox" name="SelectedTopics" value="@topic.Tag" checked="@topic.IsSelected" />
-                    <span class="form-check-label">@Label(topic)</span>
-                </label>
+                <span class="ms-2 text-body-secondary">@_selectionMessage</span>
             }
-            <div><button type="submit" class="btn btn-primary">選択を保存</button></div>
         </form>
     }
 </section>
@@ -95,6 +94,7 @@
     string? _message;
     string? _error;
     string? _renormalizeMessage;
+    string? _selectionMessage;
 
     [SupplyParameterFromForm(FormName = "save-topic-selection")]
     string[]? SelectedTopics { get; set; }
@@ -143,8 +143,11 @@
 
     async Task SaveSelectionAsync()
     {
-        await TopicStore.UpdateSelectionAsync(SelectedTopics ?? []);
-        _message = "収集対象のトピックを保存しました。";
+        var selected = SelectedTopics ?? [];
+        await TopicStore.UpdateSelectionAsync(selected);
+        _selectionMessage = selected.Length == 0
+            ? "収集対象を空にしました（このままでは何も集まりません）。"
+            : $"{selected.Length} 件のトピックを収集対象にしました。";
         await LoadAsync();
     }
 }

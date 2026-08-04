@@ -48,6 +48,7 @@ docker run --rm -v "$PWD":/src -w /src -e HOME=/tmp mcr.microsoft.com/dotnet/sdk
 | イベントの収集 | `Collection:AutoRun` | false | `/events` |
 | 書籍の収集 | `Books:AutoRun` | false | `/books` |
 | 記事の要約 | `Anthropic:AutoRun` | false | `/` |
+| トピックの収集 | (定期実行しない) | — | `/settings` |
 | タグの再正規化 | (定期実行しない) | — | `/settings` |
 
 **環境で分岐せず設定値にしている**ので、定期実行を有効にするときは
@@ -152,6 +153,16 @@ connpass は `keyword_or` で全キーワードを1リクエストにまとめ�
 記事・イベント・書籍は `TagNormalizer` を通した正規化済みタグを持ち、
 `TopicService` がそれを突き合わせて `/topics` に出す。**3種がそろったタグを上位**に出す
 (件数が多いだけのタグより、記事・イベント・書籍が全部あるタグを優先する)。
+
+### 収集対象の選択(`IsSelected`)
+
+何を集めるかは `/settings` のトピック一覧の**行頭のチェックボックス**で決める(概要は
+README「トピック収集」)。保存は `UpdateSelectionAsync` で、**一覧に出ている分で丸ごと
+置き換える**(チェックの外れたものは POST に乗らないため)。
+
+そのため **`GetTopicsAsync` は選択済みを話題度によらず先頭に固定する**。行を消さないだけでは
+足りない —— 再収集で現れなかったトピックは話題度が 0 になり、上位 N 件から押し出されて画面から
+消える。消えた状態で「選択を保存」を押すと、その選択まで外れて収集が止まる。
 
 EF 版のタグ関連クエリだけ生 SQL にしている。`Tags` 列には値変換をかけていて LINQ から
 翻訳できず、タグごとの件数集計には PostgreSQL の `unnest` が要るため。

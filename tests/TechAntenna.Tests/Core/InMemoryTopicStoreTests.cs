@@ -34,9 +34,23 @@ public class InMemoryTopicStoreTests
         await store.UpsertAsync([Update("両方", 20), Update("今回だけ", 5)], CollectedAt.AddHours(1));
 
         var topics = await store.GetTopicsAsync(10);
-        Assert.Equal(["両方", "今回だけ", "前回だけ"], topics.Select(topic => topic.Tag));
+        // 選択済み(前回だけ)は話題度 0 でも先頭
+        Assert.Equal(["前回だけ", "両方", "今回だけ"], topics.Select(topic => topic.Tag));
         Assert.Equal(0, topics.Single(topic => topic.Tag == "前回だけ").TrendScore);
         Assert.Equal(["前回だけ"], (await store.GetSelectedAsync()).Select(topic => topic.Tag));
+    }
+
+    [Fact]
+    public async Task 選択したトピックは件数の上限に押し出されない()
+    {
+        // 押し出されると画面から消え、選択の保存(渡された分で置き換える)で選択ごと外れる
+        var store = new InMemoryTopicStore();
+        await store.UpsertAsync([Update("選択", 1), Update("話題1", 30), Update("話題2", 20)], CollectedAt);
+        await store.UpdateSelectionAsync(["選択"]);
+
+        var topics = await store.GetTopicsAsync(2);
+
+        Assert.Equal(["選択", "話題1"], topics.Select(topic => topic.Tag));
     }
 
     [Fact]

@@ -50,7 +50,9 @@ public class EfTopicStore(IDbContextFactory<TechAntennaDbContext> contextFactory
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await db.Topics
-            .OrderByDescending(topic => topic.TrendScore)
+            // 選択済みは話題度が 0 でも押し出されないよう先頭に固定する
+            .OrderByDescending(topic => topic.IsSelected)
+            .ThenByDescending(topic => topic.TrendScore)
             .ThenBy(topic => topic.Tag)
             .Take(count)
             .ToListAsync(cancellationToken);

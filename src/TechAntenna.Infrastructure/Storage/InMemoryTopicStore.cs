@@ -49,7 +49,9 @@ public class InMemoryTopicStore : ITopicStore
         lock (_gate)
         {
             IReadOnlyList<StoredTopic> result = _byTag.Values
-                .OrderByDescending(topic => topic.TrendScore)
+                // 選択済みは話題度が 0 でも押し出されないよう先頭に固定する
+                .OrderByDescending(topic => topic.IsSelected)
+                .ThenByDescending(topic => topic.TrendScore)
                 .ThenBy(topic => topic.Tag, StringComparer.Ordinal)
                 .Take(count)
                 .ToList();

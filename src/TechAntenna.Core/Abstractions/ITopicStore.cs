@@ -15,7 +15,15 @@ public interface ITopicStore
         DateTimeOffset collectedAt,
         CancellationToken cancellationToken = default);
 
-    /// <summary>話題度順のトピックを最大 <paramref name="count"/> 件返す。</summary>
+    /// <summary>
+    /// 話題度順のトピックを最大 <paramref name="count"/> 件返す。
+    ///
+    /// **選択済み(<see cref="StoredTopic.IsSelected"/>)は話題度によらず先頭に固定する。**
+    /// 行を消さないだけでは足りない —— 再収集で現れなかったトピックは話題度が 0 になるので、
+    /// 上位 <paramref name="count"/> 件から押し出されて画面から消える。そうなると
+    /// 選択の保存(<see cref="UpdateSelectionAsync"/> は渡された分で置き換える)で
+    /// 選択そのものが外れてしまう。
+    /// </summary>
     Task<IReadOnlyList<StoredTopic>> GetTopicsAsync(
         int count,
         CancellationToken cancellationToken = default);
