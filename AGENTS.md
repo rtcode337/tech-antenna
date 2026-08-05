@@ -33,6 +33,7 @@ dotnet watch --project src/TechAntenna.Web --launch-profile watch
 - `--no-launch-profile` は使わない。リポジトリで決めたポート設定を無効にしてしまう。
 - 6000 番台はブラウザが X11 用の危険なポートと扱うため使わない。
 - `dotnet watch` は Razor、scoped CSS、メソッド本体の C# を即時反映する。DI 登録、`Program.cs`、型追加などは再起動になる。
+- Bootstrap は使わない。ユーティリティクラスは `wwwroot/app.css` に自前で持ち、色・余白・角丸は同ファイルの `:root` のカスタムプロパティを参照する（各 `*.razor.css` に生の色を書かない）。ダークモードは `prefers-color-scheme` で OS に追従する。
 - ブラウザ自動更新を curl で確認する際は `Accept: text/html` を付ける。
 - 接続文字列がなければ意図的に In-Memory ストアで起動する。画面作業に DB は不要だが、データは再起動で失われる。Compose の DB はホストの 7021 を公開しない。
 - 実データを読ませたいときだけ、上書き定義 `docker-compose.dev.yml` を重ねて `127.0.0.1:7021` に開け、`ConnectionStrings__Default` を渡す(手順は README「開発環境」)。開発サーバーも起動時にマイグレーションを自動適用するため、未コミットのマイグレーションを持ったまま本番の DB へ繋がない。

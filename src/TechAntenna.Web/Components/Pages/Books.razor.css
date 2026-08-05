@@ -1,31 +1,75 @@
 /* トピックごとの折りたたみ。開閉は details/summary の標準機能で、JS は使っていない */
 .topic-group {
-    margin-bottom: 0.5rem;
-    border: 1px solid #e3e7f0;
-    border-radius: 0.6rem;
-    background: #fff;
+    margin-bottom: 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
 }
 
 .topic-group > summary {
-    padding: 0.6rem 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1rem;
     cursor: pointer;
-    color: #18233c;
+    color: var(--text);
     font-weight: 650;
+    list-style-position: inside;
+    transition: background-color 0.15s ease;
 }
 
 .topic-group > summary:hover {
-    background: #f5f7fc;
-    border-radius: 0.6rem;
+    background: var(--surface-sunken);
+}
+
+.topic-group > summary::marker {
+    color: var(--text-muted);
+    font-size: 0.8rem;
 }
 
 .topic-group[open] > summary {
-    border-bottom: 1px solid #e3e7f0;
-    border-radius: 0.6rem 0.6rem 0 0;
+    border-bottom: 1px solid var(--border);
 }
 
 .topic-group > ul {
     margin: 0;
-    padding: 0.9rem;
+    padding: 0.5rem 1rem 0.9rem;
+}
+
+/* 1冊ぶん。書影と書誌情報を横に並べる */
+.topic-group > ul > li {
+    padding: 0.6rem 0;
+}
+
+.topic-group > ul > li + li {
+    border-top: 1px solid var(--border);
+}
+
+.topic-group img {
+    flex: none;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+}
+
+.topic-group li > div > a,
+.topic-group li > div > span {
+    color: var(--text);
+    font-weight: 600;
+    line-height: 1.55;
+}
+
+.topic-group li > div > a:hover {
+    color: var(--accent);
+}
+
+.topic-group li small {
+    display: block;
+    margin-top: 0.2rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.6;
 }
 
 .topic-name {
@@ -34,7 +78,7 @@
 
 /* 記事で薦められた回数。レビューとは別軸なので色を分ける */
 .recommended {
-    color: #7657c7;
+    color: var(--accent);
     font-weight: 650;
     text-decoration: none;
     white-space: nowrap;
@@ -45,11 +89,12 @@
 }
 
 .review {
-    color: #b8860b;
+    color: var(--warning-text);
     white-space: nowrap;
 }
 
 .credit {
-    margin-top: 1.25rem;
+    margin-top: 1.5rem;
     font-size: 0.8rem;
+    color: var(--text-muted);
 }

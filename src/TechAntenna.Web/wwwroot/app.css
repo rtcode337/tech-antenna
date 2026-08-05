@@ -1,60 +1,423 @@
-html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+/* アプリ全体の土台。ページごとの見た目は各 *.razor.css にあるが、
+   色・余白・角丸・影はすべてここで定義したカスタムプロパティを参照する
+   —— 1か所で調整できるようにするため、個々の CSS に生の色を書かないこと。
+
+   **Bootstrap は読み込んでいない。** かつて App.razor が参照していたが実体が無く
+   404 のままだったので(list-unstyled が効かず箇条書きの点が出ていた)、
+   razor が実際に使っているユーティリティクラスだけを下の「ユーティリティ」節に
+   自前で持っている。クラス名は Bootstrap のものに合わせてあるので、razor 側は
+   書き換えていない。 */
+
+:root {
+    color-scheme: light dark;
+
+    /* 面と枠。bg が最背面、surface がカードや表の面 */
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-sunken: #f1f3f7;
+    --border: #e4e7ec;
+    --border-strong: #cbd1db;
+
+    /* 文字。muted は補足情報(出典・日時・件数)用 */
+    --text: #16181d;
+    --text-soft: #414855;
+    --text-muted: #69717f;
+
+    /* アクセント。紫1色だけを使い、他は無彩色に寄せる */
+    --accent: #6244d4;
+    --accent-hover: #4f34b8;
+    --accent-soft: #f1eeff;
+    --accent-border: #d9d1ff;
+
+    --danger: #c02a37;
+    --success-soft: #e7f6ee;
+    --success-text: #17694a;
+    --warning-text: #8a6216;
+
+    /* サイドバー。ライト/ダークどちらでも暗い面のままにする */
+    --nav-bg: #14161c;
+    --nav-bg-top: #0f1116;
+    --nav-text: #b9c0cc;
+    --nav-text-strong: #f4f6f9;
+    --nav-hover: rgb(255 255 255 / 0.07);
+    --nav-active: rgb(255 255 255 / 0.12);
+    --nav-border: rgb(255 255 255 / 0.08);
+    --nav-accent: #a08eff;
+
+    --radius-sm: 0.375rem;
+    --radius: 0.625rem;
+    --radius-lg: 1rem;
+    --pill: 999px;
+
+    --shadow-sm: 0 1px 2px rgb(16 22 38 / 0.05);
+    --shadow: 0 1px 3px rgb(16 22 38 / 0.06), 0 8px 24px -12px rgb(16 22 38 / 0.12);
+
+    --focus: 0 0 0 3px rgb(98 68 212 / 0.35);
 }
 
-a, .btn-link {
-    color: #006bb7;
+/* OS の設定に追従する。全ページ静的 SSR なので切り替えボタン(JS が要る)は置かない */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0d0f14;
+        --surface: #15181f;
+        --surface-sunken: #1b1f27;
+        --border: #262b35;
+        --border-strong: #39404d;
+
+        --text: #e7eaf0;
+        --text-soft: #c3c9d4;
+        --text-muted: #949cab;
+
+        --accent: #a390ff;
+        --accent-hover: #b9abff;
+        --accent-soft: #221e35;
+        --accent-border: #3a3260;
+
+        --danger: #ff7b85;
+        --success-soft: #14301f;
+        --success-text: #6ddba2;
+        --warning-text: #d9ab55;
+
+        --nav-bg: #0f1218;
+        --nav-bg-top: #0a0c11;
+
+        --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+        --shadow: 0 1px 3px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+
+        --focus: 0 0 0 3px rgb(163 144 255 / 0.4);
+    }
 }
 
-.btn-primary {
-    color: #fff;
-    background-color: #1b6ec2;
-    border-color: #1861ac;
+/* ---- 下地 ---- */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+html {
+    -webkit-text-size-adjust: 100%;
 }
 
-.content {
-    padding-top: 1.1rem;
+html,
+body {
+    /* 日本語を含む端末標準のフォントを順に当てる。Helvetica 指定のままだと
+       和文がブラウザ既定のゴシックに落ち、字面が本文と揃わない */
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
+        "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
 }
 
-h1:focus {
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    /* 和文は欧文より行間を空けないと詰まって見える */
+    line-height: 1.75;
+    font-size: 0.95rem;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text);
+    line-height: 1.35;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    /* 和文は文節で折り返す。対応していないブラウザは無視して従来どおり折り返す
+       (助詞だけが行頭に残るのを防ぐ) */
+    word-break: auto-phrase;
+}
+
+h1 {
+    margin: 0 0 0.35rem;
+    font-size: clamp(1.55rem, 1.2rem + 1.4vw, 2rem);
+    font-weight: 750;
+    letter-spacing: -0.025em;
+}
+
+h2 {
+    margin: 2rem 0 0.75rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+p {
+    margin: 0 0 0.85rem;
+}
+
+a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+}
+
+/* 焦点の輪。**操作できる要素だけに付ける**。
+   `[tabindex="-1"]` を除いているのは、`FocusOnNavigate`(Routes.razor)が読み上げの
+   起点にするためページ遷移のたびに h1 へ tabindex="-1" を足して焦点を移すため
+   —— 除かないと、ページを開くたび見出しが枠で囲まれて出る(静的 SSR でも
+   blazor.web.js が動くので起きる) */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+    outline: none;
+    box-shadow: var(--focus);
+    border-radius: var(--radius-sm);
+}
+
+/* 上で除いたうえに、ブラウザ既定の outline も消す */
+[tabindex="-1"]:focus {
     outline: none;
 }
 
-.valid.modified:not([type=checkbox]) {
-    outline: 1px solid #26b050;
+code {
+    padding: 0.1em 0.35em;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    color: var(--text-soft);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86em;
 }
 
-.invalid {
-    outline: 1px solid #e50000;
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+hr {
+    height: 1px;
+    margin: 1.5rem 0;
+    border: 0;
+    background: var(--border);
+}
+
+/* ---- 部品 ---- */
+
+/* ボタン。既定は控えめな枠線で、主要な操作(btn-primary)だけ塗る */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.95rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text-soft);
+    font: inherit;
+    font-weight: 600;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn:hover {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--accent-hover);
+    text-decoration: none;
+}
+
+.btn:active {
+    transform: translateY(1px);
+}
+
+.btn-sm {
+    padding: 0.32rem 0.75rem;
+    font-size: 0.86rem;
+}
+
+.btn-primary {
+    border-color: transparent;
+    background: var(--accent);
+    color: #fff;
+}
+
+.btn-primary:hover {
+    border-color: transparent;
+    background: var(--accent-hover);
+    color: #fff;
+}
+
+.btn-outline-primary {
+    border-color: var(--accent-border);
+    color: var(--accent);
+}
+
+/* タグや件数の小さなラベル。既定は無彩色で、選択中のものだけ .bg-primary で色を付ける */
+.badge {
+    display: inline-block;
+    padding: 0.14em 0.55em;
+    border: 1px solid var(--border);
+    border-radius: var(--pill);
+    background: var(--surface-sunken);
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.6;
+    white-space: nowrap;
+    vertical-align: 0.08em;
+}
+
+.badge.bg-primary {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.badge.bg-success {
+    border-color: transparent;
+    background: var(--success-soft);
+    color: var(--success-text);
+}
+
+/* 外部連携の「未設定（動かない）」「未設定（一部だけ）」。塗りつぶさず文字色で示す
+   —— 一覧の中で赤や黄の面が並ぶと、設定できている行まで警告に見えるため */
+.badge.bg-danger {
+    border-color: currentColor;
+    background: transparent;
+    color: var(--danger);
+}
+
+.badge.bg-warning {
+    border-color: currentColor;
+    background: transparent;
+    color: var(--warning-text);
+}
+
+/* bg-warning と併用される text-dark に負けないよう、色はこちらで決め切る */
+.badge.bg-warning.text-dark {
+    color: var(--warning-text);
+}
+
+.badge.bg-light {
+    background: transparent;
+}
+
+/* 表。罫線は横線だけにして、縦線は引かない */
+.table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 1rem;
+}
+
+.table th,
+.table td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+
+.table thead th {
+    border-bottom-color: var(--border-strong);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+.table tbody tr:hover {
+    background: var(--surface-sunken);
+}
+
+.table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.table.align-middle th,
+.table.align-middle td {
+    vertical-align: middle;
+}
+
+/* 上の `.table th` が text-align を持つので、ユーティリティ単体では勝てない。
+   表の中で使われたときのために詳細度を合わせた規則を置く */
+.table .text-end {
+    text-align: right;
+}
+
+/* チェックボックス。accent-color だけで色を合わせ、見た目の作り直しはしない
+   (OS のフォーム部品のままのほうが操作感が揃う) */
+.form-check-input {
+    width: 1.05rem;
+    height: 1.05rem;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+/* ---- ユーティリティ(Bootstrap 相当。razor 側のクラス名に合わせてある) ---- */
+
+.text-muted,
+.text-body-secondary {
+    color: var(--text-muted);
+}
+
+.text-danger {
+    color: var(--danger);
+}
+
+.text-dark {
+    color: var(--text-soft);
+}
+
+.text-end {
+    text-align: right;
+}
+
+.h4 {
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.list-unstyled {
+    padding-left: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.d-flex {
+    display: flex;
+}
+
+.flex-column {
+    flex-direction: column;
+}
+
+.gap-2 {
+    gap: 0.5rem;
+}
+
+.mt-4 { margin-top: 1.5rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-3 { margin-bottom: 1rem; }
+.mb-4 { margin-bottom: 1.5rem; }
+.ms-1 { margin-left: 0.25rem; }
+.ms-2 { margin-left: 0.5rem; }
+.px-3 { padding-left: 1rem; padding-right: 1rem; }
+.px-4 { padding-left: 1.5rem; padding-right: 1.5rem; }
+
+/* ---- Blazor が出すもの ---- */
+
+.blazor-error-boundary {
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius);
+    background: var(--danger);
+    color: #fff;
+}
+
+.blazor-error-boundary::after {
+    content: "エラーが発生しました。";
 }
 
 .validation-message {
-    color: #e50000;
-}
-
-.blazor-error-boundary {
-    background: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTYiIGhlaWdodD0iNDkiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIG92ZXJmbG93PSJoaWRkZW4iPjxkZWZzPjxjbGlwUGF0aCBpZD0iY2xpcDAiPjxyZWN0IHg9IjIzNSIgeT0iNTEiIHdpZHRoPSI1NiIgaGVpZ2h0PSI0OSIvPjwvY2xpcFBhdGg+PC9kZWZzPjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMCkiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0yMzUgLTUxKSI+PHBhdGggZD0iTTI2My41MDYgNTFDMjY0LjcxNyA1MSAyNjUuODEzIDUxLjQ4MzcgMjY2LjYwNiA1Mi4yNjU4TDI2Ny4wNTIgNTIuNzk4NyAyNjcuNTM5IDUzLjYyODMgMjkwLjE4NSA5Mi4xODMxIDI5MC41NDUgOTIuNzk1IDI5MC42NTYgOTIuOTk2QzI5MC44NzcgOTMuNTEzIDI5MSA5NC4wODE1IDI5MSA5NC42NzgyIDI5MSA5Ny4wNjUxIDI4OS4wMzggOTkgMjg2LjYxNyA5OUwyNDAuMzgzIDk5QzIzNy45NjMgOTkgMjM2IDk3LjA2NTEgMjM2IDk0LjY3ODIgMjM2IDk0LjM3OTkgMjM2LjAzMSA5NC4wODg2IDIzNi4wODkgOTMuODA3MkwyMzYuMzM4IDkzLjAxNjIgMjM2Ljg1OCA5Mi4xMzE0IDI1OS40NzMgNTMuNjI5NCAyNTkuOTYxIDUyLjc5ODUgMjYwLjQwNyA1Mi4yNjU4QzI2MS4yIDUxLjQ4MzcgMjYyLjI5NiA1MSAyNjMuNTA2IDUxWk0yNjMuNTg2IDY2LjAxODNDMjYwLjczNyA2Ni4wMTgzIDI1OS4zMTMgNjcuMTI0NSAyNTkuMzEzIDY5LjMzNyAyNTkuMzEzIDY5LjYxMDIgMjU5LjMzMiA2OS44NjA4IDI1OS4zNzEgNzAuMDg4N0wyNjEuNzk1IDg0LjAxNjEgMjY1LjM4IDg0LjAxNjEgMjY3LjgyMSA2OS43NDc1QzI2Ny44NiA2OS43MzA5IDI2Ny44NzkgNjkuNTg3NyAyNjcuODc5IDY5LjMxNzkgMjY3Ljg3OSA2Ny4xMTgyIDI2Ni40NDggNjYuMDE4MyAyNjMuNTg2IDY2LjAxODNaTTI2My41NzYgODYuMDU0N0MyNjEuMDQ5IDg2LjA1NDcgMjU5Ljc4NiA4Ny4zMDA1IDI1OS43ODYgODkuNzkyMSAyNTkuNzg2IDkyLjI4MzcgMjYxLjA0OSA5My41Mjk1IDI2My41NzYgOTMuNTI5NSAyNjYuMTE2IDkzLjUyOTUgMjY3LjM4NyA5Mi4yODM3IDI2Ny4zODcgODkuNzkyMSAyNjcuMzg3IDg3LjMwMDUgMjY2LjExNiA4Ni4wNTQ3IDI2My41NzYgODYuMDU0N1oiIGZpbGw9IiNGRkU1MDAiIGZpbGwtcnVsZT0iZXZlbm9kZCIvPjwvZz48L3N2Zz4=) no-repeat 1rem/1.8rem, #b32121;
-    padding: 1rem 1rem 1rem 3.7rem;
-    color: white;
-}
-
-    .blazor-error-boundary::after {
-        content: "An error has occurred."
-    }
-
-.darker-border-checkbox.form-check-input {
-    border-color: #929292;
-}
-
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
-    color: var(--bs-secondary-color);
-    text-align: end;
-}
-
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
-    text-align: start;
+    color: var(--danger);
 }

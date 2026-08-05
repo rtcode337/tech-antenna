@@ -1,33 +1,81 @@
+/* 種別(記事/ニュース/論文)の見出し。件数のバッジと同じ行に並べる */
 .section-heading {
-    margin: 1.6rem 0 0.6rem;
-    font-size: 1.15rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 2.25rem 0 0.85rem;
+    font-size: 1.1rem;
     font-weight: 700;
-    color: #18233c;
+    letter-spacing: -0.01em;
 }
 
 /* 訳題を見出しにしたときの原題。突き合わせに使えるよう残すが、主役ではない */
 .original-title {
-    color: #8590a6;
+    margin-top: 0.15rem;
+    color: var(--text-muted);
     font-size: 0.82rem;
+    line-height: 1.5;
 }
 
+/* 1件ずつを面のあるカードにする。行の頭の点を並べるより、
+   タイトル・要約・出典の3段が視線でまとまって追える */
 .article {
-    margin-bottom: 0.6rem;
-    padding-left: 0.75rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
     /* 強調したときにタイトルの位置がずれないよう、非強調でも同じ幅の帯を置いておく */
-    border-left: 3px solid transparent;
+    border-left: 3px solid var(--border);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-/* 選んだトピックの記事。太字とわずかな拡大に、左の帯とうっすらした背景を足している
+.article + .article {
+    margin-top: 0.5rem;
+}
+
+.article:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow);
+}
+
+.article > a {
+    display: inline-block;
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.55;
+}
+
+.article > a:hover {
+    color: var(--accent);
+}
+
+/* 選んだトピックの記事。左の帯をアクセント色にし、面をうっすら染める
    —— 文字の大きさだけだと、流し読みでは他の記事に埋もれるため */
 .article.selected {
-    border-left-color: #7657c7;
-    background: #f7f5fd;
-    border-radius: 0 0.4rem 0.4rem 0;
-    padding: 0.35rem 0.5rem 0.4rem 0.75rem;
+    border-left-color: var(--accent);
+    background: var(--accent-soft);
 }
 
 .article.selected > a {
-    font-size: 1.12rem;
     font-weight: 700;
+}
+
+/* 出典・日時・タグ。本文より一段落として、拾い読みの邪魔にならないようにする */
+.article small {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.45rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.article .text-body-secondary {
+    margin-top: 0.3rem;
+    font-size: 0.89rem;
+    line-height: 1.7;
 }

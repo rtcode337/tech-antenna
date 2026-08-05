@@ -1,0 +1,42 @@
+/* 記事・イベント・書籍を同じ形のカードで並べる。3種を1画面で見比べるページなので、
+   種別ごとに見た目を変えないほうが追いやすい(作りは Articles / Events と同じ) */
+li {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+li + li {
+    margin-top: 0.5rem;
+}
+
+li:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow);
+}
+
+li > a,
+li > span {
+    color: var(--text);
+    font-weight: 600;
+    line-height: 1.55;
+}
+
+li > a:hover {
+    color: var(--accent);
+}
+
+li small {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+li .text-body-secondary {
+    margin-top: 0.3rem;
+    font-size: 0.89rem;
+}

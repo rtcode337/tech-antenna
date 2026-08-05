@@ -5,9 +5,10 @@
     height: 2.5rem;
     color: white;
     position: absolute;
-    top: 0.5rem;
+    top: 0.75rem;
     right: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--nav-border);
     background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.55%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") no-repeat center/1.75rem rgba(255, 255, 255, 0.1);
 }
 
@@ -18,27 +19,27 @@
 /* ロゴ（マーク＋ワードマーク）。電波はアクセント色、支柱と文字は紙色 */
 .top-row {
     /* 高さは main 側の top-row（3.5rem）と揃える */
-    min-height: 3.5rem;
+    min-height: 4rem;
     display: flex;
     align-items: center;
     padding: 0 1rem;
-    background-color: rgba(0,0,0,0.28);
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    background-color: var(--nav-bg-top);
+    border-bottom: 1px solid var(--nav-border);
 }
 
 .brand {
     display: flex;
     align-items: center;
     gap: 0.55rem;
-    color: #f4f7fb;
+    color: var(--nav-text-strong);
     text-decoration: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     padding: 0.25rem 0.35rem;
 }
 
-.brand:focus-visible {
-    outline: 2px solid #6fd3ff;
-    outline-offset: 2px;
+.brand:hover {
+    color: var(--nav-text-strong);
+    text-decoration: none;
 }
 
 .brand-mark {
@@ -49,7 +50,7 @@
 }
 
 .brand-mark .waves {
-    stroke: #6fd3ff;
+    stroke: var(--nav-accent);
     opacity: 0.55;
     transition: opacity 0.2s ease;
 }
@@ -60,7 +61,7 @@
 }
 
 .brand-mark .hub {
-    fill: #6fd3ff;
+    fill: var(--nav-accent);
 }
 
 .brand:hover .brand-mark .waves {
@@ -81,7 +82,7 @@
 
 .brand-name-sub {
     font-weight: 400;
-    color: rgba(255,255,255,0.72);
+    color: var(--nav-text);
 }
 
 .brand-tagline {
@@ -89,7 +90,8 @@
     font-size: 0.58rem;
     font-weight: 500;
     letter-spacing: 0.16em;
-    color: rgba(111,211,255,0.85);
+    color: var(--nav-accent);
+    opacity: 0.85;
 }
 
 .bi {
@@ -131,7 +133,7 @@
     display: list-item;
     list-style-position: inside;
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
 }
 
 .nav-group > summary::marker {
@@ -164,12 +166,16 @@
 .nav-item.nav-child ::deep .nav-link {
     margin-left: 2.1rem;
     padding-left: 0.75rem;
-    border-left: 2px solid rgba(255, 255, 255, 0.22);
-    border-radius: 0 4px 4px 0;
+    border-left: 2px solid var(--nav-border);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
     width: calc(100% - 2.1rem);
-    height: 2.3rem;
-    line-height: 2.3rem;
+    height: 2.2rem;
+    line-height: 2.2rem;
     font-size: 0.86rem;
+}
+
+.nav-item.nav-child ::deep a.active {
+    border-left-color: var(--nav-accent);
 }
 
     /* 上下の余白はグループ単位で付ける。.nav-item に :first-of-type を使うと
@@ -183,25 +189,31 @@
     }
 
     .nav-item ::deep .nav-link {
-        color: #d7d7d7;
+        color: var(--nav-text);
         background: none;
         border: none;
-        border-radius: 4px;
-        height: 3rem;
+        border-radius: var(--radius-sm);
+        height: 2.6rem;
         display: flex;
         align-items: center;
-        line-height: 3rem;
+        line-height: 2.6rem;
         width: 100%;
+        font-weight: 500;
+        text-decoration: none;
+        transition: background-color 0.15s ease, color 0.15s ease;
     }
 
+/* 現在地。塗りつぶしを薄くして、代わりに文字を白く強めている
+   —— 面を明るくすると暗いサイドバーの中で塊が浮いて見えるため */
 .nav-item ::deep a.active {
-    background-color: rgba(255,255,255,0.37);
-    color: white;
+    background-color: var(--nav-active);
+    color: var(--nav-text-strong);
 }
 
 .nav-item ::deep .nav-link:hover {
-    background-color: rgba(255,255,255,0.1);
-    color: white;
+    background-color: var(--nav-hover);
+    color: var(--nav-text-strong);
+    text-decoration: none;
 }
 
 .nav-scrollable {
@@ -221,8 +233,8 @@
         /* Never collapse the sidebar for wide screens */
         display: block;
 
-        /* Allow sidebar to scroll for tall menus */
-        height: calc(100vh - 3.5rem);
+        /* Allow sidebar to scroll for tall menus(ロゴ帯の高さを引く) */
+        height: calc(100vh - 4rem);
         overflow-y: auto;
     }
 }

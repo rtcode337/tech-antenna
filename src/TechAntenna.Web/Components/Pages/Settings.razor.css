@@ -1,0 +1,35 @@
+/* 説明文。長いので本文より一段落とし、読み幅も抑える */
+section > p {
+    max-width: 62rem;
+    font-size: 0.89rem;
+}
+
+/* トピックの表を面の上に載せる。行数が多いので、区切りは横線だけにする */
+.table {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+/* 行頭のチェックボックス列と話題度の列は内容が短いので詰める */
+.table td:first-child,
+.table th:first-child {
+    width: 3.5rem;
+    text-align: center;
+}
+
+.table td:nth-child(3),
+.table th:nth-child(3) {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* 更新日時は判断に使わない補足なので、目立たせない */
+.table td:last-child {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}

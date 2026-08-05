@@ -366,6 +366,35 @@ Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。�
 小さいので記事ごとに1リクエスト。モデルは既定で `claude-opus-5`、コストを抑えたいときは
 `Anthropic__Model` を `claude-haiku-4-5`(入力 $1 / 出力 $5 per MTok)に変えられる。
 
+## 見た目(CSS)
+
+**Bootstrap は使っていない。** Blazor の雛形が入れた
+`lib/bootstrap/dist/css/bootstrap.min.css` への `<link>` は残っていたが**実体が無く、
+毎回 404 を引いていた** —— `list-unstyled` が効かず箇条書きの点が出ていたのはこのため。
+link を外し、razor が実際に使っているユーティリティ(`text-muted`・`badge`・`table`・
+`btn`・`ms-1` など 20 個ほど)だけを `wwwroot/app.css` に自前で持っている。
+**クラス名は Bootstrap のものに合わせてある**ので razor 側は書き換えていない。
+新しいユーティリティを razor で使うときは、app.css の「ユーティリティ」節に足すこと
+(足さないと無言で効かない)。
+
+色・余白・角丸・影は `app.css` の `:root` に**カスタムプロパティ**として置き、
+各 `*.razor.css` はそれを参照する。**個々の CSS に生の色を書かないこと** ——
+1か所で調整できなくなる。
+
+- **ダークモードは `prefers-color-scheme` で OS に追従する**。全ページ静的 SSR なので
+  切り替えボタン(JS と保存先が要る)は置かない。`:root` に `color-scheme: light dark`
+  を宣言してあるので、チェックボックス等のフォーム部品も一緒に切り替わる
+- サイドバーはライト/ダークどちらでも暗い面のまま(`--nav-*`)。雛形の紺→紫
+  グラデーションはやめ、単色にしてある
+- 一覧(記事・イベント・書籍・トピック詳細)は**同じ形のカード**で出す。種別ごとに
+  見た目を変えると、3種を並べて見るページで追いにくくなる
+- **焦点の輪(`:focus-visible`)は操作できる要素にだけ付ける。** 全要素に付けると、
+  `FocusOnNavigate`(`Routes.razor`)が読み上げの起点として h1 に `tabindex="-1"` を
+  足して焦点を移すぶん、**ページを開くたび見出しが枠で囲まれて出る**(静的 SSR でも
+  `blazor.web.js` が動くので起きる)。app.css は `[tabindex="-1"]` を除いている
+- 和文の折り返しは `ch` ではなく `em` で測る。`ch` は "0" の字幅なので、全角が並ぶと
+  **想定の半分の位置で折り返す**
+
 ## アイコン
 
 ファビコンは**左上のロゴと同じアンテナ**(`Components/Layout/NavMenu.razor` の

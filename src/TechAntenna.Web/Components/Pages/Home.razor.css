@@ -1,8 +1,6 @@
 .home-layout {
     display: grid;
     gap: 2rem;
-    max-width: 1120px;
-    margin: 0 auto;
 }
 
 .home-main {
@@ -10,44 +8,48 @@
 }
 
 .home-heading {
-    margin: 1.25rem 0 2rem;
+    margin: 0.5rem 0 2rem;
 }
 
 .home-heading h1 {
-    max-width: 18ch;
+    /* 単位は ch ではなく em。ch は "0" の字幅なので、全角が並ぶと想定の半分で折り返す
+       (元の 18ch は和文だと 9 文字ぶんしかなかった)。
+       どこで改行するかは text-wrap: balance が決めるので、この値は行数の上限を
+       決めているだけ —— 読点で割らせたいなら balance を外すことになる */
+    max-width: 10em;
     margin: 0.3rem 0 0.7rem;
-    color: #18233c;
-    font-size: clamp(2rem, 4vw, 3.15rem);
+    font-size: clamp(2rem, 4vw, 3rem);
     font-weight: 750;
-    letter-spacing: -0.05em;
-    line-height: 1.16;
+    letter-spacing: -0.045em;
+    line-height: 1.2;
 }
 
 .home-heading > p:last-child,
 .section-description {
-    color: #60708d;
+    color: var(--text-muted);
 }
 
+/* 節の上に置く小さなラベル。見出しの前置きなので、色と字送りで区別する */
 .eyebrow {
     margin: 0;
-    color: #7657c7;
-    font-size: 0.72rem;
-    font-weight: 750;
+    color: var(--accent);
+    font-size: 0.7rem;
+    font-weight: 700;
     letter-spacing: 0.13em;
 }
 
 .summary-card,
 .interest-card,
 .topic-rail {
-    border: 1px solid #e4e8f1;
-    border-radius: 1rem;
-    background: #fff;
-    box-shadow: 0 0.4rem 1.5rem rgb(32 49 87 / 0.06);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow);
 }
 
 .summary-card,
 .interest-card {
-    padding: clamp(1.25rem, 3vw, 2rem);
+    padding: clamp(1.25rem, 3vw, 1.85rem);
     margin-bottom: 1.25rem;
 }
 
@@ -63,17 +65,17 @@
 .section-heading h2,
 .topic-rail-heading h2 {
     margin: 0.18rem 0 0;
-    color: #1d2943;
-    font-size: 1.25rem;
+    font-size: 1.2rem;
     font-weight: 700;
 }
 
 .status-pill {
-    padding: 0.3rem 0.65rem;
-    border-radius: 999px;
-    background: #f0ebff;
-    color: #6544b6;
-    font-size: 0.78rem;
+    padding: 0.25rem 0.65rem;
+    border: 1px solid var(--accent-border);
+    border-radius: var(--pill);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.76rem;
     font-weight: 700;
 }
 
@@ -81,13 +83,13 @@
     display: flex;
     align-items: center;
     gap: 0.85rem;
-    min-height: 8.5rem;
+    min-height: 8rem;
     margin-top: 1.25rem;
     padding: 1.25rem;
-    border: 1px dashed #cbd3e4;
-    border-radius: 0.75rem;
-    background: linear-gradient(135deg, #faf9ff, #f6f9ff);
-    color: #596985;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--surface-sunken);
+    color: var(--text-muted);
 }
 
 .summary-placeholder span {
@@ -95,9 +97,10 @@
     place-items: center;
     width: 2.35rem;
     height: 2.35rem;
-    border-radius: 0.7rem;
-    background: #e9e1ff;
-    color: #6e4fc0;
+    flex: none;
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+    color: var(--accent);
     font-size: 1.2rem;
 }
 
@@ -114,7 +117,7 @@
 .interest-form label {
     display: block;
     margin-bottom: 0.35rem;
-    color: #34415b;
+    color: var(--text-soft);
     font-size: 0.88rem;
     font-weight: 700;
 }
@@ -122,17 +125,19 @@
 .interest-form textarea {
     width: 100%;
     padding: 0.75rem 0.85rem;
-    border: 1px solid #cbd3e4;
-    border-radius: 0.6rem;
-    color: #1d2943;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
     font: inherit;
-    line-height: 1.5;
+    line-height: 1.6;
     resize: vertical;
 }
 
 .interest-form textarea:focus {
-    border-color: #7657c7;
-    outline: 3px solid rgb(118 87 199 / 0.16);
+    border-color: var(--accent);
+    outline: none;
+    box-shadow: var(--focus);
 }
 
 .interest-form-footer {
@@ -141,7 +146,7 @@
 }
 
 .save-message {
-    color: #46743e;
+    color: var(--success-text);
     font-size: 0.9rem;
 }
 
@@ -153,16 +158,19 @@
 }
 
 .selected-topics a {
-    padding: 0.35rem 0.7rem;
-    border-radius: 999px;
-    background: #eef2fb;
-    color: #3f4d70;
-    font-size: 0.9rem;
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: var(--pill);
+    background: var(--surface-sunken);
+    color: var(--text-soft);
+    font-size: 0.88rem;
     text-decoration: none;
 }
 
 .selected-topics a:hover {
-    background: #e2e8f7;
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--accent);
 }
 
 .topic-rail {
@@ -171,18 +179,18 @@
 }
 
 .topic-rail-heading a {
-    color: #6047a8;
-    font-size: 0.86rem;
+    font-size: 0.84rem;
+    white-space: nowrap;
 }
 
 .topic-list {
     padding: 0;
-    margin: 1rem 0 0;
+    margin: 0.75rem 0 0;
     list-style: none;
 }
 
 .topic-list li + li {
-    border-top: 1px solid #edf0f6;
+    border-top: 1px solid var(--border);
 }
 
 .topic-list a {
@@ -190,20 +198,22 @@
     align-items: baseline;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.75rem 0;
-    color: #273653;
+    padding: 0.6rem 0;
+    color: var(--text);
+    font-weight: 500;
     text-decoration: none;
 }
 
 .topic-list a:hover span {
-    color: #684bb4;
+    color: var(--accent);
     text-decoration: underline;
+    text-underline-offset: 0.18em;
 }
 
 .topic-list small,
 .topic-empty {
-    color: #78869e;
-    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
 }
 
 .topic-empty {
