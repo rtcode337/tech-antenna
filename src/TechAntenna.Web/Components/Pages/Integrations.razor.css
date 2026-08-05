@@ -1,0 +1,16 @@
+.purpose {
+    margin: 1.6rem 0 0.6rem;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #18233c;
+}
+
+/* 「未設定・無効のとき」は補足なので、幅を取りすぎないようにする */
+td:last-child {
+    font-size: 0.85rem;
+    max-width: 34rem;
+}
+
+code {
+    font-size: 0.82rem;
+}

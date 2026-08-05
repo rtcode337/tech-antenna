@@ -1,0 +1,139 @@
+using Microsoft.Extensions.Options;
+
+namespace TechAntenna.Web.Services;
+
+/// <summary>APIキー・トークンの要否。</summary>
+public enum CredentialNeed
+{
+    /// <summary>キーもトークンも要らない(公開 API / RSS)。</summary>
+    NotNeeded,
+
+    /// <summary>無くても動くが、あると機能が増える・上限が上がる。</summary>
+    Optional,
+
+    /// <summary>無いとその連携が動かない。</summary>
+    Required,
+}
+
+/// <summary>外部連携1件分の状態。</summary>
+/// <param name="Purpose">用途(この単位で画面にまとめる)。</param>
+/// <param name="Name">連携先。</param>
+/// <param name="Need">キーの要否。</param>
+/// <param name="SettingKey">設定する環境変数名。キーが要らない連携では null。</param>
+/// <param name="Configured">キーが設定されているか。要らない連携では常に true。</param>
+/// <param name="Effect">未設定・無効のときに何が起きるか。</param>
+/// <param name="Enabled">そもそもこの連携を使う設定になっているか。</param>
+public record Integration(
+    string Purpose,
+    string Name,
+    CredentialNeed Need,
+    string? SettingKey,
+    bool Configured,
+    string Effect,
+    bool Enabled = true);
+
+/// <summary>
+/// 外部連携の一覧と、キーが設定されているかどうかを組み立てる。
+///
+/// **設定値そのものは画面に出さない**(有無だけを見る)。キーやトークンは秘匿情報なので、
+/// 長さや先頭数文字も含めて出さない。
+///
+/// 一覧は<b>ここに手で並べる</b>。設定から自動生成はできない —— 「未設定だと何が起きるか」は
+/// 設定値には書いていないうえ、キーの要否は収集元ごとの事情(申請の要不要・無料枠の有無)で
+/// 決まるため。**外部 API を足したらここにも1行足すこと。**
+/// </summary>
+public class IntegrationCatalog(
+    IConfiguration configuration,
+    IOptions<CollectionOptions> collection,
+    IOptions<BooksOptions> books,
+    IOptions<RakutenOptions> rakuten,
+    IOptions<AnthropicOptions> anthropic)
+{
+    public IReadOnlyList<Integration> GetAll()
+    {
+        var arxiv = Section<ArxivOptions>(ArxivOptions.SectionName);
+        var jstage = Section<JstageOptions>(JstageOptions.SectionName);
+        var qiita = Section<QiitaOptions>(QiitaOptions.SectionName);
+        var connpass = Section<ConnpassOptions>(ConnpassOptions.SectionName);
+        var doorkeeper = Section<DoorkeeperOptions>(DoorkeeperOptions.SectionName);
+        var techPlay = Section<TechPlayOptions>(TechPlayOptions.SectionName);
+        var claudeCodeToken = configuration["CLAUDE_CODE_OAUTH_TOKEN"];
+
+        var integrations = new List<Integration>();
+
+        // --- 記事・ニュース ---
+        foreach (var feed in collection.Value.Feeds)
+        {
+            integrations.Add(new Integration(
+                feed.Kind == Core.Models.ArticleKind.News ? "ニュース" : "記事",
+                feed.Name,
+                CredentialNeed.NotNeeded,
+                null,
+                true,
+                "RSS / Atom を巡回するだけなので申請もキーも要らない"));
+        }
+
+        // --- 論文 ---
+        integrations.Add(new Integration(
+            "論文", "arXiv", CredentialNeed.NotNeeded, null, true,
+            "英語の論文。3 秒以上の間隔を空けて問い合わせる", arxiv.Enabled));
+        integrations.Add(new Integration(
+            "論文", "J-STAGE", CredentialNeed.NotNeeded, null, true,
+            "日本語の論文。直近 " + jstage.WithinYears + " 年ぶんに絞って引く", jstage.Enabled));
+
+        // --- 書籍 ---
+        integrations.Add(new Integration(
+            "書籍", "Google Books", CredentialNeed.Required, "Books__GoogleBooksApiKey",
+            !string.IsNullOrWhiteSpace(books.Value.GoogleBooksApiKey),
+            "未設定だと検索が毎回 429 になる(キー無しは共有の匿名プロジェクト扱いで上限 0 件)"));
+        integrations.Add(new Integration(
+            "書籍", "openBD", CredentialNeed.NotNeeded, null, true,
+            "ISBN から書誌情報を補う。日本の書誌が無料で引ける", books.Value.UseOpenBd));
+        // 書籍そのものは集まるので「必須」ではない(レビューが取れないだけ)
+        integrations.Add(new Integration(
+            "書籍", "楽天ブックス", CredentialNeed.Optional, "Rakuten__ApplicationId",
+            !string.IsNullOrWhiteSpace(rakuten.Value.ApplicationId),
+            "未設定でも書籍は集まるが、レビュー(読まれている度合い)が取れず並べ替えができない"));
+        integrations.Add(new Integration(
+            "書籍", "Qiita(推薦本)", CredentialNeed.Optional, "Qiita__AccessToken",
+            !string.IsNullOrWhiteSpace(qiita.AccessToken),
+            "未設定でも動く。トークンを入れると API の上限が 60 → 1000 リクエスト/時になる",
+            qiita.Enabled));
+
+        // --- イベント ---
+        integrations.Add(new Integration(
+            "イベント", "connpass", CredentialNeed.Required, "Connpass__ApiKey",
+            !string.IsNullOrWhiteSpace(connpass.ApiKey),
+            "**利用申請が要る**。未設定だと connpass からは収集しない"));
+        integrations.Add(new Integration(
+            "イベント", "Doorkeeper", CredentialNeed.Required, "Doorkeeper__AccessToken",
+            !string.IsNullOrWhiteSpace(doorkeeper.AccessToken),
+            "未設定だと Doorkeeper からは収集しない。API は alpha 扱いで破壊的変更がありうる"));
+        integrations.Add(new Integration(
+            "イベント", "TECH PLAY", CredentialNeed.NotNeeded, null, true,
+            "RSS なのでキーは要らない代わりに検索ができない(最新 50 件が流れてくるだけ)",
+            !string.IsNullOrWhiteSpace(techPlay.FeedUrl)));
+
+        // --- トピック ---
+        integrations.Add(new Integration(
+            "トピック", "Qiita(トレンド)", CredentialNeed.NotNeeded, null, true,
+            "直近記事のタグをいいね数で重み付けして話題度を出す"));
+
+        // --- 要約・翻訳 ---
+        var hasClaudeCode = !string.IsNullOrWhiteSpace(claudeCodeToken);
+        integrations.Add(new Integration(
+            "要約・翻訳", "Claude Code(サブスクの枠)", CredentialNeed.Optional, "CLAUDE_CODE_OAUTH_TOKEN",
+            hasClaudeCode,
+            "`claude setup-token` で発行する。**設定されていると Anthropic API より優先**され、"
+            + "従量課金ではなくサブスクリプションの枠を使う"));
+        integrations.Add(new Integration(
+            "要約・翻訳", "Anthropic API(従量課金)", CredentialNeed.Optional, "Anthropic__ApiKey",
+            !string.IsNullOrWhiteSpace(anthropic.Value.ApiKey),
+            "Claude Code のトークンが無いときの代わり。**両方とも未設定なら要約と翻訳のボタンが出ない**"));
+
+        return integrations;
+    }
+
+    T Section<T>(string name) where T : new() =>
+        configuration.GetSection(name).Get<T>() ?? new T();
+}

@@ -28,6 +28,14 @@ public static class BookMerge
             changed = true;
         }
 
+        // 推薦は積み上がる情報なので和集合。同じ記事を二重に数えないよう URL で重複を落とす
+        var recommendedBy = Union(stored.RecommendedBy, incoming.RecommendedBy);
+        if (recommendedBy.Count != stored.RecommendedBy.Count)
+        {
+            stored.RecommendedBy = recommendedBy;
+            changed = true;
+        }
+
         return changed;
     }
 

@@ -35,6 +35,15 @@ public class Book
     /// <summary>平均評価(5点満点)。レビューが無ければ null。</summary>
     public double? ReviewAverage { get; set; }
 
+    /// <summary>
+    /// この本を薦めていた記事の URL(出典)。**レビュー数とは別軸の指標**で、
+    /// レビューが「どれだけ読まれたか」なら、こちらは「詳しい人が薦めたか」。
+    /// </summary>
+    public IReadOnlyList<string> RecommendedBy { get; set; } = [];
+
+    /// <summary>何本の記事で薦められたか。<see cref="RecommendedBy"/> から導くので列は持たない。</summary>
+    public int RecommendationCount => RecommendedBy.Count;
+
     public required DateTimeOffset CollectedAt { get; init; }
 
     /// <summary>

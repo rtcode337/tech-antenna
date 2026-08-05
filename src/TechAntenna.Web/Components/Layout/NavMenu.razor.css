@@ -125,11 +125,60 @@
     padding-bottom: 0.5rem;
 }
 
-    .nav-item:first-of-type {
+/* 親の行。**display は list-item のまま**にする —— flex にすると Chrome が
+   開閉の三角(::marker)を消してしまい、閉じているグループを開く手がかりが無くなる */
+.nav-group > summary {
+    display: list-item;
+    list-style-position: inside;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.nav-group > summary::marker {
+    font-size: 0.75rem;
+}
+
+/* 三角と同じ行に収める(既定の .nav-link は幅 100% の block なので折り返してしまう) */
+.nav-group > summary ::deep .nav-link {
+    display: inline-flex;
+    width: calc(100% - 1.6rem);
+    vertical-align: middle;
+}
+
+/* 三角とアイコンが詰まって見えるので、アイコンの手前を空ける */
+.nav-group > summary .bi {
+    margin-left: 0.4rem;
+}
+
+/* 子リンク。アイコンの代わりに字下げと細い縦線で階層を示す。
+   行間は親より詰めて、ひとまとまりに見せる */
+.nav-child {
+    padding-bottom: 0.15rem;
+}
+
+/* **`::deep` が要る。** NavLink が描く <a> は別コンポーネントの出力なので
+   スコープ属性が付かず、`.nav-child .nav-link` では一致しない(字下げが効かず、
+   子リンクが画面の左端に張り付いて親子に見えなくなる) */
+/* 同じ要素に .nav-item も付いていて、下の `.nav-item ::deep .nav-link` と
+   詳細度が並ぶ。両方のクラスを書いて確実にこちらを勝たせる */
+.nav-item.nav-child ::deep .nav-link {
+    margin-left: 2.1rem;
+    padding-left: 0.75rem;
+    border-left: 2px solid rgba(255, 255, 255, 0.22);
+    border-radius: 0 4px 4px 0;
+    width: calc(100% - 2.1rem);
+    height: 2.3rem;
+    line-height: 2.3rem;
+    font-size: 0.86rem;
+}
+
+    /* 上下の余白はグループ単位で付ける。.nav-item に :first-of-type を使うと
+       グループごとに効いてしまい、2つ目の親の手前だけ大きく空く */
+    .nav-group:first-of-type > summary {
         padding-top: 1rem;
     }
 
-    .nav-item:last-of-type {
+    .nav-group:last-of-type > .nav-item:last-of-type {
         padding-bottom: 1rem;
     }
 

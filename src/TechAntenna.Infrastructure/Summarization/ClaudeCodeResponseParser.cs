@@ -2,17 +2,22 @@ using System.Text.Json;
 
 namespace TechAntenna.Infrastructure.Summarization;
 
-/// <summary>`claude -p --output-format json` の応答から要約を取り出す。</summary>
+/// <summary>
+/// `claude -p --output-format json` の応答から結果を取り出す。
+/// 要約とタイトル翻訳で同じ形(番号 + 文字列の配列)を使うので、
+/// 配列と値のプロパティ名だけを差し替えられるようにしてある。
+/// </summary>
 public static class ClaudeCodeResponseParser
 {
-    /// <summary>要約1件。<c>Index</c> は入力で振った 1 始まりの記事番号。</summary>
-    public record Entry(int Index, string Summary);
+    /// <summary>結果1件。<c>Index</c> は入力で振った 1 始まりの記事番号。</summary>
+    public record Entry(int Index, string Text);
 
     /// <summary>
     /// 応答 JSON から要約を取り出す。実行自体が失敗していた場合(<c>is_error</c>)は例外にして、
     /// 呼び出し側がバッチごと再試行できるようにする。
     /// </summary>
-    public static IReadOnlyList<Entry> Parse(string json)
+    public static IReadOnlyList<Entry> Parse(
+        string json, string arrayName = "summaries", string valueName = "summary")
     {
         JsonDocument doc;
         try
@@ -38,14 +43,14 @@ public static class ClaudeCodeResponseParser
             // --json-schema を渡しているので構造化出力に入る。text にフォールバックはしない
             // (形式が崩れた応答を無理に読むと、誤った要約を記事に紐づけてしまうため)
             if (!root.TryGetProperty("structured_output", out var output)
-                || !output.TryGetProperty("summaries", out var summaries)
-                || summaries.ValueKind != JsonValueKind.Array)
+                || !output.TryGetProperty(arrayName, out var items)
+                || items.ValueKind != JsonValueKind.Array)
             {
-                throw new FormatException("claude の応答に structured_output.summaries が無い。");
+                throw new FormatException($"claude の応答に structured_output.{arrayName} が無い。");
             }
 
-            return summaries.EnumerateArray()
-                .Select(ToEntry)
+            return items.EnumerateArray()
+                .Select(item => ToEntry(item, valueName))
                 .OfType<Entry>()
                 .ToList();
         }
@@ -88,17 +93,17 @@ public static class ClaudeCodeResponseParser
         };
     }
 
-    static Entry? ToEntry(JsonElement element)
+    static Entry? ToEntry(JsonElement element, string valueName)
     {
         if (element.ValueKind != JsonValueKind.Object
             || !element.TryGetProperty("index", out var index)
             || index.ValueKind != JsonValueKind.Number
-            || !element.TryGetProperty("summary", out var summary))
+            || !element.TryGetProperty(valueName, out var value))
         {
             return null;
         }
 
-        return summary.GetString()?.Trim() is { Length: > 0 } text
+        return value.GetString()?.Trim() is { Length: > 0 } text
             ? new Entry(index.GetInt32(), text)
             : null;
     }

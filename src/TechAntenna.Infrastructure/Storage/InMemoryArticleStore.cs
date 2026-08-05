@@ -31,11 +31,13 @@ public class InMemoryArticleStore : IArticleStore
         }
     }
 
-    public Task<IReadOnlyList<Article>> GetRecentAsync(int count, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<Article>> GetRecentAsync(
+        int count, ArticleKind? kind = null, CancellationToken cancellationToken = default)
     {
         lock (_gate)
         {
             IReadOnlyList<Article> result = _byUrl.Values
+                .Where(a => kind is null || a.Kind == kind)
                 .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)
                 .Take(count)
                 .ToList();
@@ -48,7 +50,8 @@ public class InMemoryArticleStore : IArticleStore
         lock (_gate)
         {
             IReadOnlyList<Article> result = _byUrl.Values
-                .Where(a => a.Summary is null)
+                // 論文は本文を取り込んでいないので要約しない
+                .Where(a => a.Summary is null && a.Kind != ArticleKind.Paper)
                 .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)
                 .Take(count)
                 .ToList();
@@ -82,6 +85,34 @@ public class InMemoryArticleStore : IArticleStore
         }
     }
 
+    public Task<IReadOnlyList<Article>> GetUntranslatedPapersAsync(
+        int count, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<Article> result = _byUrl.Values
+                .Where(a => a.Kind == ArticleKind.Paper && a.TitleJa is null)
+                .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)
+                .Take(count)
+                .ToList();
+            return Task.FromResult(result);
+        }
+    }
+
+    public Task UpdateTitleJaAsync(Guid articleId, string titleJa, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            var article = _byUrl.Values.FirstOrDefault(a => a.Id == articleId);
+            if (article is not null)
+            {
+                article.TitleJa = titleJa;
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
     public Task UpdateSummaryAsync(Guid articleId, string summary, CancellationToken cancellationToken = default)
     {
         lock (_gate)
@@ -103,7 +134,9 @@ public class InMemoryArticleStore : IArticleStore
             var updated = 0;
             foreach (var article in _byUrl.Values)
             {
-                var tags = catalog.Normalize(article.RawTags);
+                // 収集時と同じ規則で作り直す(生タグ + タイトルから見つけたトピック)。
+                // タイトルの分も入れないと、この規則を入れる前に集めた記事がタグ無しのまま残る
+                var tags = catalog.Normalize(article.RawTags.Concat(catalog.FindIn(article.Title)));
                 if (article.Tags.SequenceEqual(tags, StringComparer.Ordinal))
                 {
                     continue;

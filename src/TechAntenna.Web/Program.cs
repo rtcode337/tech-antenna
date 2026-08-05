@@ -26,13 +26,7 @@ builder.Services.AddRazorComponents()
 builder.Services.Configure<CollectionOptions>(
     builder.Configuration.GetSection(CollectionOptions.SectionName));
 
-builder.Services.AddHttpClient(FeedArticleSource.HttpClientName, client =>
-{
-    // 収集先が連絡を取れるようリポジトリ URL を名乗る(個人のメールアドレスは入れない)
-    client.DefaultRequestHeaders.UserAgent.ParseAdd(
-        "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
-    client.Timeout = TimeSpan.FromSeconds(30);
-});
+builder.Services.AddHttpClient(FeedArticleSource.HttpClientName, ConfigureFeedClient);
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<TopicService>();
@@ -99,7 +93,42 @@ foreach (var feed in collection.Feeds)
         sp.GetRequiredService<TimeProvider>(),
         feed.Name,
         new Uri(feed.Url),
-        topicCatalog));
+        topicCatalog,
+        feed.Kind));
+}
+
+// arXiv も記事ソースの1つとして「記事の収集」で回る。選択中のトピックが検索語なので、
+// 選択が空なら問い合わせない(Arxiv:Enabled=false で止められる)
+var arxiv = builder.Configuration
+    .GetSection(ArxivOptions.SectionName)
+    .Get<ArxivOptions>() ?? new ArxivOptions();
+if (arxiv.Enabled)
+{
+    builder.Services.AddHttpClient(ArxivPaperSource.HttpClientName, ConfigureFeedClient);
+    builder.Services.AddSingleton<IArticleSource>(sp => new ArxivPaperSource(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<TimeProvider>(),
+        sp.GetRequiredService<ITopicStore>(),
+        topicCatalog,
+        arxiv.MaxResults,
+        TimeSpan.FromSeconds(arxiv.DelaySeconds)));
+}
+
+// J-STAGE は日本語の論文。arXiv(英語)と役割が違うので両方登録する
+var jstage = builder.Configuration
+    .GetSection(JstageOptions.SectionName)
+    .Get<JstageOptions>() ?? new JstageOptions();
+if (jstage.Enabled)
+{
+    builder.Services.AddHttpClient(JstagePaperSource.HttpClientName, ConfigureFeedClient);
+    builder.Services.AddSingleton<IArticleSource>(sp => new JstagePaperSource(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<TimeProvider>(),
+        sp.GetRequiredService<ITopicStore>(),
+        topicCatalog,
+        jstage.MaxResults,
+        jstage.WithinYears,
+        TimeSpan.FromSeconds(jstage.DelaySeconds)));
 }
 
 builder.Services.AddSingleton<ArticleCollectionRunner>();
@@ -222,10 +251,26 @@ if (books.AutoRun)
     builder.Services.AddHostedService<BookCollectionWorker>();
 }
 
+// 「読むべき技術書」を挙げた記事から薦められている本を拾う。書籍の検索とは独立した経路
+var qiita = builder.Configuration
+    .GetSection(QiitaOptions.SectionName)
+    .Get<QiitaOptions>() ?? new QiitaOptions();
+if (qiita.Enabled && !string.IsNullOrWhiteSpace(qiita.Query))
+{
+    builder.Services.AddHttpClient(QiitaBookRecommendationSource.HttpClientName, ConfigureBookClient);
+    builder.Services.AddSingleton<IBookRecommendationSource>(sp => new QiitaBookRecommendationSource(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        qiita.Query,
+        qiita.MaxArticles,
+        qiita.AccessToken));
+}
+
 builder.Services.AddSingleton<BookCollectionRunner>();
 builder.Services.AddSingleton<TopicCollectionRunner>();
 // タグの正規化規則を変えたときに保存済みデータを追従させる(外部へは出ないので常に登録する)
 builder.Services.AddSingleton<TagRenormalizationRunner>();
+// 外部連携の一覧(/integrations)。設定を読むだけなので常に登録する
+builder.Services.AddSingleton<IntegrationCatalog>();
 
 // --- LLM 要約 ---
 // 方式は2つあり、Claude Code(サブスクリプションの枠)を優先する。両方未設定なら要約しない。
@@ -255,15 +300,24 @@ if (hasClaudeCodeToken)
         claudeCode.ExecutablePath,
         string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
         TimeSpan.FromSeconds(claudeCode.TimeoutSeconds)));
+    // 論文タイトルの翻訳も同じ方式を使う(要約と同じ枠・同じ CLI)
+    builder.Services.AddSingleton<ITitleTranslator>(sp => new ClaudeCodeTitleTranslator(
+        sp.GetRequiredService<IProcessRunner>(),
+        claudeCode.ExecutablePath,
+        string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
+        TimeSpan.FromSeconds(claudeCode.TimeoutSeconds)));
 }
 else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
 {
     builder.Services.AddSingleton<ISummarizer>(
         new AnthropicSummarizer(anthropic.ApiKey, anthropic.Model));
+    builder.Services.AddSingleton<ITitleTranslator>(
+        new AnthropicTitleTranslator(anthropic.ApiKey, anthropic.Model));
 }
 
 // 画面の手動ボタンからも呼ぶので、要約が未設定でも常に登録する(未設定なら何もしない)
 builder.Services.AddSingleton<SummaryRunner>();
+builder.Services.AddSingleton<TitleTranslationRunner>();
 
 if (anthropic.AutoRun && (hasClaudeCodeToken || !string.IsNullOrWhiteSpace(anthropic.ApiKey)))
 {
@@ -302,6 +356,15 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+// 記事・論文の収集先へ共通で使う HttpClient の設定。
+// 連絡先はリポジトリ URL のみを名乗る(個人のメールアドレスは入れない)
+static void ConfigureFeedClient(HttpClient client)
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+        "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
+    client.Timeout = TimeSpan.FromSeconds(30);
+}
 
 // 書籍まわりの収集先へ共通で使う HttpClient の設定。
 // 連絡先はリポジトリ URL のみを名乗る(個人のメールアドレスは入れない)

@@ -20,7 +20,7 @@ public class ClaudeCodeResponseParserTests
 
         Assert.Equal(2, entries.Count);
         Assert.Equal(1, entries[0].Index);
-        Assert.Equal("一つ目の要約", entries[0].Summary);
+        Assert.Equal("一つ目の要約", entries[0].Text);
     }
 
     [Fact]

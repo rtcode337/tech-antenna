@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## このリポジトリの目的
 
-技術情報を自動収集し、**記事・イベント・書籍の3つを1つの導線にまとめて提示する**Webアプリ。
-「今このトピックが伸びている → 関連する勉強会が近くである → 深掘りするならこの本」をつなぐ。
+技術情報を自動収集し、**記事・ニュース・論文・イベント・書籍を1つの導線にまとめて提示する**Webアプリ。
+「今このトピックが伸びている → 関連する勉強会が近くである → 深掘りするならこの本・この論文」をつなぐ。
 
 ## 技術スタック
 
@@ -44,10 +44,11 @@ docker run --rm -v "$PWD":/src -w /src -e HOME=/tmp mcr.microsoft.com/dotnet/sdk
 
 | ジョブ | 設定 | 既定 | 手動ボタン |
 |---|---|---|---|
-| 記事の収集 | `Collection:AutoRun` | false | `/` |
+| 記事・ニュース・論文の収集 | `Collection:AutoRun` | false | `/articles` |
 | イベントの収集 | `Collection:AutoRun` | false | `/events` |
 | 書籍の収集 | `Books:AutoRun` | false | `/books` |
-| 記事の要約 | `Anthropic:AutoRun` | false | `/` |
+| 記事の要約 | `Anthropic:AutoRun` | false | `/articles` |
+| 論文タイトルの翻訳 | (定期実行しない) | — | `/articles` |
 | トピックの収集 | (定期実行しない) | — | `/settings` |
 | タグの再正規化 | (定期実行しない) | — | `/settings` |
 
@@ -62,6 +63,15 @@ docker compose では `.env` の `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` /
 収集先へ続けて叩きに行ったり、同じ記事を二度要約して LLM の枠を無駄にする。
 `BackgroundService` 側はタイマーを回して Runner を呼ぶだけ。
 
+サイドバーは**2階層**(ホームの下に記事/書籍/イベント、設定の下に外部連携)。折りたたみは
+`details`/`summary` で、**開いているページのグループを既定で開く**(`NavigationManager` で
+現在のパスを見る)。全ページ静的 SSR なので JS は使わない。
+
+- **開いているグループ以外も DOM に残して三角で開けるようにする。** 現在地のグループだけ
+  出すと、設定の下にいるあいだ記事や書籍へ辿れなくなる
+- `summary` の `display` は **`list-item` のまま**にすること。`flex` にすると Chrome が
+  開閉の三角(`::marker`)を消し、閉じたグループを開く手がかりが無くなる
+
 ボタンは共通コンポーネント `Components/JobButton.razor`。**静的 SSR のフォーム POST**で、
 対話回線(WebSocket)は張らない —— このアプリは `<Routes />` にレンダーモードを指定して
 おらず**全ページ静的 SSR** なので、ボタンのためだけに回線を張るのは釣り合わない。
@@ -72,11 +82,19 @@ docker compose では `.env` の `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` /
 | 用途 | ソース | 備考 |
 |---|---|---|
 | イベント | connpass API / Doorkeeper API / TECH PLAY の RSS | connpass は要申請、他は不要 |
-| 書籍 | openBD / Google Books API | openBD は日本の書誌情報が無料 |
+| 書籍 | openBD / Google Books API / 楽天ブックス / Qiita API | 楽天はレビュー、Qiita は推薦本 |
 | 記事 | 各種 RSS / Atom | Qiita・Zenn・はてブ テクノロジー等 |
+| ニュース | 各種 RSS | Publickey・ITmedia NEWS・InfoQ Japan・CodeZine |
+| 論文 | arXiv API / J-STAGE API | どちらもキー不要。間隔は 3 秒以上空ける |
 
 外部 API を叩くコードを書くときは、**User-Agent に個人のメールアドレスを入れないこと**。
 連絡先が必要な場合はリポジトリ URL のみを記載する。
+
+連携先とキーの状態は `/integrations`(設定 → 外部連携)にまとめて出す。一覧は
+`IntegrationCatalog` に**手で並べてある** —— 「未設定だと何が起きるか」は設定値には書いて
+いないし、キーの要否は収集元ごとの事情(申請の要不要・無料枠)で決まるため自動生成できない。
+**外部 API を足したらここにも1行足すこと。** 画面に出すのは**キーの有無だけ**で、
+値は長さも先頭数文字も出さない。
 
 収集対象のフィードと巡回間隔は `src/TechAntenna.Web/appsettings.json` の
 `Collection` セクションで設定する。
@@ -148,9 +166,32 @@ connpass は `keyword_or` で全キーワードを1リクエストにまとめ�
 無い。取り込むのはイベントの事実情報(タイトル・URL・日時・会場)だけにとどめ、
 **公開するなら事前に問い合わせること**。
 
+### 記事の種別(`ArticleKind`)
+
+記事・ニュース・論文は**同じ `Article` として保存し、`Kind` で分ける**(画面のセクションと、
+要約の対象かどうかにだけ効く)。フィードの種別は `Collection:Feeds` の `Kind` で指定する。
+
+- **論文は要約しない。** 本文(abstract)を取り込んでいないので材料が無く、タイトルだけ
+  渡しても LLM の枠を使うだけ。`GetUnsummarizedAsync` が `Paper` を除外している
+- **arXiv には英語の検索語を投げる**(`TopicCatalog.EnglishTermOf`)。日本語の正式表記を
+  そのまま投げると 0 件になる(実測: `生成AI` で 0 件)。J-STAGE は和文の索引なのでそのまま
+- **J-STAGE の Atom は `FeedParser` では読めない。** entry の中身が独自要素
+  (`article_title`/`article_link`)で標準の `title`・`link` を持たないため、専用のパーサにしている
+
+### フィードのタグはタイトルから作る
+
+**Zenn の RSS も Qiita の Atom も `category` 要素を持たない**(実測: Qiita 49 件・Zenn 23 件が
+すべてタグ無しだった)。ニュースサイトも同様なので、収集元のタグだけに頼るとトピック横断にも
+一覧の強調にも乗らない。`TopicCatalog.FindIn` で**タイトルに出てくるトピックをタグに足す**。
+
+- 判定は `KeywordMatcher`(`AI` が `Rails`・`email` に誤爆しない)
+- 見るのは**タイトルだけ**。本文まで見ると、文中で一度触れただけの語でタグが付く
+- **再正規化も同じ規則で作り直す**(`RawTags` + タイトル)。そうしないと、この規則を入れる前に
+  集めた記事がタグ無しのまま残る
+
 ## タグによる横断
 
-記事・イベント・書籍は `TagNormalizer` を通した正規化済みタグを持ち、
+記事(ニュース・論文を含む)・イベント・書籍は `TagNormalizer` を通した正規化済みタグを持ち、
 `TopicService` がそれを突き合わせて `/topics` に出す。**3種がそろったタグを上位**に出す
 (件数が多いだけのタグより、記事・イベント・書籍が全部あるタグを優先する)。
 
@@ -215,6 +256,22 @@ EF 版のタグ関連クエリだけ生 SQL にしている。`Tags` 列には�
 - openBD は検索結果の書誌情報を ISBN で補う後段(`IBookEnricher`)。
   **既に値がある項目は上書きせず、欠けている項目だけを埋める**
 - 楽天ブックスは**レビュー専用**の後段(`RakutenBooksEnricher`)。書誌情報は触らない
+
+### 薦められている度合い(`IBookRecommendationSource`)
+
+「読むべき技術書」を挙げた記事から、薦められている本を拾う(`QiitaBookRecommendationSource`)。
+**レビュー(読まれた量)とは別軸**で、こちらは「詳しい人が名指しで薦めたか」。並びでは
+**推薦回数を優先**する —— レビュー数は一般向けの本ほど有利になるため。
+
+- **公式 API(v2)を使う。** 検索1回で本文まで返るのでリクエストも1回。未認証 60/時、
+  トークンありで 1000/時。`Qiita:Query` は**ストック数の下限**で絞る(読まれていない記事の
+  推薦まで数えると指標が薄まる)
+- 本の特定は**記事に貼られた Amazon リンクの ASIN**。書籍の ASIN は ISBN-10 そのものなので
+  ISBN-13 に直せる(`Isbn.FromAsin`)。**チェックディジットまで検算する**ので、`B0…` で始まる
+  Kindle 専売や電子機器は落ちる(実測: 90 個中 82 個が書籍)
+- **保存するのは ISBN と出典記事の URL だけ**。記事本文は保存しない(複製にしないため)
+- 拾えるのは ISBN だけなので、**タイトルは openBD が埋める**。`OpenBdEnricher` がタイトルの
+  空欄だけを埋めるのはこのため。埋まらなかった本は保存しない(空行が並ぶだけになる)
 
 ### 読まれている度合い(`BookPopularity`)
 

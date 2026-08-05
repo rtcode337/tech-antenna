@@ -61,7 +61,9 @@ public class OpenBdEnricher(IHttpClientFactory httpClientFactory) : IBookEnriche
         return new Book
         {
             Id = book.Id,
-            Title = book.Title,
+            // 記事から ISBN だけを拾った本はタイトルが空。その場合だけ openBD 側で埋める
+            // (既に値があるものは上書きしない、という他の項目と同じ規則)
+            Title = book.Title is { Length: > 0 } ? book.Title : entry.Title ?? "",
             Isbn13 = book.Isbn13,
             // openBD の author は「著者名／著」のような表示用の1行。
             // 分割すると崩れるので、著者が全く無いときだけそのまま1件として使う
@@ -81,6 +83,7 @@ public class OpenBdEnricher(IHttpClientFactory httpClientFactory) : IBookEnriche
             // 生タグを写し忘れると、再正規化(RawTags から Tags を作り直す)でタグが空になり、
             // 補完できた本ほどトピック横断から落ちる
             RawTags = book.RawTags,
+            RecommendedBy = book.RecommendedBy,
         };
     }
 }

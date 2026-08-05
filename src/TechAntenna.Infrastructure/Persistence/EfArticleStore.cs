@@ -26,11 +26,13 @@ public class EfArticleStore(IDbContextFactory<TechAntennaDbContext> contextFacto
         return newArticles.Count;
     }
 
-    public async Task<IReadOnlyList<Article>> GetRecentAsync(int count, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Article>> GetRecentAsync(
+        int count, ArticleKind? kind = null, CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await db.Articles
+            .Where(a => kind == null || a.Kind == kind)
             .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)
             .Take(count)
             .ToListAsync(cancellationToken);
@@ -65,10 +67,32 @@ public class EfArticleStore(IDbContextFactory<TechAntennaDbContext> contextFacto
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await db.Articles
-            .Where(a => a.Summary == null)
+            // 論文は本文を取り込んでいないので要約しない
+            .Where(a => a.Summary == null && a.Kind != ArticleKind.Paper)
             .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)
             .Take(count)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Article>> GetUntranslatedPapersAsync(
+        int count, CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await db.Articles
+            .Where(a => a.Kind == ArticleKind.Paper && a.TitleJa == null)
+            .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)
+            .Take(count)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task UpdateTitleJaAsync(Guid articleId, string titleJa, CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        await db.Articles
+            .Where(a => a.Id == articleId)
+            .ExecuteUpdateAsync(set => set.SetProperty(a => a.TitleJa, titleJa), cancellationToken);
     }
 
     public async Task UpdateSummaryAsync(Guid articleId, string summary, CancellationToken cancellationToken = default)
@@ -88,7 +112,9 @@ public class EfArticleStore(IDbContextFactory<TechAntennaDbContext> contextFacto
         var updated = 0;
         foreach (var article in await db.Articles.ToListAsync(cancellationToken))
         {
-            var tags = catalog.Normalize(article.RawTags);
+            // 収集時と同じ規則で作り直す(生タグ + タイトルから見つけたトピック)。
+            // タイトルの分も入れないと、この規則を入れる前に集めた記事がタグ無しのまま残る
+            var tags = catalog.Normalize(article.RawTags.Concat(catalog.FindIn(article.Title)));
             if (article.Tags.SequenceEqual(tags, StringComparer.Ordinal))
             {
                 continue;

@@ -28,9 +28,28 @@ else
     <p class="text-muted">
         トピックごとにまとめています。トピック名を押すと開きます。
         複数のトピックで見つかった本は、そのすべてに出ます。
-        並びは<strong>読まれている順</strong>(レビュー件数と平均評価から算出)で、
-        レビューが取れていない本は後ろに置いています。
+        並びは<strong>薦められている順</strong>(記事で名指しされた回数)、次に
+        <strong>読まれている順</strong>(レビュー件数と平均評価から算出)です。
+        どちらも取れていない本は後ろに置いています。
     </p>
+
+    @* 記事で薦められた本はトピックの検索で拾ったわけではないのでタグを持たない。
+       トピックの折りたたみに混ぜず、独立した枠で先に出す *@
+    @if (_recommended is { Count: > 0 })
+    {
+        <details class="topic-group" open>
+            <summary>
+                <span class="topic-name">記事で薦められている本</span>
+                <span class="badge bg-secondary ms-1">@_recommended.Count</span>
+            </summary>
+            <ul class="list-unstyled">
+                @foreach (var book in _recommended)
+                {
+                    @RenderBook(book, "")
+                }
+            </ul>
+        </details>
+    }
 
     @foreach (var group in _groups)
     {
@@ -43,46 +62,7 @@ else
             <ul class="list-unstyled">
                 @foreach (var book in group.Books)
                 {
-                    <li class="mb-3 d-flex gap-2">
-                        @if (book.CoverUrl is { } coverUrl)
-                        {
-                            <img src="@coverUrl" alt="" width="48" loading="lazy" />
-                        }
-                        <div>
-                            @if (book.Url is { } url)
-                            {
-                                <a href="@url" target="_blank" rel="noopener">@book.Title</a>
-                            }
-                            else
-                            {
-                                <span>@book.Title</span>
-                            }
-                            <br />
-                            <small class="text-muted">
-                                @if (book.Authors.Count > 0)
-                                {
-                                    <text>@string.Join("、", book.Authors) — </text>
-                                }
-                                @(book.Publisher ?? "出版社不明")
-                                @if (book.PublishedOn is { } publishedOn)
-                                {
-                                    <text> — @publishedOn.ToString("yyyy-MM")</text>
-                                }
-                                @if (book.ReviewCount is { } reviewCount and > 0)
-                                {
-                                    <span class="review ms-1">
-                                        ★ @(book.ReviewAverage?.ToString("0.0") ?? "—")
-                                        <span class="text-muted">(@reviewCount 件)</span>
-                                    </span>
-                                }
-                                @* この見出し以外のトピックだけ出す(同じ名前を繰り返さない) *@
-                                @foreach (var tag in book.Tags.Where(tag => tag != group.Tag))
-                                {
-                                    <span class="badge bg-light text-dark ms-1">@Catalog.DisplayOf(tag)</span>
-                                }
-                            </small>
-                        </div>
-                    </li>
+                    @RenderBook(book, group.Tag)
                 }
             </ul>
         </details>
@@ -98,10 +78,64 @@ else
     }
 }
 
+@* 1冊分の表示。トピックの折りたたみと「薦められている本」の枠で同じものを使う。
+   currentTag はその見出しのトピック(同じ名前をタグとして繰り返さないため) *@
+@{
+    RenderFragment RenderBook(Book book, string currentTag) =>
+    @<li class="mb-3 d-flex gap-2">
+        @if (book.CoverUrl is { } coverUrl)
+        {
+            <img src="@coverUrl" alt="" width="48" loading="lazy" />
+        }
+        <div>
+            @if (book.Url is { } url)
+            {
+                <a href="@url" target="_blank" rel="noopener">@book.Title</a>
+            }
+            else
+            {
+                <span>@book.Title</span>
+            }
+            <br />
+            <small class="text-muted">
+                @if (book.Authors.Count > 0)
+                {
+                    <text>@string.Join("、", book.Authors) — </text>
+                }
+                @(book.Publisher ?? "出版社不明")
+                @if (book.PublishedOn is { } publishedOn)
+                {
+                    <text> — @publishedOn.ToString("yyyy-MM")</text>
+                }
+                @if (book.RecommendationCount > 0)
+                {
+                    @* レビュー(読まれた量)とは別軸なので、並べて別々に出す *@
+                    <a class="recommended ms-1" href="@book.RecommendedBy[0]"
+                       target="_blank" rel="noopener" title="この本を薦めている記事へ">
+                        推薦 @book.RecommendationCount 件
+                    </a>
+                }
+                @if (book.ReviewCount is { } reviewCount and > 0)
+                {
+                    <span class="review ms-1">
+                        ★ @(book.ReviewAverage?.ToString("0.0") ?? "—")
+                        <span class="text-muted">(@reviewCount 件)</span>
+                    </span>
+                }
+                @foreach (var tag in book.Tags.Where(tag => tag != currentTag))
+                {
+                    <span class="badge bg-light text-dark ms-1">@Catalog.DisplayOf(tag)</span>
+                }
+            </small>
+        </div>
+    </li>;
+}
+
 @code {
     /// <summary>読み込む冊数。トピックごとに振り分けるので一覧表示より多めに取る。</summary>
-    const int Limit = 200;
+    const int Limit = 400;
 
+    IReadOnlyList<Book>? _recommended;
     IReadOnlyList<TopicGroup>? _groups;
     bool _hasReviews;
     string? _message;
@@ -127,6 +161,7 @@ else
     async Task LoadAsync()
     {
         var books = await BookStore.GetRecentAsync(Limit);
+        _recommended = books.Where(book => book.RecommendationCount > 0).ByPopularity().ToList();
         _groups = Group(books);
         // クレジット表記は楽天のデータを実際に出しているときだけ置く
         _hasReviews = books.Any(book => book.ReviewCount is > 0);
@@ -149,7 +184,11 @@ else
             .ThenBy(group => group.Display, StringComparer.Ordinal)
             .ToList();
 
-        var untagged = books.Where(book => book.Tags.Count == 0).ByPopularity().ToList();
+        // 推薦で拾った本はタグを持たないが、上の枠で出しているのでここには入れない
+        var untagged = books
+            .Where(book => book.Tags.Count == 0 && book.RecommendationCount == 0)
+            .ByPopularity()
+            .ToList();
         if (untagged.Count > 0)
         {
             groups.Add(new TopicGroup("", "トピックなし", untagged));

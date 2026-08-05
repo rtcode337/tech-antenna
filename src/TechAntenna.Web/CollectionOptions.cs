@@ -1,3 +1,5 @@
+using TechAntenna.Core.Models;
+
 namespace TechAntenna.Web;
 
 /// <summary>収集ジョブの設定。appsettings の Collection セクションから読む。</summary>
@@ -28,6 +30,43 @@ public class FeedOptions
     public string Name { get; set; } = "";
 
     public string Url { get; set; } = "";
+
+    /// <summary>種別(Article / News)。一覧を分けて出すのに使う。既定は Article。</summary>
+    public ArticleKind Kind { get; set; } = ArticleKind.Article;
+}
+
+/// <summary>J-STAGE(日本語の論文)の設定。appsettings の Jstage セクションから読む。</summary>
+public class JstageOptions
+{
+    public const string SectionName = "Jstage";
+
+    /// <summary>日本語の論文を集めるか。検索語は選択中のトピック。</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>1キーワードあたりの取得件数。</summary>
+    public int MaxResults { get; set; } = 20;
+
+    /// <summary>何年ぶんさかのぼるか(1 なら今年のみ)。古い論文で一覧が埋まらないように絞る。</summary>
+    public int WithinYears { get; set; } = 2;
+
+    /// <summary>キーワードを1つ引くごとに空ける間隔(秒)。</summary>
+    public double DelaySeconds { get; set; } = 3;
+}
+
+/// <summary>arXiv(論文)の設定。appsettings の Arxiv セクションから読む。</summary>
+public class ArxivOptions
+{
+    public const string SectionName = "Arxiv";
+
+    /// <summary>論文を集めるか。検索語は選択中のトピックなので、選択が空なら問い合わせない。</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>1キーワードあたりの取得件数。</summary>
+    public int MaxResults { get; set; } = 20;
+
+    /// <summary>キーワードを1つ引くごとに空ける間隔(秒)。
+    /// **arXiv の API 利用条件が 3 秒以上を求めている**ので、これより短くしない。</summary>
+    public double DelaySeconds { get; set; } = 3;
 }
 
 /// <summary>Doorkeeper API の設定。appsettings の Doorkeeper セクションから読む。</summary>
@@ -81,6 +120,31 @@ public class BooksOptions
     /// 足切りが効くと、1冊も保存されなくなるため。既定 0 は足切り無し。
     /// </summary>
     public int MinReviewCount { get; set; } = 0;
+}
+
+/// <summary>
+/// Qiita の設定。appsettings の Qiita セクションから読む。
+/// 「読むべき技術書」を挙げた記事から、薦められている本を拾うのに使う。
+/// </summary>
+public class QiitaOptions
+{
+    public const string SectionName = "Qiita";
+
+    /// <summary>推薦本を拾うか。</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// 検索クエリ(Qiita の検索構文)。**ストック数の下限で絞る**のが肝 ——
+    /// 誰も読んでいない記事の推薦まで数えると、指標が薄まる。
+    /// </summary>
+    public string Query { get; set; } = "tag:技術書 stocks:>100";
+
+    /// <summary>1回に読む記事の本数。</summary>
+    public int MaxArticles { get; set; } = 20;
+
+    /// <summary>アクセストークン(任意)。未設定でも動くが、上限が 60 → 1000 リクエスト/時になる。
+    /// 実値はコミットせず環境変数(Qiita__AccessToken)や user-secrets で渡す。</summary>
+    public string AccessToken { get; set; } = "";
 }
 
 /// <summary>

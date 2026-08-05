@@ -56,6 +56,8 @@ x-app-env: &app-env
   # 書籍のレビュー(読まれている度合い)。未設定なら読まれている順に並べられないだけ
   Rakuten__ApplicationId: ""
   Rakuten__AccessKey: ""
+  # 推薦本(Qiita)。未設定でも動く(API の上限が下がるだけ)
+  Qiita__AccessToken: ""
   Anthropic__ApiKey: ""
   # 記事の要約。CLAUDE_CODE_OAUTH_TOKEN があれば API キーより優先され、
   # 従量課金ではなくサブスクリプションの枠を使う(`claude setup-token` で発行)

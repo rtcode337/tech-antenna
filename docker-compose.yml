@@ -54,6 +54,8 @@ services:
       # 書籍のレビュー(読まれている度合い)。未設定なら読まれている順に並べられないだけ
       Rakuten__ApplicationId: ${RAKUTEN_APPLICATION_ID:-}
       Rakuten__AccessKey: ${RAKUTEN_ACCESS_KEY:-}
+      # 推薦本(Qiita)。未設定でも動く(API の上限が下がるだけ)
+      Qiita__AccessToken: ${QIITA_ACCESS_TOKEN:-}
       Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
       # 既定は appsettings.json と同じ。コストを抑えるなら claude-haiku-4-5 を指定する
       Anthropic__Model: ${ANTHROPIC_MODEL:-claude-opus-5}

@@ -11,7 +11,8 @@ public class FeedArticleSource(
     TimeProvider timeProvider,
     string name,
     Uri feedUrl,
-    TopicCatalog? catalog = null) : IArticleSource
+    TopicCatalog? catalog = null,
+    ArticleKind kind = ArticleKind.Article) : IArticleSource
 {
     /// <summary>使用する名前付き HttpClient。User-Agent 等はホスト側の登録で設定する。</summary>
     public const string HttpClientName = "feeds";
@@ -23,18 +24,31 @@ public class FeedArticleSource(
         using var client = httpClientFactory.CreateClient(HttpClientName);
         var xml = await client.GetStringAsync(feedUrl, cancellationToken);
 
+        var topics = catalog ?? TopicCatalog.Empty;
         var collectedAt = timeProvider.GetUtcNow();
+
         return FeedParser.Parse(xml)
-            .Select(entry => new Article
+            .Select(entry =>
             {
-                Title = entry.Title,
-                Url = entry.Url,
-                SourceName = name,
-                ContentSnippet = entry.Summary,
-                PublishedAt = entry.PublishedAt,
-                CollectedAt = collectedAt,
-                Tags = (catalog ?? TopicCatalog.Empty).Normalize(entry.Tags),
-                RawTags = entry.Tags,
+                // 収集元のタグに、**タイトルから見つけたトピック**を足す。
+                // Zenn の RSS も Qiita の Atom も category を持たず、ニュースサイトも同様なので、
+                // 収集元のタグだけに頼るとタグ無しで保存され、トピック横断にも強調にも乗らない
+                var rawTags = entry.Tags.Concat(topics.FindIn(entry.Title))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                return new Article
+                {
+                    Title = entry.Title,
+                    Url = entry.Url,
+                    SourceName = name,
+                    Kind = kind,
+                    ContentSnippet = entry.Summary,
+                    PublishedAt = entry.PublishedAt,
+                    CollectedAt = collectedAt,
+                    Tags = topics.Normalize(rawTags),
+                    RawTags = rawTags,
+                };
             })
             .ToList();
     }

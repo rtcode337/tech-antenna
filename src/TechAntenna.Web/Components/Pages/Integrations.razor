@@ -1,0 +1,85 @@
+@page "/integrations"
+@using TechAntenna.Web.Services
+@inject IntegrationCatalog Catalog
+
+<PageTitle>外部連携 - tech-antenna</PageTitle>
+
+<h1>外部連携</h1>
+
+<p class="text-muted">
+    どこから何を集めていて、キーが要るのか・設定できているのかを用途ごとにまとめています。
+    <strong>キーの値そのものは表示しません</strong>(有無だけを見ています)。
+    設定は環境変数か user-secrets で渡します —— 実値はリポジトリに置きません。
+</p>
+
+@foreach (var group in _groups)
+{
+    <h2 class="purpose">@group.Key</h2>
+    <table class="table align-middle">
+        <thead>
+            <tr>
+                <th scope="col">連携先</th>
+                <th scope="col">キー</th>
+                <th scope="col">状態</th>
+                <th scope="col">設定する環境変数</th>
+                <th scope="col">未設定・無効のとき</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var integration in group)
+            {
+                <tr>
+                    <td>@integration.Name</td>
+                    <td>@NeedLabel(integration.Need)</td>
+                    <td><span class="badge @StatusClass(integration)">@StatusLabel(integration)</span></td>
+                    <td>
+                        @if (integration.SettingKey is { } key)
+                        {
+                            <code>@key</code>
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </td>
+                    <td class="text-muted">@integration.Effect</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    IEnumerable<IGrouping<string, Integration>> _groups = [];
+
+    protected override void OnInitialized() =>
+        // 並びは収集の流れ(記事 → ニュース → 論文 → 書籍 → イベント → …)のまま出す
+        _groups = Catalog.GetAll().GroupBy(integration => integration.Purpose).ToList();
+
+    static string NeedLabel(CredentialNeed need) => need switch
+    {
+        CredentialNeed.Required => "必須",
+        CredentialNeed.Optional => "任意",
+        _ => "不要",
+    };
+
+    // 状態は「キーの要否」と「そもそも使う設定か」の掛け合わせ。
+    // 使わない設定にしてある連携は、キーの有無より先にそれを出す
+    static string StatusLabel(Integration integration) => integration switch
+    {
+        { Enabled: false } => "無効",
+        { Need: CredentialNeed.NotNeeded } => "キー不要",
+        { Configured: true } => "設定済み",
+        { Need: CredentialNeed.Required } => "未設定（動かない）",
+        _ => "未設定（一部だけ）",
+    };
+
+    static string StatusClass(Integration integration) => integration switch
+    {
+        { Enabled: false } => "bg-secondary",
+        { Need: CredentialNeed.NotNeeded } => "bg-success",
+        { Configured: true } => "bg-success",
+        { Need: CredentialNeed.Required } => "bg-danger",
+        _ => "bg-warning text-dark",
+    };
+}

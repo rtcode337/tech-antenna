@@ -64,9 +64,42 @@ public class TopicCatalog
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
+    /// <summary>
+    /// テキストに出てくるトピックを、カタログの**正式表記**で返す(`RawTags` にそのまま入れられる)。
+    ///
+    /// **フィードがタグを持たない収集元のためのタグ付け。** Zenn の RSS も Qiita の Atom も
+    /// `category` 要素を持たず、ニュースサイトも同様なので、収集元のタグだけに頼ると
+    /// タグが空のまま保存され、トピック横断にも一覧の強調にも乗らない。
+    ///
+    /// 渡すのは**タイトルだけ**にすること。本文まで見ると、文中で一度触れただけの語で
+    /// タグが付いてしまう(Doorkeeper の `q` が説明文に当たって意味を失ったのと同じ)。
+    /// 判定は <see cref="KeywordMatcher"/> なので、`AI` が `Rails`・`email` には当たらない。
+    /// </summary>
+    public IReadOnlyList<string> FindIn(string? text) =>
+        string.IsNullOrWhiteSpace(text)
+            ? []
+            : Entries
+                .Where(entry => entry.Aliases.Prepend(entry.Display)
+                    .Any(term => KeywordMatcher.Contains(text, term)))
+                .Select(entry => entry.Display)
+                .ToList();
+
     /// <summary>キーに対する画面表示用の表記。カタログに無ければキーをそのまま返す。</summary>
     public string DisplayOf(string key) =>
         _byKey.TryGetValue(key, out var entry) ? entry.Display : key;
+
+    /// <summary>
+    /// 英語圏の収集元へ投げる検索語。**ASCII だけでできた別名があればそれを、無ければ正式表記**を返す
+    /// (`生成AI` → `generative ai`、`機械学習` → `machine learning`)。
+    ///
+    /// arXiv のような英語の収集元に日本語の正式表記をそのまま投げると 0 件になる —— 実測で
+    /// `生成AI` は 0 件だった。別名カタログに英語表記を持たせてあるので、そこから拾う。
+    /// ASCII の別名が無いトピックは日本語のまま投げることになる(その収集元では当たらない)。
+    /// </summary>
+    public string EnglishTermOf(string key) =>
+        _byKey.TryGetValue(key, out var entry)
+            ? entry.Aliases.FirstOrDefault(alias => alias.All(char.IsAscii)) ?? entry.Display
+            : key;
 
     /// <summary>キーに対する1つ上の粒度。無ければ null。</summary>
     public string? ParentOf(string key) =>

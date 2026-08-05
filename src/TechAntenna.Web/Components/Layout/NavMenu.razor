@@ -1,3 +1,5 @@
+@inject NavigationManager Navigation
+
 <div class="top-row">
     <a class="brand" href="">
         @* アンテナ（支柱＋左右へ広がる電波）。マークとワードマークで 1 つのロゴ *@
@@ -21,38 +23,65 @@
     </a>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" id="navbar-toggler" />
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+@* 階層は details/summary の折りたたみ。**開いているページのグループを既定で開く**が、
+   もう一方も三角を押せば開ける —— 開いているページのグループしか出さないと、設定の下に
+   いるあいだ記事や書籍へ辿れなくなる。静的 SSR のまま JS を使わずに済む。 *@
+@* リンクを押しても閉じない(雛形にあった onclick でのトグルは外した) —— スマホでは
+   メニューから続けて別のページへ移ることが多く、そのたびにハンバーガーを開き直すのは煩わしい。
+   開閉の状態は遷移後も保つ(復元は wwwroot/nav-menu.js) *@
+<div class="nav-scrollable">
     <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> ホーム
-            </NavLink>
-        </div>
+        <details class="nav-group" open="@InHome">
+            <summary class="nav-item px-3">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> ホーム
+                </NavLink>
+            </summary>
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="articles">記事</NavLink>
+            </div>
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="books">書籍</NavLink>
+            </div>
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="events">イベント</NavLink>
+            </div>
+        </details>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="articles">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> 記事
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="events">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> イベント
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="books">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> 書籍
-            </NavLink>
-        </div>
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="settings">
-                <span class="bi bi-gear-fill-nav-menu" aria-hidden="true"></span> 設定
-            </NavLink>
-        </div>
+        <details class="nav-group" open="@InSettings">
+            <summary class="nav-item px-3">
+                <NavLink class="nav-link" href="settings">
+                    <span class="bi bi-gear-fill-nav-menu" aria-hidden="true"></span> 設定
+                </NavLink>
+            </summary>
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="integrations">外部連携</NavLink>
+            </div>
+        </details>
     </nav>
 </div>
+
+@code {
+    /// <summary>ホームの下にぶら下げるページ。トピックの詳細もここに属する。</summary>
+    static readonly string[] HomeChildren = ["articles", "books", "events", "topics"];
+
+    /// <summary>設定の下にぶら下げるページ。</summary>
+    static readonly string[] SettingsChildren = ["integrations"];
+
+    bool InHome => IsCurrent("") || HomeChildren.Any(IsCurrent);
+
+    bool InSettings => IsCurrent("settings") || SettingsChildren.Any(IsCurrent);
+
+    /// <summary>現在のパスがそのページ(またはその配下)か。`/topics/生成ai` は `topics` に含める。</summary>
+    bool IsCurrent(string path)
+    {
+        var current = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+
+        return path.Length == 0
+            ? current.Length == 0
+            : current.Equals(path, StringComparison.OrdinalIgnoreCase)
+                || current.StartsWith(path + "/", StringComparison.OrdinalIgnoreCase);
+    }
+}

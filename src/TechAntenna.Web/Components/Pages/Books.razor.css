@@ -32,6 +32,18 @@
     margin-left: 0.25rem;
 }
 
+/* 記事で薦められた回数。レビューとは別軸なので色を分ける */
+.recommended {
+    color: #7657c7;
+    font-weight: 650;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.recommended:hover {
+    text-decoration: underline;
+}
+
 .review {
     color: #b8860b;
     white-space: nowrap;

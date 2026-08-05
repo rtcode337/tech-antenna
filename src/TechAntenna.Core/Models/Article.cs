@@ -13,11 +13,21 @@ public class Article
     /// <summary>収集元の名前(例: Zenn、Qiita)。</summary>
     public required string SourceName { get; init; }
 
+    /// <summary>種別(記事 / ニュース / 論文)。一覧を分けるのに使う。</summary>
+    public ArticleKind Kind { get; init; } = ArticleKind.Article;
+
     /// <summary>フィードが提供する本文の抜粋(HTML 除去済み)。要約の材料に使う。</summary>
     public string? ContentSnippet { get; init; }
 
     /// <summary>LLM による要約。未生成の間は null。</summary>
     public string? Summary { get; set; }
+
+    /// <summary>
+    /// LLM による日本語の訳題(英語の論文タイトル用)。未処理の間は null、
+    /// **訳す必要が無いと判断したものは空文字**(毎回訳しに行かないための確定)。
+    /// 原題(<see cref="Title"/>)は消さずに併記する —— 無いと他の文献と突き合わせられない。
+    /// </summary>
+    public string? TitleJa { get; set; }
 
     /// <summary>収集元が公開日時を提供しない場合は null。</summary>
     public DateTimeOffset? PublishedAt { get; init; }

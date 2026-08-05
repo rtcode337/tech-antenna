@@ -36,6 +36,10 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
 
             article.Property(a => a.SourceName).IsRequired();
 
+            // 種別は数値ではなく名前で持つ(SQL で覗いたときに読めるほうを優先)
+            article.Property(a => a.Kind).HasConversion<string>().IsRequired();
+            article.HasIndex(a => a.Kind);
+
             ConfigureTags(article.Property(a => a.Tags));
             ConfigureTags(article.Property(a => a.RawTags));
         });
@@ -93,6 +97,8 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
 
             ConfigureTags(book.Property(b => b.Tags));
             ConfigureTags(book.Property(b => b.RawTags));
+            // 出典記事の URL。タグと同じ text[] なので同じ変換を使い回す
+            ConfigureTags(book.Property(b => b.RecommendedBy));
         });
 
         modelBuilder.Entity<StoredTopic>(topic =>
