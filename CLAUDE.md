@@ -439,6 +439,9 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
   **開発サーバーも起動時にマイグレーションを自動適用する**ので、未コミットの
   マイグレーションを持ったまま本番の DB へ繋がないこと。SQL で覗くだけなら開ける必要は
   なく、`docker compose exec db psql -U techantenna -d techantenna` で足りる
+- **`POSTGRES_PASSWORD` が効くのは `data/postgres` を作る初回起動のときだけ。** 後から
+  変えても DB 側は変わらず、接続文字列だけがずれて起動しなくなる。compose には既定値を
+  置いてあり、`.env`(standalone は 2 箇所の直書き)で上書きできる
 - **テストは PostgreSQL を使わない**(`tests/` が触るのは `InMemory*Store` だけ)。
   DB を上げていなくても `dotnet test` は通る
 
@@ -499,9 +502,9 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
 - `docker-compose.standalone.example.yml` — **`.env` もシェルの環境変数も無い環境**向けの
   単体定義の雛形。管理画面に YAML を貼り付けて起動するタイプ(NAS のコンテナマネージャー等)
   では `${...}` を解決できないため、値を直接書いてある。**`docker-compose.yml` を変えたら
-  こちらも追従させること** —— 値が直書きなぶん古くなりやすい。パスワードは `CHANGE-ME` を
-  置いてあり、db と app の両方(`POSTGRES_PASSWORD` と接続文字列の `Password=`)を同じ値に
-  書き換えて使う。
+  こちらも追従させること** —— 値が直書きなぶん古くなりやすい。**書き換えが要るのは
+  データの置き場だけ**で、そこは `/path/to/…` のプレースホルダーにしてある ——
+  特定の NAS 製品の実パスを書くと、そのまま使えるように見えて他の環境で壊れる。
   **リポジトリに置くのは `.example` の付いた雛形だけ**で、実値を入れてコピーした
   `docker-compose.standalone.yml` は `.gitignore` してある(`.env.example` と `.env` の関係と
   同じ。この形式は値を直書きするので、追記した瞬間に秘密がコミット対象に入る)

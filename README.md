@@ -122,7 +122,7 @@ openBD で書誌情報を補ってから保存する。**検索語は設定で�
 docker compose で動かす。ホストに .NET も Postgres も要らない。
 
 ```bash
-cp .env.example .env   # POSTGRES_PASSWORD と、使う外部 API のキーを入れる
+cp .env.example .env   # 使う外部 API のキーを入れる
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
@@ -175,7 +175,7 @@ DB は PostgreSQL。接続文字列 `ConnectionStrings:Default` を設定して�
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
 set -a; . ./.env; set +a
-ConnectionStrings__Default="Host=localhost;Port=${POSTGRES_PORT:-7021};Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=$POSTGRES_PASSWORD" \
+ConnectionStrings__Default="Host=localhost;Port=${POSTGRES_PORT:-7021};Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=${POSTGRES_PASSWORD:-techantenna}" \
   dotnet run --project src/TechAntenna.Web
 ```
 

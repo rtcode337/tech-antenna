@@ -11,7 +11,7 @@
 #
 # 使い方:
 #   1. コピーした側の**先頭の「ここだけ編集」を書き換える**
-#      (必須は DB のパスワードと、データの置き場のホスト絶対パス)
+#      (必須はデータの置き場のホスト絶対パスだけ)
 #   2. その内容をそのまま管理画面に貼り付ける
 #   3. 起動して http://<ホスト>:7020/ を開く
 #
@@ -23,13 +23,13 @@
 # —— こちらは値の直書きぶん古くなりやすい。**docker-compose.yml を変えたらこの雛形も追従させること。**
 name: tech-antenna
 
-# ---- ここだけ編集: DB のパスワード(★必須。2行とも同じ値にする) ----
-# 推奨: openssl rand -base64 24
-# **片方だけ直すと静かに壊れる** —— app は DB に繋がらないと接続文字列が無いときと同じ
-# 扱いになり、メモリ上のストアで起動して再起動のたびにデータが消える。
-# YAML のアンカーは文字列の一部に差し込めないため、2行に分けて隣同士に置いてある。
-x-postgres-password: &postgres-password "CHANGE-ME"
-x-connection-string: &connection-string "Host=db;Port=7021;Database=techantenna;Username=techantenna;Password=CHANGE-ME"
+# ---- DB のパスワード ----
+# 変えるなら**初回起動の前に、2行とも同じ値にすること**(YAML のアンカーは文字列の一部に
+# 差し込めないため2行に分けてある)。**片方だけ直すと静かに壊れる** —— app は DB に繋がらないと
+# 接続文字列が無いときと同じ扱いになり、メモリ上のストアで起動して再起動のたびにデータが消える。
+# データの置き場を作った後で変えても DB 側は変わらないまま接続文字列だけがずれる
+x-postgres-password: &postgres-password "techantenna"
+x-connection-string: &connection-string "Host=db;Port=7021;Database=techantenna;Username=techantenna;Password=techantenna"
 
 # ---- ここだけ編集: イメージ ----
 # 障害時は :latest ではなく :sha-xxxxxxx を指定すれば任意の時点のイメージに戻せる
@@ -39,8 +39,8 @@ x-image: &image "ghcr.io/rtcode337/tech-antenna:latest"
 # 名前付きボリュームではなくホストのディレクトリに置く(data ごとコピーすればバックアップ
 # になる)。無ければ Docker が作るが、先に作っておくのが確実。
 # postgres 側は中身の所有者をエントリポイントが揃えるので、ホスト側の準備は要らない
-x-postgres-dir: &postgres-dir "/volume1/docker/tech-antenna/data/postgres"
-x-keys-dir: &keys-dir "/volume1/docker/tech-antenna/data/keys"
+x-postgres-dir: &postgres-dir "/path/to/tech-antenna/data/postgres"
+x-keys-dir: &keys-dir "/path/to/tech-antenna/data/keys"
 
 # ---- ここだけ編集: 公開ポート ----
 # host:container。コンテナ内は 7020 固定なので、変えるのは左だけ。

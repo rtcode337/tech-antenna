@@ -17,7 +17,9 @@ services:
     image: postgres:18-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-techantenna}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (see .env.example)}
+      # .env で変えるなら**初回起動の前に**(data/postgres を作るときにしか効かず、
+      # 後から変えても DB 側は変わらないまま接続文字列だけがずれる)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-techantenna}
       POSTGRES_DB: ${POSTGRES_DB:-techantenna}
       TZ: ${TZ:-Asia/Tokyo}
       # 既定の 5432 ではなく、このアプリに割り当てた 7020 番台に寄せる。
@@ -62,7 +64,7 @@ services:
         condition: service_completed_successfully
     environment:
       # 未設定だとメモリ上のストアで動いてしまい再起動でデータが消えるため、必ず渡す
-      ConnectionStrings__Default: Host=db;Port=7021;Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (see .env.example)}
+      ConnectionStrings__Default: Host=db;Port=7021;Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=${POSTGRES_PASSWORD:-techantenna}
       TZ: ${TZ:-Asia/Tokyo}
       # 収集・要約の定期実行。**既定は false(画面のボタンを押したときだけ動く)** で、
       # 定期実行に切り替えるときだけ .env で true にする
