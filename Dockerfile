@@ -60,7 +60,9 @@ COPY --from=build --chown=$APP_UID:$APP_UID /home/app /home/app
 ENV HOME=/home/app
 # ベースイメージが用意している非 root ユーザー(UID 1654)で動かす
 USER $APP_UID
-# ベースイメージの既定(ASPNETCORE_HTTP_PORTS=8080)に合わせる。TLS は前段のリバース
-# プロキシで終端する前提で、コンテナ自身は HTTP だけを待ち受ける
-EXPOSE 8080
+# ベースイメージの既定(8080)ではなく 7020 を待ち受ける。ホスト側の公開ポートと
+# 番号をそろえて、compose の "7020:7020" を読むだけで対応が分かるようにするため。
+# TLS は前段のリバースプロキシで終端する前提で、コンテナ自身は HTTP だけを待ち受ける
+ENV ASPNETCORE_HTTP_PORTS=7020
+EXPOSE 7020
 ENTRYPOINT ["dotnet", "TechAntenna.Web.dll"]

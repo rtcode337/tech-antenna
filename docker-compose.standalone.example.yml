@@ -5,17 +5,21 @@
 #   1. `${...}` を使わず、値を YAML に直接書く(シェルの環境変数も `.env` も無い前提)
 #   2. `docker-compose.build.yml` を重ねられない(ソースが手元に無いので GHCR から pull するだけ)
 #
+# これは雛形。実値を入れたものは .gitignore してあるので、手元でコピーして作る:
+#
+#   cp docker-compose.standalone.example.yml docker-compose.standalone.yml
+#
 # 使い方:
-#   1. 下の内容をそのまま管理画面に貼り付ける
-#   2. **先頭の「ここだけ編集」を書き換える**(必須は DB のパスワードだけ)
-#   3. 起動して http://<ホスト>:10000/ を開く
+#   1. コピーした側の**先頭の「ここだけ編集」を書き換える**(必須は DB のパスワードだけ)
+#   2. その内容をそのまま管理画面に貼り付ける
+#   3. 起動して http://<ホスト>:7020/ を開く
 #
 # 非公開リポジトリのため GHCR のパッケージも非公開。pull する前に、そのホストで
 # `read:packages` スコープの Personal Access Token を使って
 # `docker login ghcr.io -u <GitHub ユーザー名>` を済ませておくこと。
 #
 # 通常の(リポジトリを配置できる)環境では docker-compose.yml を使う
-# —— こちらは値の直書きぶん古くなりやすい。**docker-compose.yml を変えたらこちらも追従させること。**
+# —— こちらは値の直書きぶん古くなりやすい。**docker-compose.yml を変えたらこの雛形も追従させること。**
 name: tech-antenna
 
 # ---- ここだけ編集: DB のパスワード(★必須。2行とも同じ値にする) ----
@@ -24,16 +28,16 @@ name: tech-antenna
 # 扱いになり、メモリ上のストアで起動して再起動のたびにデータが消える。
 # YAML のアンカーは文字列の一部に差し込めないため、2行に分けて隣同士に置いてある。
 x-postgres-password: &postgres-password "CHANGE-ME"
-x-connection-string: &connection-string "Host=db;Port=5432;Database=techantenna;Username=techantenna;Password=CHANGE-ME"
+x-connection-string: &connection-string "Host=db;Port=7021;Database=techantenna;Username=techantenna;Password=CHANGE-ME"
 
 # ---- ここだけ編集: イメージ ----
 # 障害時は :latest ではなく :sha-xxxxxxx を指定すれば任意の時点のイメージに戻せる
 x-image: &image "ghcr.io/rtcode337/tech-antenna:latest"
 
 # ---- ここだけ編集: 公開ポート ----
-# host:container。コンテナ内は 8080 固定なので、変えるのは左だけ。
+# host:container。コンテナ内は 7020 固定なので、変えるのは左だけ。
 # 6000 番台はブラウザが X11 用の予約ポートとして拒否する(ERR_UNSAFE_PORT)ので使わない
-x-port: &port "10000:8080"
+x-port: &port "7020:7020"
 
 # ---- ここだけ編集: タイムゾーン ----
 x-timezone: &timezone "Asia/Tokyo"
@@ -74,6 +78,9 @@ services:
       POSTGRES_PASSWORD: *postgres-password
       POSTGRES_DB: techantenna
       TZ: *timezone
+      # 既定の 5432 ではなく 7020 番台に寄せる(接続文字列の Port= と同じ値にすること)。
+      # PGPORT はサーバーもクライアントも読むので healthcheck に -p は要らない
+      PGPORT: 7021
     volumes:
       # postgres:18 のイメージは PGDATA が /var/lib/postgresql/18/docker で、
       # ボリュームの単位はその1段上の /var/lib/postgresql(17 以前とは位置が違う)

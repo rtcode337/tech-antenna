@@ -404,9 +404,9 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
 - マイグレーションは起動時に自動適用される(個人運用前提)
 - マイグレーション追加:
   `dotnet ef migrations add <名前> -p src/TechAntenna.Infrastructure -s src/TechAntenna.Web`
-- **compose の db は 5432 をホストへ公開しない**(本番の DB を外に出す理由が無いため)。
+- **compose の db は 7021 をホストへ公開しない**(本番の DB を外に出す理由が無いため)。
   ホストの開発サーバーから実データを読みたいときだけ、上書き定義
-  `docker-compose.dev.yml` を重ねて `127.0.0.1:5432` に開ける(手順は README「開発環境」)。
+  `docker-compose.dev.yml` を重ねて `127.0.0.1:7021` に開ける(手順は README「開発環境」)。
   **開発サーバーも起動時にマイグレーションを自動適用する**ので、未コミットの
   マイグレーションを持ったまま本番の DB へ繋がないこと。SQL で覗くだけなら開ける必要は
   なく、`docker compose exec db psql -U techantenna -d techantenna` で足りる
@@ -436,7 +436,7 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
 - レイヤーキャッシュ(`type=gha`)を実行間で使い回す
 
 - `Dockerfile` — マルチステージ。`sdk:10.0` で publish し、`aspnet:10.0` に成果物だけを載せて
-  非 root(`USER $APP_UID`=1654)で `dotnet TechAntenna.Web.dll` を実行する。HTTP 8080 のみ待ち受け
+  非 root(`USER $APP_UID`=1654)で `dotnet TechAntenna.Web.dll` を実行する。HTTP 7020 のみ待ち受け
   - **Claude Code の CLI を同梱する**(要約のサブスク枠方式で使う)。イメージは約 370MB →
     730MB になる。配布物は Node に依存しない単体のネイティブバイナリなので**実行イメージに
     Node は入れない**。npm パッケージはアーキごとに分かれていて名前で明示すればビルドホストから
@@ -456,11 +456,15 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
     `/var/lib/postgresql`(17 以前と位置が違うので、マウント先を変えると初期化し直しになる)
   - データは名前付きボリューム(`pgdata`/`dpkeys`)に置く。bind マウントにしないのは、
     ホスト側の所有者調整が要らないようにするため
-- `docker-compose.standalone.yml` — **`.env` もシェルの環境変数も無い環境**向けの単体定義。
-  管理画面に YAML を貼り付けて起動するタイプ(NAS のコンテナマネージャー等)では `${...}` を
-  解決できないため、値を直接書いてある。**`docker-compose.yml` を変えたらこちらも追従させること**
-  —— 値が直書きなぶん古くなりやすい。パスワードは `CHANGE-ME` を置いてあり、db と app の
-  両方(`POSTGRES_PASSWORD` と接続文字列の `Password=`)を同じ値に書き換えて使う
+- `docker-compose.standalone.example.yml` — **`.env` もシェルの環境変数も無い環境**向けの
+  単体定義の雛形。管理画面に YAML を貼り付けて起動するタイプ(NAS のコンテナマネージャー等)
+  では `${...}` を解決できないため、値を直接書いてある。**`docker-compose.yml` を変えたら
+  こちらも追従させること** —— 値が直書きなぶん古くなりやすい。パスワードは `CHANGE-ME` を
+  置いてあり、db と app の両方(`POSTGRES_PASSWORD` と接続文字列の `Password=`)を同じ値に
+  書き換えて使う。
+  **リポジトリに置くのは `.example` の付いた雛形だけ**で、実値を入れてコピーした
+  `docker-compose.standalone.yml` は `.gitignore` してある(`.env.example` と `.env` の関係と
+  同じ。この形式は値を直書きするので、追記した瞬間に秘密がコミット対象に入る)
 - GHCR に置く場合の公開先は `ghcr.io/rtcode337/tech-antenna`。`latest` だけでなく
   `sha-xxxxxxx` も打つ(どのコミットが動いているか後から特定できるようにするため。
   手順は README「本番運用」)
@@ -478,12 +482,25 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
 
 ## 待ち受けポート
 
-**開発(`launchSettings.json` の HTTP)も本番の公開ポート(`docker-compose.yml` の `PORT` の
-既定)も 10000**。コンテナ内は 8080 固定(ベースイメージの `ASPNETCORE_HTTP_PORTS` の既定)で、
-外に出す番号だけを揃えている。同じホストで開発サーバーと本番コンテナを同時に上げることは
-できない(片方の `PORT` を変える)。**ホットリロード用の `watch` プロファイルだけは 10001** で、
-本番同等のコンテナ(10000)を上げたまま並べられるようにしてある。**6000 番台は使わない**
-—— Chrome/Firefox が X11 用ポートとして拒否し(`ERR_UNSAFE_PORT`)ブラウザから開けなくなるため。
+**このアプリのポートは 7020 番台に固める**(開発ポートを 7000 番台へ 10 刻みで割り当てる
+運用に合わせたもの。7020〜7029 がこのアプリの枠)。
+
+| 番号 | 用途 |
+|---|---|
+| 7020 | アプリ。`dotnet run`・コンテナ内・compose の公開ポート(`PORT` の既定)すべて同じ |
+| 7021 | PostgreSQL。コンテナ内も `PGPORT` で 7021(`docker-compose.dev.yml` で開くときも同じ) |
+| 7022 | `dotnet watch`(ホットリロード) |
+| 7023 | `https` プロファイルの HTTPS(開発でだけ使う) |
+
+**ホスト側とコンテナ内の番号をそろえてある** —— compose の `"7020:7020"` を読むだけで
+対応が分かるようにするため。アプリ側はベースイメージの既定(8080)を Dockerfile の
+`ASPNETCORE_HTTP_PORTS=7020` で上書きし、DB 側は `PGPORT` で移している(`PGPORT` は
+サーバーもクライアントも読むので、`pg_isready` や `psql` に `-p` を足す必要はない)。
+
+同じホストで開発サーバーと本番コンテナを同時に上げることはできない(片方の `PORT` を
+変える)。**`watch` プロファイルだけ 7022** なのは、本番同等のコンテナ(7020)を上げたまま
+並べられるようにするため。**6000 番台は使わない** —— Chrome/Firefox が X11 用ポートとして
+拒否し(`ERR_UNSAFE_PORT`)ブラウザから開けなくなるため。
 
 ## ホットリロード(開発中)
 
@@ -494,7 +511,7 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
 
 ```
 dotnet watch --project src/TechAntenna.Web --launch-profile watch
-# → http://localhost:10001
+# → http://localhost:7022
 ```
 
 - **効く**: Razor のマークアップ、scoped CSS(`*.razor.css`)、メソッド本体の C#
@@ -503,7 +520,7 @@ dotnet watch --project src/TechAntenna.Web --launch-profile watch
 - **コンテナには効かない。** 動いているコンテナに反映するにはイメージを作り直す
   (`docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`)
 - 接続文字列を渡さなければ In-Memory ストアで起動するので **DB 無しで画面を触れる**
-  (データは空。compose の db は 5432 をホストへ公開していないので、実データを見るならコンテナ側)
+  (データは空。compose の db は 7021 をホストへ公開していないので、実データを見るならコンテナ側)
 - **始める前に `free -h` を見る。** ビルドとコンテナを同時に走らせるとメモリを使い切り、
   swap の無い環境では OOM でホストごと巻き込まれる
 
@@ -511,9 +528,9 @@ dotnet watch --project src/TechAntenna.Web --launch-profile watch
 
 - ビルド: `dotnet build`
 - テスト: `dotnet test`
-- Web 起動: `dotnet run --project src/TechAntenna.Web`(http://localhost:10000)
+- Web 起動: `dotnet run --project src/TechAntenna.Web`(http://localhost:7020)
 - ホットリロード付きで起動:
-  `dotnet watch --project src/TechAntenna.Web --launch-profile watch`(http://localhost:10001)
+  `dotnet watch --project src/TechAntenna.Web --launch-profile watch`(http://localhost:7022)
 - 本番同等の起動(GHCR から pull): `docker compose pull && docker compose up -d`
 - 本番同等の起動(手元でビルド):
   `docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build`

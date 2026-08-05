@@ -59,6 +59,9 @@ secrets.json
 # Environment / local config
 .env
 .env.local
+# 単体定義は値を直書きする(パスワードやキーがそのまま入る)ため、
+# リポジトリに置くのは docker-compose.standalone.example.yml の方だけにする
+docker-compose.standalone.yml
 
 # Database (local Postgres bind mount)
 db/data/

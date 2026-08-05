@@ -9,7 +9,7 @@
 #
 # 特定のイメージを指定したいときは TECH_ANTENNA_IMAGE(:sha-xxxxxxx 等)を使う。
 # 設定値は .env(.env.example をコピーして作る)から渡す。
-# リポジトリを置けない環境向けには docker-compose.standalone.yml を用意している。
+# リポジトリを置けない環境向けには docker-compose.standalone.example.yml を用意している。
 name: tech-antenna
 
 services:
@@ -20,6 +20,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (see .env.example)}
       POSTGRES_DB: ${POSTGRES_DB:-techantenna}
       TZ: ${TZ:-Asia/Tokyo}
+      # 既定の 5432 ではなく、このアプリに割り当てた 7020 番台に寄せる。
+      # PGPORT はサーバー(postgres)とクライアント(pg_isready/psql)の両方が読むので、
+      # 下の healthcheck や `compose exec db psql` に -p を足す必要はない
+      PGPORT: 7021
     volumes:
       # postgres:18 のイメージは PGDATA が /var/lib/postgresql/18/docker で、
       # ボリュームの単位はその1段上の /var/lib/postgresql(17 以前とは位置が違う)。
@@ -40,7 +44,7 @@ services:
         condition: service_healthy
     environment:
       # 未設定だとメモリ上のストアで動いてしまい再起動でデータが消えるため、必ず渡す
-      ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (see .env.example)}
+      ConnectionStrings__Default: Host=db;Port=7021;Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (see .env.example)}
       TZ: ${TZ:-Asia/Tokyo}
       # 収集・要約の定期実行。**既定は false(画面のボタンを押したときだけ動く)** で、
       # 定期実行に切り替えるときだけ .env で true にする
@@ -67,9 +71,9 @@ services:
       # リバースプロキシ配下で X-Forwarded-* を信頼するときだけ true にする
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: ${FORWARDED_HEADERS_ENABLED:-false}
     ports:
-      # host:container。コンテナ内は 8080 固定(Dockerfile の EXPOSE と同じ)で、
-      # ホスト側は 10000(開発の dotnet run と同じ番号。同時起動はできない)
-      - "${PORT:-10000}:8080"
+      # host:container。コンテナ内は 7020 固定(Dockerfile の EXPOSE と同じ)で、
+      # ホスト側も既定は同じ 7020(開発の dotnet run と同じ番号。同時起動はできない)
+      - "${PORT:-7020}:7020"
     volumes:
       # antiforgery と Blazor が使う Data Protection の鍵。コンテナを作り直しても
       # 鍵を引き継げるようにする(消えると開いていたページの操作が一度エラーになる)

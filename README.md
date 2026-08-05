@@ -126,7 +126,7 @@ cp .env.example .env   # POSTGRES_PASSWORD と、使う外部 API のキーを�
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
-`http://<ホスト>:10000` で開く(`.env` の `PORT` で変更可)。データは Docker の名前付き
+`http://<ホスト>:7020` で開く(`.env` の `PORT` で変更可)。データは Docker の名前付き
 ボリューム(`pgdata`)に入り、未適用のマイグレーションは起動時に自動で当たるため、
 更新は `git pull` して同じコマンドを打つだけでよい。
 
@@ -139,7 +139,9 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 - 障害時は `.env` の `TECH_ANTENNA_IMAGE` に `ghcr.io/rtcode337/tech-antenna:sha-xxxxxxx` を
   指定すれば任意の時点のイメージに戻せる
 - リポジトリを置けない環境(NAS のコンテナマネージャー等、管理画面に YAML を貼り付ける
-  タイプ)向けには [docker-compose.standalone.yml](docker-compose.standalone.yml) を用意している
+  タイプ)向けには [docker-compose.standalone.example.yml](docker-compose.standalone.example.yml) を
+  用意している。実値を直書きするので、`.env` と同じくコピーした側(`docker-compose.standalone.yml`)は
+  コミットしない
 - TLS は前段のリバースプロキシで終端する前提(コンテナは HTTP のみ待ち受ける)。
   プロキシ配下に置くときは `.env` で `FORWARDED_HEADERS_ENABLED=true`
 - **収集と要約は既定では自動実行しない**(画面のボタンを押したときだけ動く)。
@@ -153,10 +155,10 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```bash
 dotnet build
 dotnet test
-dotnet run --project src/TechAntenna.Web   # http://localhost:10000
+dotnet run --project src/TechAntenna.Web   # http://localhost:7020
 
 # 画面を触るときはホットリロード付きで(保存すると再起動なしでブラウザに反映される)
-dotnet watch --project src/TechAntenna.Web --launch-profile watch   # http://localhost:10001
+dotnet watch --project src/TechAntenna.Web --launch-profile watch   # http://localhost:7022
 ```
 
 DB は PostgreSQL。接続文字列 `ConnectionStrings:Default` を設定して起動すると
@@ -167,12 +169,12 @@ DB は PostgreSQL。接続文字列 `ConnectionStrings:Default` を設定して�
 選んでいなくても集まるが、イベントと書籍は選択が空だと 1 件も集まらない。
 
 開発サーバーから compose の DB の実データを読むときは、`docker-compose.dev.yml` を
-重ねて 5432 を開ける(`127.0.0.1` のみ。本番では重ねない)。
+重ねて 7021 を開ける(`127.0.0.1` のみ。本番では重ねない)。
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
 set -a; . ./.env; set +a
-ConnectionStrings__Default="Host=localhost;Port=${POSTGRES_PORT:-5432};Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=$POSTGRES_PASSWORD" \
+ConnectionStrings__Default="Host=localhost;Port=${POSTGRES_PORT:-7021};Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=$POSTGRES_PASSWORD" \
   dotnet run --project src/TechAntenna.Web
 ```
 

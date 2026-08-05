@@ -23,10 +23,10 @@ dotnet test
 ビルドとコンテナを同時に走らせる前には `free -h` を確認する。swap のない環境で OOM を起こさないためである。
 
 ```bash
-# 通常の開発サーバー: http://localhost:10000
+# 通常の開発サーバー: http://localhost:7020
 dotnet run --project src/TechAntenna.Web --launch-profile http
 
-# ホットリロード開発サーバー: http://localhost:10001
+# ホットリロード開発サーバー: http://localhost:7022
 dotnet watch --project src/TechAntenna.Web --launch-profile watch
 ```
 
@@ -34,8 +34,8 @@ dotnet watch --project src/TechAntenna.Web --launch-profile watch
 - 6000 番台はブラウザが X11 用の危険なポートと扱うため使わない。
 - `dotnet watch` は Razor、scoped CSS、メソッド本体の C# を即時反映する。DI 登録、`Program.cs`、型追加などは再起動になる。
 - ブラウザ自動更新を curl で確認する際は `Accept: text/html` を付ける。
-- 接続文字列がなければ意図的に In-Memory ストアで起動する。画面作業に DB は不要だが、データは再起動で失われる。Compose の DB はホストの 5432 を公開しない。
-- 実データを読ませたいときだけ、上書き定義 `docker-compose.dev.yml` を重ねて `127.0.0.1:5432` に開け、`ConnectionStrings__Default` を渡す(手順は README「開発環境」)。開発サーバーも起動時にマイグレーションを自動適用するため、未コミットのマイグレーションを持ったまま本番の DB へ繋がない。
+- 接続文字列がなければ意図的に In-Memory ストアで起動する。画面作業に DB は不要だが、データは再起動で失われる。Compose の DB はホストの 7021 を公開しない。
+- 実データを読ませたいときだけ、上書き定義 `docker-compose.dev.yml` を重ねて `127.0.0.1:7021` に開け、`ConnectionStrings__Default` を渡す(手順は README「開発環境」)。開発サーバーも起動時にマイグレーションを自動適用するため、未コミットのマイグレーションを持ったまま本番の DB へ繋がない。
 
 ## ジョブと静的 SSR
 
@@ -95,7 +95,7 @@ docker compose pull && docker compose up -d
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
-- 開発と外部公開ポートは既定 `10000`、コンテナ内部は `8080`。Compose と並行するホットリロードだけ `10001` を使う。
+- ポートは 7020 番台に固める。アプリは `7020`(ホスト・コンテナ内・`dotnet run` すべて同じ)、DB は `7021`(`PGPORT` でコンテナ内も 7021)。Compose と並行するホットリロードだけ `7022` を使う。
 - ランタイムは Debian ベース・非 root・Node なしを維持する。Alpine は日本語の globalization を壊す。
 - サブスクリプション方式の要約用に Claude Code CLI をイメージへ残し、設定用の `HOME=/home/app` を書き込み可能にする。
 - PostgreSQL 18 の `PGDATA` は `/var/lib/postgresql/18/docker`。名前付きボリュームは親の `/var/lib/postgresql` にマウントする。
