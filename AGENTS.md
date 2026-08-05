@@ -98,6 +98,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 - ポートは 7020 番台に固める。アプリは `7020`(ホスト・コンテナ内・`dotnet run` すべて同じ)、DB は `7021`(`PGPORT` でコンテナ内も 7021)。Compose と並行するホットリロードだけ `7022` を使う。
 - ランタイムは Debian ベース・非 root・Node なしを維持する。Alpine は日本語の globalization を壊す。
 - サブスクリプション方式の要約用に Claude Code CLI をイメージへ残し、設定用の `HOME=/home/app` を書き込み可能にする。
-- PostgreSQL 18 の `PGDATA` は `/var/lib/postgresql/18/docker`。名前付きボリュームは親の `/var/lib/postgresql` にマウントする。
-- `pgdata` と `dpkeys` は bind mount でなく名前付きボリュームを使う。`DataProtection__KeysDirectory=/app/keys` で Data Protection キーを永続化する。
+- PostgreSQL 18 の `PGDATA` は `/var/lib/postgresql/18/docker`。マウントするのは親の `/var/lib/postgresql`。
+- 永続データはホストの `data/`(`data/postgres` と `data/keys`)へバインドする。名前付きボリュームは使わない —— 丸ごとコピーするだけでバックアップになるようにするため。`DataProtection__KeysDirectory=/app/keys` で Data Protection キーを永続化する。
+- `data/keys` は app の非 root(UID 1654)が書くため、`init` サービスが起動前に `chown` する。`app` は `service_completed_successfully` でこれを待つ。
 - イメージは `.github/workflows/build-and-push-image.yml` が main への push でビルドし GHCR へ公開する。タグは `latest` とコミット識別用の `sha-xxxxxxx`。非公開リポジトリなので Actions の実行時間と GHCR の容量はプラン付属の枠を消費する —— ワークフローは amd64 のみ・`paths-ignore` で文書だけの変更を除外している。

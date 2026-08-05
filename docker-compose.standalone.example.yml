@@ -10,7 +10,8 @@
 #   cp docker-compose.standalone.example.yml docker-compose.standalone.yml
 #
 # 使い方:
-#   1. コピーした側の**先頭の「ここだけ編集」を書き換える**(必須は DB のパスワードだけ)
+#   1. コピーした側の**先頭の「ここだけ編集」を書き換える**
+#      (必須は DB のパスワードと、データの置き場のホスト絶対パス)
 #   2. その内容をそのまま管理画面に貼り付ける
 #   3. 起動して http://<ホスト>:7020/ を開く
 #
@@ -33,6 +34,13 @@ x-connection-string: &connection-string "Host=db;Port=7021;Database=techantenna;
 # ---- ここだけ編集: イメージ ----
 # 障害時は :latest ではなく :sha-xxxxxxx を指定すれば任意の時点のイメージに戻せる
 x-image: &image "ghcr.io/rtcode337/tech-antenna:latest"
+
+# ---- ここだけ編集: データの置き場(そのホストの絶対パス) ----
+# 名前付きボリュームではなくホストのディレクトリに置く(data ごとコピーすればバックアップ
+# になる)。無ければ Docker が作るが、先に作っておくのが確実。
+# postgres 側は中身の所有者をエントリポイントが揃えるので、ホスト側の準備は要らない
+x-postgres-dir: &postgres-dir "/volume1/docker/tech-antenna/data/postgres"
+x-keys-dir: &keys-dir "/volume1/docker/tech-antenna/data/keys"
 
 # ---- ここだけ編集: 公開ポート ----
 # host:container。コンテナ内は 7020 固定なので、変えるのは左だけ。
@@ -83,8 +91,10 @@ services:
       PGPORT: 7021
     volumes:
       # postgres:18 のイメージは PGDATA が /var/lib/postgresql/18/docker で、
-      # ボリュームの単位はその1段上の /var/lib/postgresql(17 以前とは位置が違う)
-      - pgdata:/var/lib/postgresql
+      # マウントするのはその1段上の /var/lib/postgresql(17 以前とは位置が違う)
+      - type: bind
+        source: *postgres-dir
+        target: /var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U techantenna -d techantenna"]
       interval: 5s
@@ -92,21 +102,34 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # 鍵の置き場を app の実行ユーザー(イメージが持つ非 root、UID 1654)が書けるようにする。
+  # ホストのディレクトリは作成者の所有になるため、そのままでは鍵を書き出せない
+  # chown を実行するだけなので、アプリのイメージではなく小さい汎用イメージを使う
+  init:
+    image: alpine:3.24
+    user: root
+    entrypoint: ["sh", "-c", "chown -R 1654:1654 /app/keys"]
+    volumes:
+      - type: bind
+        source: *keys-dir
+        target: /app/keys
+    restart: "no"
+
   app:
     image: *image
     depends_on:
       # 起動時にマイグレーションを当てるため、DB が受け付けられるまで待つ
       db:
         condition: service_healthy
+      init:
+        condition: service_completed_successfully
     environment: *app-env
     ports:
       - *port
     volumes:
       # antiforgery と Blazor が使う Data Protection の鍵。コンテナを作り直しても
       # 鍵を引き継げるようにする(消えると開いていたページの操作が一度エラーになる)
-      - dpkeys:/app/keys
+      - type: bind
+        source: *keys-dir
+        target: /app/keys
     restart: unless-stopped
-
-volumes:
-  pgdata:
-  dpkeys:

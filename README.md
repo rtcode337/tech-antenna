@@ -126,9 +126,10 @@ cp .env.example .env   # POSTGRES_PASSWORD と、使う外部 API のキーを�
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
-`http://<ホスト>:7020` で開く(`.env` の `PORT` で変更可)。データは Docker の名前付き
-ボリューム(`pgdata`)に入り、未適用のマイグレーションは起動時に自動で当たるため、
-更新は `git pull` して同じコマンドを打つだけでよい。
+`http://<ホスト>:7020` で開く(`.env` の `PORT` で変更可)。データはリポジトリ直下の
+`data/`(Postgres は `data/postgres`、Data Protection の鍵は `data/keys`)に入る ——
+**バックアップはこのディレクトリを丸ごとコピーするだけでよい**。未適用のマイグレーションは
+起動時に自動で当たるため、更新は `git pull` して同じコマンドを打つだけでよい。
 
 - イメージは main への push で GitHub Actions がビルドし、GHCR へ公開する
   ([.github/workflows/build-and-push-image.yml](.github/workflows/build-and-push-image.yml))。

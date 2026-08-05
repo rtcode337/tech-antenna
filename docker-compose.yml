@@ -26,9 +26,11 @@ services:
       PGPORT: 7021
     volumes:
       # postgres:18 のイメージは PGDATA が /var/lib/postgresql/18/docker で、
-      # ボリュームの単位はその1段上の /var/lib/postgresql(17 以前とは位置が違う)。
-      # bind マウントではなく名前付きボリュームにして、ホスト側の所有者調整を不要にしている
-      - pgdata:/var/lib/postgresql
+      # マウントするのはその1段上の /var/lib/postgresql(17 以前とは位置が違う)。
+      # 名前付きボリュームではなくホストのディレクトリに置いてある —— data/ を丸ごと
+      # コピーすればバックアップになり、Docker の中を覗きに行かなくて済む。
+      # 中身の所有者調整は postgres のエントリポイントが root で起動時に済ませる
+      - ./data/postgres:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-techantenna} -d ${POSTGRES_DB:-techantenna}"]
       interval: 5s
@@ -36,12 +38,28 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # data/keys を app の実行ユーザー(イメージが持つ非 root、UID 1654)が書けるようにする。
+  # ホストのディレクトリは作成者(ホストのユーザー)の所有になるため、そのままでは
+  # Data Protection の鍵を書き出せない。postgres と違い app 側は非 root で動くので、
+  # ここで一度だけ root で所有者を合わせてから本体を起動する
+  # chown を実行するだけなので、アプリのイメージではなく小さい汎用イメージを使う
+  # (アプリ側を :local でビルドする構成でも GHCR を引きに行かずに済む)
+  init:
+    image: alpine:3.24
+    user: root
+    entrypoint: ["sh", "-c", "chown -R 1654:1654 /app/keys"]
+    volumes:
+      - ./data/keys:/app/keys
+    restart: "no"
+
   app:
     image: ${TECH_ANTENNA_IMAGE:-ghcr.io/rtcode337/tech-antenna:latest}
     depends_on:
       # 起動時にマイグレーションを当てるため、DB が受け付けられるまで待つ
       db:
         condition: service_healthy
+      init:
+        condition: service_completed_successfully
     environment:
       # 未設定だとメモリ上のストアで動いてしまい再起動でデータが消えるため、必ず渡す
       ConnectionStrings__Default: Host=db;Port=7021;Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (see .env.example)}
@@ -77,9 +95,5 @@ services:
     volumes:
       # antiforgery と Blazor が使う Data Protection の鍵。コンテナを作り直しても
       # 鍵を引き継げるようにする(消えると開いていたページの操作が一度エラーになる)
-      - dpkeys:/app/keys
+      - ./data/keys:/app/keys
     restart: unless-stopped
-
-volumes:
-  pgdata:
-  dpkeys:

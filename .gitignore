@@ -63,8 +63,10 @@ secrets.json
 # リポジトリに置くのは docker-compose.standalone.example.yml の方だけにする
 docker-compose.standalone.yml
 
-# Database (local Postgres bind mount)
-db/data/
+# コンテナのデータ置き場(Postgres のデータと Data Protection の鍵)。
+# 名前付きボリュームではなくここへバインドしてあるので、丸ごとコピーすればバックアップになる。
+# 先頭の / でリポジトリ直下だけに限る(付けないと全階層の data/ を無言で無視する)
+/data/
 
 # EF Core
 *.mdf

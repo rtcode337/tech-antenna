@@ -448,14 +448,25 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
   - arm64 向けは QEMU ではなく **.NET のクロスコンパイル**(`--platform=$BUILDPLATFORM` +
     `dotnet publish -a`)で出す。実行ステージに `RUN` を置かないのもエミュレーションを
     避けるため(鍵置き場のディレクトリはビルドステージで作って `COPY --chown` する)
-- `docker-compose.yml` — 本番用(`app` + `db`)。この定義自体はビルドせず GHCR のイメージを
+- `docker-compose.yml` — 本番用(`app` + `db` + 起動前に一度だけ走る `init`)。この定義自体はビルドせず GHCR のイメージを
   参照する。設定は `.env` から環境変数で渡す。`docker-compose.build.yml` はその場でビルドする
   上書き定義(`:local` タグ)で、手元での動作確認や GHCR を使わない起動はこちらを重ねて使う
   - Postgres は `postgres:18-alpine`。**18 のイメージは PGDATA が
-    `/var/lib/postgresql/18/docker`** で、ボリュームの単位はその1段上の
+    `/var/lib/postgresql/18/docker`** で、マウントするのはその1段上の
     `/var/lib/postgresql`(17 以前と位置が違うので、マウント先を変えると初期化し直しになる)
-  - データは名前付きボリューム(`pgdata`/`dpkeys`)に置く。bind マウントにしないのは、
-    ホスト側の所有者調整が要らないようにするため
+  - **永続データはホストの `data/` へバインドする**(`data/postgres` と `data/keys`)。
+    名前付きボリュームを使わないのは、`data/` を丸ごとコピーするだけでバックアップに
+    なるようにするため —— Docker の中に置くと持ち出しに一手間かかる。`data/` は
+    `.gitignore` 済み。standalone 側は `${...}` を解決できないので、雛形の先頭に
+    ホストの絶対パスを書く欄(`x-postgres-dir` / `x-keys-dir`)を置いてある
+  - **`init` サービスが `data/keys` を `chown` してから `app` を起動する**
+    (`depends_on` の `service_completed_successfully`)。ホストに作られる
+    ディレクトリはホストのユーザー所有になるが、`app` はイメージが持つ非 root
+    (UID 1654)で動くのでそのままでは鍵を書けない。名前付きボリュームなら Docker が
+    見てくれていた部分で、バインドにした代償がここに出る。
+    db 側は不要 —— postgres のエントリポイントが root で起動して自分で所有者を揃える。
+    `init` に**アプリのイメージではなく `alpine` を使う**のは、`app` を `:local` で
+    ビルドする構成のときに GHCR を引きに行かせないため
 - `docker-compose.standalone.example.yml` — **`.env` もシェルの環境変数も無い環境**向けの
   単体定義の雛形。管理画面に YAML を貼り付けて起動するタイプ(NAS のコンテナマネージャー等)
   では `${...}` を解決できないため、値を直接書いてある。**`docker-compose.yml` を変えたら
