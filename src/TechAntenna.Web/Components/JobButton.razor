@@ -1,23 +1,40 @@
 @using TechAntenna.Web.Services
+@inject NavigationManager Navigation
 
 @* ジョブを手動で走らせるボタン。開発環境では定期実行を止めてあるので、ここから起動する。
 
-   静的 SSR のフォーム POST にしているのは、このアプリが全ページ静的 SSR で、
-   ボタンのためだけに対話回線(WebSocket)を張る必要が無いため。@formname はフォームを
-   見分けるのに使われるので、ページ内で重複しない名前を渡すこと。 *@
+   静的 SSR のフォーム POST。押すとジョブを**バックグラウンドで開始してすぐ応答を返し**、
+   実行中は meta refresh の自動リロードで進捗(Runner.Progress)を追う —— 数分かかる
+   ジョブを await で待つと、押した人は応答が返るまで白い画面を見続けることになる。
+   JS も対話回線(WebSocket)も使わない(このアプリは全ページ静的 SSR)。
+
+   結果の文言は Runner(LastMessage / LastError)が持つ。POST をまたいで表示するためで、
+   ページ側のフィールドでは自動リロードのたびに消えてしまう。
+   @formname はフォームを見分けるのに使われるので、ページ内で重複しない名前を渡すこと。 *@
 
 @if (Runner.IsConfigured)
 {
     <form method="post" @formname="@FormName" @onsubmit="RunAsync" class="mb-3">
         <AntiforgeryToken />
-        <button type="submit" class="btn btn-outline-primary btn-sm">@Runner.Name</button>
-        @if (Message is { Length: > 0 })
+        <button type="submit" class="btn btn-outline-primary btn-sm" disabled="@Runner.IsRunning">
+            @Runner.Name
+        </button>
+        @if (Runner.IsRunning)
         {
-            <span class="ms-2 text-body-secondary">@Message</span>
+            @* 実行中は 3 秒ごとに自動リロードして進捗を出す。URL を明示した GET にするのは、
+               POST 応答の再読み込みでフォームが再送されるのを避けるため *@
+            <HeadContent>
+                <meta http-equiv="refresh" content="3;url=@CurrentPath" />
+            </HeadContent>
+            <span class="ms-2 running">@(Runner.Progress ?? "実行中…")</span>
         }
-        @if (Error is { Length: > 0 })
+        else if (Runner.LastError is { Length: > 0 } error)
         {
-            <span class="ms-2 text-danger">失敗: @Error</span>
+            <span class="ms-2 text-danger">失敗: @error</span>
+        }
+        else if (Runner.LastMessage is { Length: > 0 } message)
+        {
+            <span class="ms-2 text-body-secondary">@message</span>
         }
     </form>
 }
@@ -31,17 +48,12 @@
     [Parameter, EditorRequired]
     public string FormName { get; set; } = "";
 
-    /// <summary>実行後に出す文言。</summary>
-    [Parameter]
-    public string? Message { get; set; }
-
-    /// <summary>失敗したときの理由。</summary>
-    [Parameter]
-    public string? Error { get; set; }
-
-    /// <summary>ボタンが押されたときの処理。</summary>
+    /// <summary>ボタンが押されたときの処理。中で Runner.StartInBackground を呼ぶこと。</summary>
     [Parameter, EditorRequired]
     public EventCallback OnRun { get; set; }
+
+    string CurrentPath =>
+        "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
 
     Task RunAsync() => OnRun.InvokeAsync();
 }

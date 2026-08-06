@@ -66,7 +66,10 @@ public static class ClaudeCodeBatch
         var arguments = new List<string>
         {
             "-p",
-            "--max-turns", "1",
+            // 2 ターン必要。--json-schema の構造化出力は**内部のツール呼び出し**として
+            // 実装されていて、それが 1 ターン消費する(v2.1.220 で実測: 1 だと結果を
+            // 出す前に error_max_turns で打ち切られ、終了コード 1・result 無しで落ちる)
+            "--max-turns", "2",
             "--system-prompt", systemPrompt,
             "--output-format", "json",
             "--json-schema", schemaJson,

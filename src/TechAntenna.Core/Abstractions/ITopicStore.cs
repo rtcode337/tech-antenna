@@ -28,6 +28,13 @@ public interface ITopicStore
         int count,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// トピックを一覧から取り除く。LLM が「トピックでない」と確定させた語(Skip)の掃除に使う。
+    /// **選択済み(IsSelected)の行は消さない** —— 消すと収集キーワードごと失われる。
+    /// 実際に消した件数を返す。
+    /// </summary>
+    Task<int> RemoveAsync(IReadOnlyList<string> tags, CancellationToken cancellationToken = default);
+
     /// <summary>収集キーワードとして使う選択済みトピックを更新する。</summary>
     Task UpdateSelectionAsync(IReadOnlyList<string> tags, CancellationToken cancellationToken = default);
 

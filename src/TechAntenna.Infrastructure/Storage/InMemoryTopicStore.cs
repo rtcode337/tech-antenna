@@ -22,8 +22,9 @@ public class InMemoryTopicStore : ITopicStore
             foreach (var stored in _byTag.Values.Where(stored => !seen.Contains(stored.Tag)))
             {
                 stored.TrendScore = 0;
+                stored.SubtreeTrendScore = 0;
                 stored.SourceCount = 0;
-                // 在庫の件数も落とす —— 別名がまとまってタグが消えたときに古い件数が残るため
+                // 収集済みの件数も落とす —— 別名がまとまってタグが消えたときに古い件数が残るため
                 stored.ArticleCount = 0;
                 stored.EventCount = 0;
                 stored.BookCount = 0;
@@ -44,6 +45,25 @@ public class InMemoryTopicStore : ITopicStore
         return Task.CompletedTask;
     }
 
+    public Task<int> RemoveAsync(IReadOnlyList<string> tags, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            var removed = 0;
+            foreach (var tag in tags)
+            {
+                // 選択済みは消さない(収集キーワードごと失われるため)
+                if (_byTag.TryGetValue(tag, out var stored) && !stored.IsSelected)
+                {
+                    _byTag.Remove(tag);
+                    removed++;
+                }
+            }
+
+            return Task.FromResult(removed);
+        }
+    }
+
     public Task<IReadOnlyList<StoredTopic>> GetTopicsAsync(int count, CancellationToken cancellationToken = default)
     {
         lock (_gate)
@@ -51,7 +71,7 @@ public class InMemoryTopicStore : ITopicStore
             IReadOnlyList<StoredTopic> result = _byTag.Values
                 // 選択済みは話題度が 0 でも押し出されないよう先頭に固定する
                 .OrderByDescending(topic => topic.IsSelected)
-                .ThenByDescending(topic => topic.TrendScore)
+                .ThenByDescending(topic => topic.SubtreeTrendScore)
                 .ThenBy(topic => topic.Tag, StringComparer.Ordinal)
                 .Take(count)
                 .ToList();
@@ -95,6 +115,7 @@ public class InMemoryTopicStore : ITopicStore
         stored.Display = topic.Display;
         stored.Parent = topic.Parent;
         stored.TrendScore = topic.TrendScore;
+        stored.SubtreeTrendScore = topic.SubtreeTrendScore;
         stored.SourceCount = topic.SourceCount;
         stored.ArticleCount = topic.ArticleCount;
         stored.EventCount = topic.EventCount;

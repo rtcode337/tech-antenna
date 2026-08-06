@@ -21,10 +21,8 @@
 
 @* 開発環境では定期実行を止めてあるので(Collection:AutoRun / Anthropic:AutoRun)、
    ここから手動で走らせる。論文タイトルの翻訳ボタンは /papers にある *@
-<JobButton Runner="CollectionRunner" FormName="collect-articles"
-           Message="@_collectMessage" Error="@_collectError" OnRun="CollectAsync" />
-<JobButton Runner="SummaryRunner" FormName="summarize"
-           Message="@_summaryMessage" Error="@_summaryError" OnRun="SummarizeAsync" />
+<JobButton Runner="CollectionRunner" FormName="collect-articles" OnRun="Collect" />
+<JobButton Runner="SummaryRunner" FormName="summarize" OnRun="Summarize" />
 
 @if (_sections is null)
 {
@@ -73,40 +71,15 @@ else
 
     IReadOnlyList<Section>? _sections;
     HashSet<string> _selected = new(StringComparer.Ordinal);
-    string? _collectMessage;
-    string? _collectError;
-    string? _summaryMessage;
-    string? _summaryError;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    async Task CollectAsync()
-    {
-        try
-        {
-            _collectMessage = JobMessage.Describe(await CollectionRunner.RunOnceAsync());
-        }
-        catch (Exception ex)
-        {
-            _collectError = ex.Message;
-        }
+    // ジョブはバックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
+    void Collect() =>
+        CollectionRunner.StartInBackground(ct => CollectionRunner.RunOnceAsync(ct), JobMessage.Describe);
 
-        await LoadAsync();
-    }
-
-    async Task SummarizeAsync()
-    {
-        try
-        {
-            _summaryMessage = JobMessage.Describe(await SummaryRunner.RunOnceAsync());
-        }
-        catch (Exception ex)
-        {
-            _summaryError = ex.Message;
-        }
-
-        await LoadAsync();
-    }
+    void Summarize() =>
+        SummaryRunner.StartInBackground(ct => SummaryRunner.RunOnceAsync(ct), JobMessage.Describe);
 
     async Task LoadAsync()
     {

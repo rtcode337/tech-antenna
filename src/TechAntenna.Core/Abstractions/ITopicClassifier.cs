@@ -20,9 +20,13 @@ public interface ITopicClassifier
 {
     string Name { get; }
 
-    /// <summary>未知タグをまとめて分類する。<paramref name="existingTopics"/> は判断材料の既存ツリー。</summary>
+    /// <summary>
+    /// 未知タグをまとめて分類する。<paramref name="existingTopics"/> は判断材料の既存ツリー。
+    /// <paramref name="progress"/> には進み具合の短い文を渡す(数分かかるので画面に出す)。
+    /// </summary>
     Task<IReadOnlyList<TopicClassifierVerdict>> ClassifyAsync(
         IReadOnlyList<string> tags,
         IReadOnlyList<TopicCatalogEntry> existingTopics,
+        Action<string>? progress = null,
         CancellationToken cancellationToken = default);
 }

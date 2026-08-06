@@ -33,3 +33,106 @@ section > p {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
+
+/* ツリー/ランキングの切り替え。リンクだけのタブ(JS 不要) */
+.view-switch {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.view-switch a {
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 0.86rem;
+    text-decoration: none;
+}
+
+.view-switch a.active {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 650;
+}
+
+/* トピックのツリー。子を持つノードは details/summary で折りたためる。
+   見た目は以前のテーブル型に合わせる —— 各行を同じ列構成のグリッドにして列を縦にそろえ、
+   字下げは名前のセルの中だけで行う(コンテナごと下げると話題度・日時の列がずれる)。
+   summary の標準マーカーも列ずれの原因になるので消し、開閉の三角は名前セル内の
+   .caret で自前に描く(開閉の手がかりは失わない) */
+.topic-tree {
+    margin-bottom: 1rem;
+}
+
+.topic-grid {
+    display: grid;
+    grid-template-columns: 2.4rem minmax(0, 1fr) 4.5rem 9.5rem;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.topic-header {
+    padding: 0.45rem 0.25rem;
+    border-bottom: 2px solid var(--border-strong);
+    color: var(--text);
+    font-weight: 650;
+    font-size: 0.9rem;
+}
+
+.topic-row {
+    display: block;
+    padding: 0.4rem 0.25rem;
+    border-bottom: 1px solid var(--border);
+}
+
+summary.topic-row {
+    cursor: pointer;
+    list-style: none;
+}
+
+summary.topic-row::-webkit-details-marker {
+    display: none;
+}
+
+.name-cell {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    min-width: 0;
+    padding-left: calc(var(--depth, 0) * 1.1rem);
+}
+
+/* 開閉の三角(▶/▼)・葉の └ ・字下げ合わせの空白は同じ幅にして、名前の頭をそろえる */
+.caret,
+.tree-branch,
+.caret-spacer {
+    flex: none;
+    width: 0.9rem;
+    color: var(--text-muted);
+}
+
+.caret::before {
+    content: "▶";
+    font-size: 0.7rem;
+}
+
+details[open] > summary .caret::before {
+    content: "▼";
+}
+
+.score-cell {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.topic-header .score-cell {
+    text-align: right;
+}
+
+.date-cell {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}

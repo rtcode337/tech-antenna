@@ -21,6 +21,8 @@
     @* スマホのメニュー開閉をページ遷移後も保つ。head で defer 付きに読むことで、
        描画前に復元されて開閉がちらつかない *@
     <script src="@Assets["nav-menu.js"]" defer></script>
+    @* トピックのツリー(/settings)の開閉をブラウザに覚えて再現する *@
+    <script src="@Assets["topic-tree.js"]" defer></script>
 </head>
 
 <body>

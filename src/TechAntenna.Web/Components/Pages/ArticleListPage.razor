@@ -22,8 +22,7 @@
 @if (_kind == ArticleKind.Paper)
 {
     @* 翻訳の対象は論文だけなので、ボタンも論文のページに置く *@
-    <JobButton Runner="TranslationRunner" FormName="translate-titles"
-               Message="@_translateMessage" Error="@_translateError" OnRun="TranslateAsync" />
+    <JobButton Runner="TranslationRunner" FormName="translate-titles" OnRun="Translate" />
 }
 
 @if (_articles is null)
@@ -64,8 +63,6 @@ else
     string _title = "記事";
     IReadOnlyList<Article>? _articles;
     HashSet<string> _selected = new(StringComparer.Ordinal);
-    string? _translateMessage;
-    string? _translateError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -80,23 +77,12 @@ else
         await LoadAsync();
     }
 
-    async Task TranslateAsync()
-    {
-        try
-        {
-            var result = await TranslationRunner.RunOnceAsync();
-            _translateMessage = result.Requested == 0
-                ? "訳題の付いていない論文はありません。"
-                : $"{result.Requested} 件中 {result.Translated} 件に訳題を付けました。";
-            _translateError = null;
-        }
-        catch (Exception ex)
-        {
-            _translateError = ex.Message;
-        }
-
-        await LoadAsync();
-    }
+    // バックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
+    void Translate() => TranslationRunner.StartInBackground(
+        ct => TranslationRunner.RunOnceAsync(ct),
+        result => result.Requested == 0
+            ? "訳題の付いていない論文はありません。"
+            : $"{result.Requested} 件中 {result.Translated} 件に訳題を付けました。");
 
     async Task LoadAsync()
     {

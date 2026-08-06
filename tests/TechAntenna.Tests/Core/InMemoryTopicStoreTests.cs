@@ -8,7 +8,7 @@ public class InMemoryTopicStoreTests
     static readonly DateTimeOffset CollectedAt = new(2026, 8, 3, 0, 0, 0, TimeSpan.Zero);
 
     static TopicUpdate Update(string tag, double score, string? display = null) =>
-        new(tag, display ?? tag, null, score, 1, 0, 0, 0);
+        new(tag, display ?? tag, null, score, score, 1, 0, 0, 0);
 
     [Fact]
     public async Task 話題度の高い順に返す()
@@ -65,5 +65,19 @@ public class InMemoryTopicStoreTests
         var selected = Assert.Single(await store.GetSelectedAsync());
         Assert.Equal("生成ai", selected.Tag);
         Assert.Equal("生成AI", selected.Display);
+    }
+
+    [Fact]
+    public async Task 取り除くとき選択済みの行は残す()
+    {
+        var store = new InMemoryTopicStore();
+        await store.UpsertAsync([Update("ニュース", 10), Update("生成ai", 20)], CollectedAt);
+        await store.UpdateSelectionAsync(["生成ai"]);
+
+        // 選択済み(生成ai)は消さない —— 消すと収集キーワードごと失われる
+        var removed = await store.RemoveAsync(["ニュース", "生成ai", "存在しない語"]);
+
+        Assert.Equal(1, removed);
+        Assert.Equal(["生成ai"], (await store.GetTopicsAsync(10)).Select(t => t.Tag));
     }
 }

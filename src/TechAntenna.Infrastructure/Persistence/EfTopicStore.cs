@@ -24,8 +24,9 @@ public class EfTopicStore(IDbContextFactory<TechAntennaDbContext> contextFactory
         foreach (var missing in stored.Values.Where(topic => !seen.Contains(topic.Tag)))
         {
             missing.TrendScore = 0;
+            missing.SubtreeTrendScore = 0;
             missing.SourceCount = 0;
-            // 在庫の件数も落とす —— 別名がまとまってタグが消えたときに古い件数が残るため
+            // 収集済みの件数も落とす —— 別名がまとまってタグが消えたときに古い件数が残るため
             missing.ArticleCount = 0;
             missing.EventCount = 0;
             missing.BookCount = 0;
@@ -45,14 +46,30 @@ public class EfTopicStore(IDbContextFactory<TechAntennaDbContext> contextFactory
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<int> RemoveAsync(IReadOnlyList<string> tags, CancellationToken cancellationToken = default)
+    {
+        if (tags.Count == 0)
+        {
+            return 0;
+        }
+
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // 選択済みは消さない(収集キーワードごと失われるため)
+        return await db.Topics
+            .Where(topic => tags.Contains(topic.Tag) && !topic.IsSelected)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<StoredTopic>> GetTopicsAsync(int count, CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await db.Topics
-            // 選択済みは話題度が 0 でも押し出されないよう先頭に固定する
+            // 選択済みは話題度が 0 でも押し出されないよう先頭に固定する。
+            // 並びは配下込みの話題度 —— 単体だと構造の語(親)が足切りされ、子が孤立する
             .OrderByDescending(topic => topic.IsSelected)
-            .ThenByDescending(topic => topic.TrendScore)
+            .ThenByDescending(topic => topic.SubtreeTrendScore)
             .ThenBy(topic => topic.Tag)
             .Take(count)
             .ToListAsync(cancellationToken);

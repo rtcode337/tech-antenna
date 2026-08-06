@@ -7,3 +7,15 @@ form {
     gap: 0.5rem;
     margin: 0 0.5rem 0.75rem 0;
 }
+
+/* 実行中の進捗。動いていることが分かるよう、ゆっくり明滅させる(JS 不要) */
+.running {
+    color: var(--accent);
+    font-size: 0.85rem;
+    animation: job-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes job-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}

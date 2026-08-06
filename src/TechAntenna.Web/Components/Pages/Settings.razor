@@ -3,7 +3,6 @@
 @using TechAntenna.Core.Topics
 @using TechAntenna.Web.Services
 @inject ITopicStore TopicStore
-@inject TopicCatalog Catalog
 @inject TopicCollectionRunner CollectionRunner
 @inject TagRenormalizationRunner RenormalizationRunner
 
@@ -14,16 +13,12 @@
 <section class="mb-4" aria-labelledby="topics-heading">
     <h2 id="topics-heading">トピック</h2>
     <p class="text-muted">
-        <code>topic-catalog.json</code> の語彙と、外部トレンドで見つかった語、すでに集めた記事・イベント・書籍のタグを
-        まとめてトピック一覧にします。話題度は<strong>収集元ごとのシェアに直してから合算</strong>するので、
-        件数の桁が違う収集元どうしでも比べられます。在庫（3種そろい）は表示だけで、順位には足していません
-        —— 足すと選択済みのトピックが上位に張り付き、新しいトピックが出てこなくなるためです。
-        <strong>収集対象に選んだトピックは一覧の先頭に固定します</strong>。再収集で見つからなくなっても
-        一覧から消えないので（話題度が 0 になるだけ）、選択が勝手に外れることはありません。
+        あらかじめ用意した語彙・外部トレンドで見つかった語・集めた記事などのタグを
+        まとめてトピック一覧にします。<strong>収集対象に選んだトピックは消えない</strong>ので、
+        選択が勝手に外れることはありません。
     </p>
 
-    <JobButton Runner="CollectionRunner" FormName="collect-topics"
-               Message="@_message" Error="@_error" OnRun="CollectAsync" />
+    <JobButton Runner="CollectionRunner" FormName="collect-topics" OnRun="Collect" />
 
     @if (_topics is null)
     {
@@ -35,45 +30,66 @@
     }
     else
     {
+        @* 2つの見方を切り替える。ツリーは「どの領域が熱いか」(配下込みの話題度)、
+           ランキングは「どの用語単体が熱いか」。切り替えはリンク(クエリ)で、JS は使わない *@
+        <nav class="view-switch" aria-label="トピック一覧の表示切り替え">
+            <a class="@(IsRanking ? "" : "active")" href="/settings">ツリー</a>
+            <a class="@(IsRanking ? "active" : "")" href="/settings?view=ranking">ランキング(単体の話題度)</a>
+        </nav>
+
         <form method="post" @formname="save-topic-selection" @onsubmit="SaveSelectionAsync" class="mb-3">
             <AntiforgeryToken />
-            <p>左のチェックボックスで収集したいトピックを選び、「選択を保存」を押してください。</p>
-            <table class="table align-middle">
-                <thead>
-                    <tr>
-                        <th scope="col">収集</th>
-                        <th scope="col">タグ</th>
-                        <th scope="col" class="text-end">話題度</th>
-                        <th scope="col">更新日時</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var topic in _topics)
-                    {
+            <p>チェックボックスで収集したいトピックを選び、「選択を保存」を押してください。</p>
+
+            @if (IsRanking)
+            {
+                @* 単体の話題度が高い順。構造の語(親)は単体では上がってこない *@
+                <table class="table align-middle">
+                    <thead>
                         <tr>
-                            <td>
-                                <input class="form-check-input" type="checkbox" name="SelectedTopics"
-                                       value="@topic.Tag" checked="@topic.IsSelected"
-                                       aria-label="@($"{Label(topic)} を収集対象にする")" />
-                            </td>
-                            <td>
-                                <a href="@($"/topics/{Uri.EscapeDataString(topic.Tag)}")">@Label(topic)</a>
-                                @if (topic.Parent is { Length: > 0 } parent)
-                                {
-                                    @* ツリーでの位置。親 › 子 の向きで、上位の粒度が先 *@
-                                    <small class="text-muted ms-1">@ParentChain(parent)</small>
-                                }
-                                @if (topic.Coverage == 3)
-                                {
-                                    <span class="badge bg-success ms-1">3種そろい</span>
-                                }
-                            </td>
-                            <td class="text-end">@(topic.TrendScore.ToString("0.0"))</td>
-                            <td>@topic.CollectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                            <th scope="col">収集</th>
+                            <th scope="col">タグ</th>
+                            <th scope="col" class="text-end">話題度(単体)</th>
+                            <th scope="col">更新日時</th>
                         </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var topic in _topics
+                            .OrderByDescending(t => t.TrendScore)
+                            .ThenBy(t => t.Tag, StringComparer.Ordinal))
+                        {
+                            <tr>
+                                <td>@Checkbox(topic)</td>
+                                <td><a href="@TopicHref(topic)">@Label(topic)</a></td>
+                                <td class="text-end">@topic.TrendScore.ToString("0.0")</td>
+                                <td>@topic.CollectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                @* 親子のツリー。子を持つノードは details/summary で折りたためる(JS 不要)。
+                   閉じていてもチェックボックスは DOM に残るので、選択の保存はそのまま効く。
+                   既定で開くのは選択済みを含む木だけ(全部開くと一覧が長くなりすぎる)。
+                   見た目はテーブル型(各行を同じ列構成のグリッドにして、列を縦にそろえる)。
+                   字下げは名前のセルの中だけで行う —— 子のコンテナごと下げると話題度や
+                   日時の列までずれてしまう *@
+                <div class="topic-tree">
+                    <div class="topic-grid topic-header" aria-hidden="true">
+                        <span>収集</span>
+                        <span>タグ</span>
+                        <span class="score-cell">話題度</span>
+                        <span>更新日時</span>
+                    </div>
+                    @foreach (var root in _roots!)
+                    {
+                        @RenderNode(root, 0)
                     }
-                </tbody>
-            </table>
+                </div>
+            }
+
             <button type="submit" class="btn btn-primary">選択を保存</button>
             @if (_selectionMessage is { Length: > 0 })
             {
@@ -91,78 +107,151 @@
         外部へは問い合わせません。
     </p>
 
-    <JobButton Runner="RenormalizationRunner" FormName="renormalize-tags"
-               Message="@_renormalizeMessage" Error="@_error" OnRun="RenormalizeAsync" />
+    <JobButton Runner="RenormalizationRunner" FormName="renormalize-tags" OnRun="Renormalize" />
 </section>
+
+@* ツリーの1ノード。子があれば折りたたみ(details)、無ければただの行 *@
+@{
+    RenderFragment RenderNode(TopicNode node, int depth) =>
+    @<text>
+        @if (node.Children.Count == 0)
+        {
+            <div class="topic-row topic-leaf">@RowContent(node, depth)</div>
+        }
+        else
+        {
+            @* 既定は開いた状態。閉じた分はブラウザ(localStorage)が覚えていて、
+               topic-tree.js が data-tag をキーに復元する *@
+            <details class="topic-node" data-tag="@node.Topic.Tag" open>
+                <summary class="topic-row">@RowContent(node, depth)</summary>
+                @foreach (var child in node.Children)
+                {
+                    @RenderNode(child, depth + 1)
+                }
+            </details>
+        }
+    </text>;
+
+    RenderFragment RowContent(TopicNode node, int depth) =>
+    @<span class="topic-grid">
+        <span>@Checkbox(node.Topic)</span>
+        <span class="name-cell" style="--depth: @depth">
+            @if (node.Children.Count > 0)
+            {
+                @* 開閉の向きは CSS(details[open])で切り替える *@
+                <span class="caret" aria-hidden="true"></span>
+            }
+            else if (depth > 0)
+            {
+                <span class="tree-branch" aria-hidden="true">└</span>
+            }
+            else
+            {
+                <span class="caret-spacer" aria-hidden="true"></span>
+            }
+            <a href="@TopicHref(node.Topic)">@Label(node.Topic)</a>
+        </span>
+        <span class="score-cell" title="配下込みの話題度">@node.Topic.SubtreeTrendScore.ToString("0.0")</span>
+        <span class="date-cell">@node.Topic.CollectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+    </span>;
+
+    RenderFragment Checkbox(StoredTopic topic) =>
+    @<input class="form-check-input" type="checkbox" name="SelectedTopics"
+            value="@topic.Tag" checked="@topic.IsSelected"
+            aria-label="@($"{Label(topic)} を収集対象にする")" />;
+}
 
 @code {
     IReadOnlyList<StoredTopic>? _topics;
-    string? _message;
-    string? _error;
-    string? _renormalizeMessage;
+    List<TopicNode>? _roots;
     string? _selectionMessage;
+
+    /// <summary>表示の切り替え(既定はツリー、?view=ranking で単体の話題度順)。</summary>
+    [SupplyParameterFromQuery(Name = "view")]
+    string? View { get; set; }
+
+    bool IsRanking => View == "ranking";
+
+    /// <summary>ツリーの1ノード。ContainsSelected は既定で開くかの判定に使う。</summary>
+    class TopicNode
+    {
+        public required StoredTopic Topic { get; init; }
+        public List<TopicNode> Children { get; } = [];
+        public bool ContainsSelected { get; set; }
+    }
 
     [SupplyParameterFromForm(FormName = "save-topic-selection")]
     string[]? SelectedTopics { get; set; }
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    async Task CollectAsync()
-    {
-        try
-        {
-            var result = await CollectionRunner.RunOnceAsync();
-            _message = $"{result.Count} 件のトピックを更新しました（うち {result.Trending} 件に話題度が付きました）。"
-                + (result.Classified > 0 ? $" LLM が {result.Classified} 件の語をツリーへ分類しました。" : "")
-                + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : "");
-            _error = null;
-        }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-        }
+    // ジョブはバックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
+    void Collect() => CollectionRunner.StartInBackground(
+        ct => CollectionRunner.RunOnceAsync(ct),
+        result => $"{result.Count} 件のトピックを更新しました（うち {result.Trending} 件に話題度が付きました）。"
+            + (result.Classified > 0 ? $" LLM が {result.Classified} 件の語をツリーへ分類しました。" : "")
+            + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : ""));
 
-        await LoadAsync();
-    }
-
-    async Task RenormalizeAsync()
-    {
-        try
-        {
-            var result = await RenormalizationRunner.RunOnceAsync();
-            _renormalizeMessage = result.Total == 0
-                ? "タグの変更はありませんでした。"
-                : $"記事 {result.Articles} 件・イベント {result.Events} 件・書籍 {result.Books} 件のタグを直しました。";
-            _error = null;
-        }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-        }
-
-        await LoadAsync();
-    }
+    void Renormalize() => RenormalizationRunner.StartInBackground(
+        ct => RenormalizationRunner.RunOnceAsync(ct),
+        result => result.Total == 0
+            ? "タグの変更はありませんでした。"
+            : $"記事 {result.Articles} 件・イベント {result.Events} 件・書籍 {result.Books} 件のタグを直しました。");
 
     // 画面に出すのはキー(生成ai)ではなくカタログの正式表記(生成AI)
     static string Label(StoredTopic topic) => topic.Display is { Length: > 0 } display ? display : topic.Tag;
 
-    /// <summary>
-    /// 親から上をたどった位置(「AI › 生成AI」)。上位の粒度が先。
-    /// LLM 分類の親子が万一循環していても止まるよう、深さに上限を置く。
-    /// </summary>
-    string ParentChain(string parent)
-    {
-        var chain = new List<string>();
-        for (var key = parent; key is { Length: > 0 } && chain.Count < 5; key = Catalog.ParentOf(key))
-        {
-            chain.Add(Catalog.DisplayOf(key));
-        }
+    static string TopicHref(StoredTopic topic) => $"/topics/{Uri.EscapeDataString(topic.Tag)}";
 
-        chain.Reverse();
-        return string.Join(" › ", chain);
+    async Task LoadAsync()
+    {
+        _topics = await TopicStore.GetTopicsAsync(150);
+        _roots = BuildTree(_topics);
     }
 
-    async Task LoadAsync() => _topics = await TopicStore.GetTopicsAsync(100);
+    /// <summary>
+    /// トピックを親子のツリーに組む。**平らな話題度順だと親子ができてもまとまって見えない**。
+    ///
+    /// - 並びは配下込みの話題度(SubtreeTrendScore)。選択済みを含む木は先頭に固定する
+    ///   (押し出されて見えなくなると、選択の保存で選択ごと外れる)
+    /// - 親が取得範囲の外にあるトピックは根として出す(孤児にして消さない)
+    /// - LLM 分類の親子が万一循環していても止まるよう、訪問済みを見て打ち切る
+    /// </summary>
+    static List<TopicNode> BuildTree(IReadOnlyList<StoredTopic> topics)
+    {
+        var byTag = topics.ToDictionary(t => t.Tag, StringComparer.Ordinal);
+        var childrenOf = topics
+            .Where(t => t.Parent is { Length: > 0 } parent && parent != t.Tag && byTag.ContainsKey(parent))
+            .ToLookup(t => t.Parent!, StringComparer.Ordinal);
+
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+
+        TopicNode Build(StoredTopic topic)
+        {
+            var node = new TopicNode { Topic = topic, ContainsSelected = topic.IsSelected };
+            foreach (var child in childrenOf[topic.Tag]
+                .Where(child => visited.Add(child.Tag))
+                .OrderByDescending(c => c.IsSelected)
+                .ThenByDescending(c => c.SubtreeTrendScore)
+                .ThenBy(c => c.Tag, StringComparer.Ordinal))
+            {
+                var built = Build(child);
+                node.Children.Add(built);
+                node.ContainsSelected |= built.ContainsSelected;
+            }
+
+            return node;
+        }
+
+        return topics
+            .Where(t => t.Parent is not { Length: > 0 } parent || parent == t.Tag || !byTag.ContainsKey(parent))
+            .Where(root => visited.Add(root.Tag))
+            .Select(Build)
+            .OrderByDescending(node => node.ContainsSelected)
+            .ThenByDescending(node => node.Topic.SubtreeTrendScore)
+            .ThenBy(node => node.Topic.Tag, StringComparer.Ordinal)
+            .ToList();
+    }
 
     async Task SaveSelectionAsync()
     {

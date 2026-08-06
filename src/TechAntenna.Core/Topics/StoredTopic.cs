@@ -19,11 +19,19 @@ public class StoredTopic
     public int BookCount { get; set; }
 
     /// <summary>
-    /// 外部トレンドでの話題度。**ソース内シェアを合算した値**(1ソースあたり最大 100)で、
+    /// この語単体の話題度。**ソース内シェアを合算した値**(1ソースあたり最大 100)で、
     /// 生の件数ではない —— 収集元ごとに桁が違う(全期間の質問数と直近のいいね数など)ため、
     /// そのまま足すと桁の大きいほうが常に勝ってしまう。
     /// </summary>
     public double TrendScore { get; set; }
+
+    /// <summary>
+    /// 配下を含めた話題度(自身 + 子孫の <see cref="TrendScore"/> の合計)。
+    /// 親は「プログラミング言語」のような構造の語で単体の話題度がほぼ付かないため、
+    /// ツリーの並びと取得の足切りにはこちらを使う(単体の値と両方持つのは、
+    /// 「単体で何が熱いか」のランキングも出したいから)。
+    /// </summary>
+    public double SubtreeTrendScore { get; set; }
 
     /// <summary>話題度の集計元になったサービス数。</summary>
     public int SourceCount { get; set; }
@@ -39,12 +47,13 @@ public class StoredTopic
     public int Total => ArticleCount + EventCount + BookCount;
 }
 
-/// <summary>トピック1件ぶんの更新内容(カタログの語彙 + 外部トレンドの話題度 + 自分の在庫)。</summary>
+/// <summary>トピック1件ぶんの更新内容(カタログの語彙 + 外部トレンドの話題度 + 収集済み件数)。</summary>
 public record TopicUpdate(
     string Tag,
     string Display,
     string? Parent,
     double TrendScore,
+    double SubtreeTrendScore,
     int SourceCount,
     int ArticleCount,
     int EventCount,
