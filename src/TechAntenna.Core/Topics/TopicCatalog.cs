@@ -18,32 +18,118 @@ public record TopicCatalogEntry(string Display, IReadOnlyList<string> Aliases, s
 /// <see cref="TagNormalizer"/> が潰すのは機械的な表記ゆれだけなので、
 /// 「ai と 人工知能」のような**同義語をまとめるのはこちらの仕事**。
 /// 中身はコードではなくデータ(`topic-catalog.json`)として持ち、人が直せるようにしている。
+///
+/// **LLM の自動分類(<see cref="TopicClassification"/>)は <see cref="Extend"/> で後から合成する。**
+/// インスタンスは DI で各収集ソースに配られた後も同じ参照のまま差し替わる
+/// (中身を不変のスナップショットとして丸ごと入れ替えるので、読む側のロックは不要)。
 /// </summary>
 public class TopicCatalog
 {
     /// <summary>カタログが読めない・空のときに使う。別名解決をしないだけで、正規化は動く。</summary>
-    public static readonly TopicCatalog Empty = new([]);
+    public static TopicCatalog Empty => new([]);
 
-    readonly Dictionary<string, TopicCatalogEntry> _byKey;
-    readonly Dictionary<string, string> _aliasToKey;
+    /// <summary>読み取りが常に一貫するよう、中身は不変のまとまりで丸ごと差し替える。</summary>
+    sealed record Snapshot(
+        IReadOnlyList<TopicCatalogEntry> Entries,
+        Dictionary<string, TopicCatalogEntry> ByKey,
+        Dictionary<string, string> AliasToKey);
 
-    public TopicCatalog(IReadOnlyList<TopicCatalogEntry> entries)
+    volatile Snapshot _snapshot;
+
+    public TopicCatalog(IReadOnlyList<TopicCatalogEntry> entries) => _snapshot = Build(entries);
+
+    static Snapshot Build(IReadOnlyList<TopicCatalogEntry> entries)
     {
-        Entries = entries;
-        _byKey = entries.ToDictionary(entry => entry.Key, StringComparer.Ordinal);
+        // 同じキーの後勝ちはさせない(人手の JSON を LLM の分類が上書きしないため、先を採る)
+        var byKey = new Dictionary<string, TopicCatalogEntry>(StringComparer.Ordinal);
+        var kept = new List<TopicCatalogEntry>();
+        foreach (var entry in entries)
+        {
+            if (byKey.TryAdd(entry.Key, entry))
+            {
+                kept.Add(entry);
+            }
+        }
 
         // 別名 → 正式表記のキー。別名どうしが衝突したら先に書いてあるほうを採る
-        _aliasToKey = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var entry in entries)
+        var aliasToKey = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var entry in kept)
         {
             foreach (var alias in entry.Aliases)
             {
-                _aliasToKey.TryAdd(TagNormalizer.ToKey(alias), entry.Key);
+                aliasToKey.TryAdd(TagNormalizer.ToKey(alias), entry.Key);
             }
         }
+
+        return new Snapshot(kept, byKey, aliasToKey);
     }
 
-    public IReadOnlyList<TopicCatalogEntry> Entries { get; }
+    public IReadOnlyList<TopicCatalogEntry> Entries => _snapshot.Entries;
+
+    /// <summary>キーがカタログに載っているか(正式表記・別名のどちらでも)。</summary>
+    public bool Contains(string key)
+    {
+        var snapshot = _snapshot;
+        return snapshot.ByKey.ContainsKey(key) || snapshot.AliasToKey.ContainsKey(key);
+    }
+
+    /// <summary>
+    /// LLM の分類を合成した中身に差し替える。**検証済みの分類だけを渡すこと**
+    /// (<see cref="TopicClassificationValidator"/>)。同義語は既存エントリの別名に足し、
+    /// 新トピックは末尾に追加する。Skip は何もしない。
+    /// 元の JSON 由来のエントリと衝突するキーは JSON 側を優先する。
+    /// </summary>
+    public void Extend(IReadOnlyList<TopicClassification> classifications)
+    {
+        var snapshot = _snapshot;
+        var entries = snapshot.Entries.ToList();
+        var indexByKey = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < entries.Count; i++)
+        {
+            indexByKey[entries[i].Key] = i;
+        }
+
+        foreach (var classification in classifications)
+        {
+            switch (classification.Kind)
+            {
+                case TopicClassificationKind.Alias
+                    when classification.TargetKey is { Length: > 0 } targetKey
+                        && indexByKey.TryGetValue(targetKey, out var index):
+                {
+                    var entry = entries[index];
+                    if (!entry.Aliases.Contains(classification.Tag, StringComparer.Ordinal))
+                    {
+                        entries[index] = entry with
+                        {
+                            Aliases = [.. entry.Aliases, classification.Tag],
+                        };
+                    }
+
+                    break;
+                }
+
+                case TopicClassificationKind.NewTopic
+                    when classification.Display is { Length: > 0 } display:
+                {
+                    var key = TagNormalizer.ToKey(display);
+                    if (indexByKey.ContainsKey(key))
+                    {
+                        break; // 既にある(JSON 側を優先)
+                    }
+
+                    // 正式表記のキーが元のタグと違うときは、元のタグを別名にして突き合わせを保つ
+                    IReadOnlyList<string> aliases =
+                        key == classification.Tag ? [] : [classification.Tag];
+                    entries.Add(new TopicCatalogEntry(display, aliases, classification.ParentKey));
+                    indexByKey[key] = entries.Count - 1;
+                    break;
+                }
+            }
+        }
+
+        _snapshot = Build(entries);
+    }
 
     /// <summary>
     /// タグ1つを、カタログの正式表記のキーに寄せる。
@@ -54,15 +140,19 @@ public class TopicCatalog
     {
         var key = TagNormalizer.ToKey(tag);
 
-        return _aliasToKey.GetValueOrDefault(key, key);
+        return _snapshot.AliasToKey.GetValueOrDefault(key, key);
     }
 
     /// <summary>タグの一覧を正規化し、別名を正式表記へ寄せる。空・ストップワード・重複は落とす。</summary>
-    public IReadOnlyList<string> Normalize(IEnumerable<string> tags) =>
-        TagNormalizer.Normalize(tags)
-            .Select(tag => _aliasToKey.GetValueOrDefault(tag, tag))
+    public IReadOnlyList<string> Normalize(IEnumerable<string> tags)
+    {
+        var snapshot = _snapshot;
+
+        return TagNormalizer.Normalize(tags)
+            .Select(tag => snapshot.AliasToKey.GetValueOrDefault(tag, tag))
             .Distinct(StringComparer.Ordinal)
             .ToList();
+    }
 
     /// <summary>
     /// テキストに出てくるトピックを、カタログの**正式表記**で返す(`RawTags` にそのまま入れられる)。
@@ -86,7 +176,7 @@ public class TopicCatalog
 
     /// <summary>キーに対する画面表示用の表記。カタログに無ければキーをそのまま返す。</summary>
     public string DisplayOf(string key) =>
-        _byKey.TryGetValue(key, out var entry) ? entry.Display : key;
+        _snapshot.ByKey.TryGetValue(key, out var entry) ? entry.Display : key;
 
     /// <summary>
     /// 英語圏の収集元へ投げる検索語。**ASCII だけでできた別名があればそれを、無ければ正式表記**を返す
@@ -97,13 +187,13 @@ public class TopicCatalog
     /// ASCII の別名が無いトピックは日本語のまま投げることになる(その収集元では当たらない)。
     /// </summary>
     public string EnglishTermOf(string key) =>
-        _byKey.TryGetValue(key, out var entry)
+        _snapshot.ByKey.TryGetValue(key, out var entry)
             ? entry.Aliases.FirstOrDefault(alias => alias.All(char.IsAscii)) ?? entry.Display
             : key;
 
     /// <summary>キーに対する1つ上の粒度。無ければ null。</summary>
     public string? ParentOf(string key) =>
-        _byKey.TryGetValue(key, out var entry) && entry.Parent is { Length: > 0 } parent
+        _snapshot.ByKey.TryGetValue(key, out var entry) && entry.Parent is { Length: > 0 } parent
             ? TagNormalizer.ToKey(parent)
             : null;
 }

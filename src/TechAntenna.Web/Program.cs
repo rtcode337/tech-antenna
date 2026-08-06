@@ -80,6 +80,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
     builder.Services.AddSingleton<IEventStore, InMemoryEventStore>();
     builder.Services.AddSingleton<IBookStore, InMemoryBookStore>();
     builder.Services.AddSingleton<ITopicStore, InMemoryTopicStore>();
+    builder.Services.AddSingleton<ITopicClassificationStore, InMemoryTopicClassificationStore>();
 }
 else
 {
@@ -88,6 +89,7 @@ else
     builder.Services.AddSingleton<IEventStore, EfEventStore>();
     builder.Services.AddSingleton<IBookStore, EfBookStore>();
     builder.Services.AddSingleton<ITopicStore, EfTopicStore>();
+    builder.Services.AddSingleton<ITopicClassificationStore, EfTopicClassificationStore>();
 }
 
 var collection = builder.Configuration
@@ -322,6 +324,12 @@ if (hasClaudeCodeToken)
         claudeCode.ExecutablePath,
         string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
         TimeSpan.FromSeconds(claudeCode.TimeoutSeconds)));
+    // カタログに無いタグの分類も同じ方式(トピック収集の中で動く)
+    builder.Services.AddSingleton<ITopicClassifier>(sp => new ClaudeCodeTopicClassifier(
+        sp.GetRequiredService<IProcessRunner>(),
+        claudeCode.ExecutablePath,
+        string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
+        TimeSpan.FromSeconds(claudeCode.TimeoutSeconds)));
 }
 else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
 {
@@ -329,6 +337,8 @@ else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
         new AnthropicSummarizer(anthropic.ApiKey, anthropic.Model));
     builder.Services.AddSingleton<ITitleTranslator>(
         new AnthropicTitleTranslator(anthropic.ApiKey, anthropic.Model));
+    builder.Services.AddSingleton<ITopicClassifier>(
+        new AnthropicTopicClassifier(anthropic.ApiKey, anthropic.Model));
 }
 
 // 画面の手動ボタンからも呼ぶので、要約が未設定でも常に登録する(未設定なら何もしない)
@@ -349,6 +359,18 @@ if (!string.IsNullOrWhiteSpace(connectionString))
         .GetRequiredService<IDbContextFactory<TechAntennaDbContext>>()
         .CreateDbContextAsync();
     await db.Database.MigrateAsync();
+}
+
+// 保存済みの LLM 分類をカタログへ合成する(topic-catalog.json は「人が確定させた語彙」、
+// DB の分類は「LLM の自動分類」。再起動やコンテナの作り直しで分類が消えないようにする)
+{
+    var storedClassifications = await app.Services
+        .GetRequiredService<ITopicClassificationStore>()
+        .GetAllAsync();
+    if (storedClassifications.Count > 0)
+    {
+        topicCatalog.Extend(storedClassifications);
+    }
 }
 
 if (!app.Environment.IsDevelopment())

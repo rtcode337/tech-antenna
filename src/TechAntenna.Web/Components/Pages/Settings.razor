@@ -3,6 +3,7 @@
 @using TechAntenna.Core.Topics
 @using TechAntenna.Web.Services
 @inject ITopicStore TopicStore
+@inject TopicCatalog Catalog
 @inject TopicCollectionRunner CollectionRunner
 @inject TagRenormalizationRunner RenormalizationRunner
 
@@ -57,6 +58,11 @@
                             </td>
                             <td>
                                 <a href="@($"/topics/{Uri.EscapeDataString(topic.Tag)}")">@Label(topic)</a>
+                                @if (topic.Parent is { Length: > 0 } parent)
+                                {
+                                    @* ツリーでの位置。親 › 子 の向きで、上位の粒度が先 *@
+                                    <small class="text-muted ms-1">@ParentChain(parent)</small>
+                                }
                                 @if (topic.Coverage == 3)
                                 {
                                     <span class="badge bg-success ms-1">3種そろい</span>
@@ -107,6 +113,7 @@
         {
             var result = await CollectionRunner.RunOnceAsync();
             _message = $"{result.Count} 件のトピックを更新しました（うち {result.Trending} 件に話題度が付きました）。"
+                + (result.Classified > 0 ? $" LLM が {result.Classified} 件の語をツリーへ分類しました。" : "")
                 + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : "");
             _error = null;
         }
@@ -138,6 +145,22 @@
 
     // 画面に出すのはキー(生成ai)ではなくカタログの正式表記(生成AI)
     static string Label(StoredTopic topic) => topic.Display is { Length: > 0 } display ? display : topic.Tag;
+
+    /// <summary>
+    /// 親から上をたどった位置(「AI › 生成AI」)。上位の粒度が先。
+    /// LLM 分類の親子が万一循環していても止まるよう、深さに上限を置く。
+    /// </summary>
+    string ParentChain(string parent)
+    {
+        var chain = new List<string>();
+        for (var key = parent; key is { Length: > 0 } && chain.Count < 5; key = Catalog.ParentOf(key))
+        {
+            chain.Add(Catalog.DisplayOf(key));
+        }
+
+        chain.Reverse();
+        return string.Join(" › ", chain);
+    }
 
     async Task LoadAsync() => _topics = await TopicStore.GetTopicsAsync(100);
 

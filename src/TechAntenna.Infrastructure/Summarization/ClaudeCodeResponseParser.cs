@@ -17,7 +17,27 @@ public static class ClaudeCodeResponseParser
     /// 呼び出し側がバッチごと再試行できるようにする。
     /// </summary>
     public static IReadOnlyList<Entry> Parse(
-        string json, string arrayName = "summaries", string valueName = "summary")
+        string json, string arrayName = "summaries", string valueName = "summary") =>
+        ReadStructuredOutput(json, output =>
+        {
+            if (!output.TryGetProperty(arrayName, out var items)
+                || items.ValueKind != JsonValueKind.Array)
+            {
+                throw new FormatException($"claude の応答に structured_output.{arrayName} が無い。");
+            }
+
+            return (IReadOnlyList<Entry>)items.EnumerateArray()
+                .Select(item => ToEntry(item, valueName))
+                .OfType<Entry>()
+                .ToList();
+        });
+
+    /// <summary>
+    /// 応答の外側(JSON の妥当性・<c>is_error</c>)を検査してから、
+    /// <c>structured_output</c> を <paramref name="read"/> に渡す。要約もトピック分類も
+    /// 外側は同じ形なので、スキーマごとの読み取りだけを差し替えられるようにしてある。
+    /// </summary>
+    public static T ReadStructuredOutput<T>(string json, Func<JsonElement, T> read)
     {
         JsonDocument doc;
         try
@@ -41,18 +61,13 @@ public static class ClaudeCodeResponseParser
             }
 
             // --json-schema を渡しているので構造化出力に入る。text にフォールバックはしない
-            // (形式が崩れた応答を無理に読むと、誤った要約を記事に紐づけてしまうため)
-            if (!root.TryGetProperty("structured_output", out var output)
-                || !output.TryGetProperty(arrayName, out var items)
-                || items.ValueKind != JsonValueKind.Array)
+            // (形式が崩れた応答を無理に読むと、誤った結果を紐づけてしまうため)
+            if (!root.TryGetProperty("structured_output", out var output))
             {
-                throw new FormatException($"claude の応答に structured_output.{arrayName} が無い。");
+                throw new FormatException("claude の応答に structured_output が無い。");
             }
 
-            return items.EnumerateArray()
-                .Select(item => ToEntry(item, valueName))
-                .OfType<Entry>()
-                .ToList();
+            return read(output);
         }
     }
 

@@ -41,13 +41,35 @@ public static class ClaudeCodeBatch
         string input,
         CancellationToken cancellationToken)
     {
+        var stdout = await RunRawAsync(
+            processRunner, executablePath, model, timeout,
+            systemPrompt, Schema(arrayName, valueName), input, cancellationToken);
+
+        return ClaudeCodeResponseParser.Parse(stdout, arrayName, valueName);
+    }
+
+    /// <summary>
+    /// `claude -p` を1回呼んで stdout(応答 JSON)をそのまま返す。
+    /// 番号+文字列の形に収まらないスキーマ(トピック分類など)はこちらを使い、
+    /// 呼び出し側で <see cref="ClaudeCodeResponseParser.ReadStructuredOutput{T}"/> する。
+    /// </summary>
+    public static async Task<string> RunRawAsync(
+        IProcessRunner processRunner,
+        string executablePath,
+        string? model,
+        TimeSpan timeout,
+        string systemPrompt,
+        string schemaJson,
+        string input,
+        CancellationToken cancellationToken)
+    {
         var arguments = new List<string>
         {
             "-p",
             "--max-turns", "1",
             "--system-prompt", systemPrompt,
             "--output-format", "json",
-            "--json-schema", Schema(arrayName, valueName),
+            "--json-schema", schemaJson,
             "--disallowed-tools", DisallowedTools,
         };
         if (!string.IsNullOrWhiteSpace(model))
@@ -72,7 +94,7 @@ public static class ClaudeCodeBatch
                 $"claude が終了コード {process.ExitCode} で失敗した: {Excerpt(detail)}");
         }
 
-        return ClaudeCodeResponseParser.Parse(process.StandardOutput, arrayName, valueName);
+        return process.StandardOutput;
     }
 
     /// <summary>例外メッセージにそのまま載せられる長さに切る。</summary>
