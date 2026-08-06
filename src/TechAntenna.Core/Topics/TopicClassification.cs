@@ -11,6 +11,13 @@ public enum TopicClassificationKind
 
     /// <summary>新しいトピック。親(1つ上の粒度)を指定できる。</summary>
     NewTopic = 2,
+
+    /// <summary>
+    /// 判断できなかった(LLM が知らない・応答が検証を通らなかった)。ツリーには入れない。
+    /// **skip と違って期限付き** —— 一定期間たったら未分類に戻してもう一度聞く
+    /// (新語は時間が経てば分類できるようになる)。保存しないと毎回聞き直して枠を無駄にする。
+    /// </summary>
+    Unknown = 3,
 }
 
 /// <summary>

@@ -28,7 +28,7 @@ public class TopicClassificationValidatorTests
     }
 
     [Fact]
-    public void 実在しない寄せ先と自分自身への寄せは捨てる()
+    public void 実在しない寄せ先と自分自身への寄せは期限付きのUnknownになる()
     {
         var accepted = TopicClassificationValidator.Validate(
             ["量子コンピュータ", "ai"],
@@ -38,8 +38,9 @@ public class TopicClassificationValidatorTests
             ],
             NewCatalog(), At);
 
-        // 捨てた語は保存されない(次回もう一度 LLM に聞く)
-        Assert.Empty(accepted);
+        // ツリーには入れないが保存はする(毎回聞き直さない。期限が切れたら再挑戦)
+        Assert.Equal(2, accepted.Count);
+        Assert.All(accepted, c => Assert.Equal(TopicClassificationKind.Unknown, c.Kind));
     }
 
     [Fact]
@@ -88,28 +89,33 @@ public class TopicClassificationValidatorTests
     }
 
     [Fact]
-    public void skipは保存され応答に無い番号は保存されない()
+    public void skipは確定し応答に無い番号は期限付きのUnknownになる()
     {
         var accepted = TopicClassificationValidator.Validate(
             ["あとで読む", "回答の無い語"],
             [new TopicClassifierVerdict(1, "skip", null, null)],
             NewCatalog(), At);
 
-        var skip = Assert.Single(accepted);
-        Assert.Equal(TopicClassificationKind.Skip, skip.Kind);
-        Assert.Equal("あとで読む", skip.Tag);
+        Assert.Equal(2, accepted.Count);
+        Assert.Equal(TopicClassificationKind.Skip, accepted[0].Kind);
+        Assert.Equal("あとで読む", accepted[0].Tag);
+        Assert.Equal(TopicClassificationKind.Unknown, accepted[1].Kind);
+        Assert.Equal("回答の無い語", accepted[1].Tag);
     }
 
     [Fact]
-    public void unknownは保存しない()
+    public void unknownは期限付きで保存される()
     {
-        // skip(トピックでないと確信)と違い、「分からない」は確定させず次回もう一度聞く
-        // —— 新語は時間が経てば分類できるようになる
+        // skip(トピックでないと確信)と違い「分からない」は確定させない —— が、
+        // 保存はする。保存しないと毎回同じ語を聞き直して LLM の枠を無駄にする
+        // (期限が切れたら未分類に戻す判定は収集側)
         var accepted = TopicClassificationValidator.Validate(
             ["新しすぎる語"],
             [new TopicClassifierVerdict(1, "unknown", null, null)],
             NewCatalog(), At);
 
-        Assert.Empty(accepted);
+        var unknown = Assert.Single(accepted);
+        Assert.Equal(TopicClassificationKind.Unknown, unknown.Kind);
+        Assert.Equal(At, unknown.ClassifiedAt);
     }
 }

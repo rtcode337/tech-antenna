@@ -7,7 +7,7 @@ using TechAntenna.Web.Services;
 
 namespace TechAntenna.Tests.Web;
 
-public class TopicCollectionRunnerTests
+public class TopicReorganizationRunnerTests
 {
     class StubTrendSource(IReadOnlyList<TrendTopicCandidate> candidates) : ITrendTopicSource
     {
@@ -17,22 +17,25 @@ public class TopicCollectionRunnerTests
             CancellationToken cancellationToken = default) => Task.FromResult(candidates);
     }
 
-    static TopicCollectionRunner NewRunner(TopicCatalog catalog, ITrendTopicSource source, ITopicStore topicStore)
+    static TopicReorganizationRunner NewRunner(TopicCatalog catalog, ITrendTopicSource source, ITopicStore topicStore)
     {
         var articles = new InMemoryArticleStore();
         var events = new InMemoryEventStore();
         var books = new InMemoryBookStore();
+        var classifications = new InMemoryTopicClassificationStore();
 
-        return new TopicCollectionRunner(
+        return new TopicReorganizationRunner(
             catalog,
             [source],
             topicStore,
             articles,
             events,
             books,
-            new InMemoryTopicClassificationStore(),
+            classifications,
+            new TopicCandidateFinder(
+                catalog, articles, events, books, classifications, TimeProvider.System),
             new TagRenormalizationRunner(catalog, articles, events, books),
-            NullLogger<TopicCollectionRunner>.Instance,
+            NullLogger<TopicReorganizationRunner>.Instance,
             TimeProvider.System);
     }
 

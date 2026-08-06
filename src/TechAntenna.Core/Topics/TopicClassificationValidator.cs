@@ -41,9 +41,10 @@ public static class TopicClassificationValidator
         var results = new List<TopicClassification>();
         for (var i = 1; i <= tags.Count; i++)
         {
-            // 応答に無い番号は保存しない(Skip として確定させず、次回もう一度聞く)
+            // 応答に無い番号も期限付きの Unknown(毎回聞き直さない)
             if (!byIndex.TryGetValue(i, out var verdict))
             {
+                results.Add(Unknown(tags[i - 1], classifiedAt));
                 continue;
             }
 
@@ -58,6 +59,13 @@ public static class TopicClassificationValidator
         return results;
     }
 
+    static TopicClassification Unknown(string tag, DateTimeOffset classifiedAt) => new()
+    {
+        Tag = tag,
+        Kind = TopicClassificationKind.Unknown,
+        ClassifiedAt = classifiedAt,
+    };
+
     static TopicClassification? ToClassification(
         string tag,
         TopicClassifierVerdict verdict,
@@ -70,10 +78,10 @@ public static class TopicClassificationValidator
             case "alias" when verdict.Target is { Length: > 0 } target:
             {
                 var targetKey = catalog.Resolve(target);
-                // 寄せ先が実在し、自分自身でないときだけ通す
+                // 寄せ先が実在し、自分自身でないときだけ通す(通らなければ期限付きの Unknown)
                 if (!catalog.Contains(targetKey) || targetKey == tag)
                 {
-                    return null;
+                    return Unknown(tag, classifiedAt);
                 }
 
                 return new TopicClassification
@@ -136,10 +144,11 @@ public static class TopicClassificationValidator
                 };
 
             default:
-                // unknown(語を知らない・新しすぎる)・未知の kind・必須値の欠けは保存しない。
-                // **skip と違って次回もう一度聞く** —— 新語は時間が経てば分類できるようになるので、
-                // 「分からない」を確定させると、まさにツリーに入れたい新しいトピックを取り逃す
-                return null;
+                // unknown(語を知らない・新しすぎる)・未知の kind・必須値の欠けは、
+                // **期限付きの Unknown として保存する**。保存しないと毎回同じ語を聞き直して
+                // 枠を無駄にし、永久に確定させると、まさにツリーに入れたい新語を取り逃す
+                // (期限が切れたら未分類に戻す判定は収集側)
+                return Unknown(tag, classifiedAt);
         }
     }
 }

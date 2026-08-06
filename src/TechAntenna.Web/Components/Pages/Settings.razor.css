@@ -136,3 +136,33 @@ details[open] > summary .caret::before {
     font-size: 0.9rem;
     white-space: nowrap;
 }
+
+/* 話題度の算出方法の説明。普段は畳んでおく(読みたい人だけ開く) */
+.score-help {
+    margin-bottom: 1rem;
+    font-size: 0.86rem;
+}
+
+.score-help > summary {
+    cursor: pointer;
+    color: var(--text-muted);
+}
+
+.score-help ul,
+.score-help ol {
+    margin: 0.5rem 0 0;
+    padding-left: 1.4rem;
+}
+
+.score-help li {
+    margin-bottom: 0.25rem;
+    line-height: 1.7;
+}
+
+/* 新規トピック候補の語の並び。バッジを折り返して詰める */
+.candidate-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin: 0.25rem 0 0;
+}

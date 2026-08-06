@@ -3,8 +3,8 @@
 @using TechAntenna.Core.Topics
 @using TechAntenna.Web.Services
 @inject ITopicStore TopicStore
-@inject TopicCollectionRunner CollectionRunner
-@inject TagRenormalizationRunner RenormalizationRunner
+@inject TopicCandidateFinder CandidateFinder
+@inject TopicReorganizationRunner ReorganizationRunner
 
 <PageTitle>設定 - tech-antenna</PageTitle>
 
@@ -18,7 +18,68 @@
         選択が勝手に外れることはありません。
     </p>
 
-    <JobButton Runner="CollectionRunner" FormName="collect-topics" OnRun="Collect" />
+    @* 挙動が画面から分かるようにしておく(説明は再編成の実装と揃えること) *@
+    <details class="score-help">
+        <summary>「トピックを再編成」は何をしている?</summary>
+        <ol class="text-muted">
+            <li><strong>話題度を取り直す</strong> —— Qiita の新着記事と、はてなブックマークの
+                人気エントリーを<strong>押した時点でその場から</strong>取得します
+                (記事の収集をいつ回したかには依存しません)</li>
+            <li><strong>新規トピック候補を LLM が分類</strong> —— 下の「新規トピック候補」
+                (記事などの収集で自然に溜まった語)とトレンドに現れた語をまとめて LLM に渡します。
+                既存トピックと同じ意味なら<strong>別名として吸収</strong>、
+                粒度が違う語なら<strong>親付きの新トピック</strong>としてツリーへ、
+                トピックでない語(メディア名・一般語)は<strong>一覧から取り除きます</strong>。
+                判断できなかった語は 1 週間おいて再挑戦します。
+                1 回に渡すのは 300 語までで、残りは次回に続きから。
+                LLM が未設定ならこの手順は飛ばします(語は候補のまま残る)</li>
+            <li><strong>タグを作り直す</strong> —— 増えた別名を、保存済みの記事・イベント・書籍の
+                タグへ反映します(カタログを手で編集した分もここで効きます)</li>
+            <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
+                トピック一覧を書き込みます。話題度は親へも合算します</li>
+        </ol>
+    </details>
+
+    @* 数字の意味が画面から分かるようにしておく(算出はトピック収集の実装と揃えること) *@
+    <details class="score-help">
+        <summary>話題度はどう算出している?</summary>
+        <ul class="text-muted">
+            <li>算出は上の<strong>「トピックを再編成」の手順 1</strong> で行われます
+                (別のタイミングで集めているわけではありません)</li>
+            <li>材料は2つ、どちらも<strong>押した時点でその場から取得</strong>します。
+                <strong>Qiita の新着記事(直近 7 日)</strong>は「いいね数」を、
+                <strong>はてなブックマークの人気エントリー</strong>は「ブックマーク数」を
+                重み(どちらも最低 1)として、記事に付いているタグとタイトルに出てくる
+                トピックへ加算します</li>
+            <li>別名(<code>人工知能</code> など)は正式表記(<code>AI</code>)へ寄せてから数えます</li>
+            <li>材料ごとに<strong>合計を 100 とした割合</strong>に直してから足し合わせます
+                (数値の桁が違う材料どうしを混ぜられるように。1 材料あたり最大 100)</li>
+            <li><strong>ツリー表示の値は配下のトピックも合算</strong>した話題度、
+                <strong>ランキング表示はその用語単体</strong>の話題度です</li>
+            <li>「トピックを再編成」を押した時点の値で、自動では更新されません</li>
+        </ul>
+    </details>
+
+    @* 記事などの収集で溜まった、まだ一覧に無い語。再編成が LLM で分類してツリーへ組み込む *@
+    @if (_candidates is { Count: > 0 })
+    {
+        <details class="score-help">
+            <summary>新規トピック候補(@_candidates.Count 語)</summary>
+            <p class="text-muted">
+                集めた記事・イベント・書籍のタグから見つかった、まだトピック一覧に無い語です
+                (括弧内は付いている件数)。「トピックを再編成」を押すと LLM が分類して
+                ツリーへ組み込みます。
+            </p>
+            <p class="candidate-list">
+                @foreach (var candidate in _candidates)
+                {
+                    <span class="badge bg-secondary">@($"{candidate.Tag}({candidate.Count})")</span>
+                }
+            </p>
+        </details>
+    }
+
+    <JobButton Runner="ReorganizationRunner" FormName="reorganize-topics" OnRun="Reorganize" />
 
     @if (_topics is null)
     {
@@ -26,7 +87,7 @@
     }
     else if (_topics.Count == 0)
     {
-        <p>まだトピックがありません。「トピックを収集」を実行してください。</p>
+        <p>まだトピックがありません。「トピックを再編成」を実行してください。</p>
     }
     else
     {
@@ -99,16 +160,8 @@
     }
 </section>
 
-<section class="mb-4" aria-labelledby="maintenance-heading">
-    <h2 id="maintenance-heading">メンテナンス</h2>
-    <p class="text-muted">
-        タグの正規化の規則(表記ゆれの吸収・トピックとして扱わない語)を変えたときに実行します。
-        保存済みの記事・イベント・書籍のタグを、収集時に受け取った生のタグから作り直します。
-        外部へは問い合わせません。
-    </p>
-
-    <JobButton Runner="RenormalizationRunner" FormName="renormalize-tags" OnRun="Renormalize" />
-</section>
+@* タグの再正規化に専用ボタンは無い —— 再編成が毎回、保存済みデータのタグを
+   生タグ + カタログから作り直す(カタログを編集したら「トピックを再編成」を押せば効く) *@
 
 @* ツリーの1ノード。子があれば折りたたみ(details)、無ければただの行 *@
 @{
@@ -164,6 +217,7 @@
 @code {
     IReadOnlyList<StoredTopic>? _topics;
     List<TopicNode>? _roots;
+    IReadOnlyList<TopicCandidate>? _candidates;
     string? _selectionMessage;
 
     /// <summary>表示の切り替え(既定はツリー、?view=ranking で単体の話題度順)。</summary>
@@ -186,17 +240,11 @@
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     // ジョブはバックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
-    void Collect() => CollectionRunner.StartInBackground(
-        ct => CollectionRunner.RunOnceAsync(ct),
+    void Reorganize() => ReorganizationRunner.StartInBackground(
+        ct => ReorganizationRunner.RunOnceAsync(ct),
         result => $"{result.Count} 件のトピックを更新しました（うち {result.Trending} 件に話題度が付きました）。"
             + (result.Classified > 0 ? $" LLM が {result.Classified} 件の語をツリーへ分類しました。" : "")
             + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : ""));
-
-    void Renormalize() => RenormalizationRunner.StartInBackground(
-        ct => RenormalizationRunner.RunOnceAsync(ct),
-        result => result.Total == 0
-            ? "タグの変更はありませんでした。"
-            : $"記事 {result.Articles} 件・イベント {result.Events} 件・書籍 {result.Books} 件のタグを直しました。");
 
     // 画面に出すのはキー(生成ai)ではなくカタログの正式表記(生成AI)
     static string Label(StoredTopic topic) => topic.Display is { Length: > 0 } display ? display : topic.Tag;
@@ -207,6 +255,7 @@
     {
         _topics = await TopicStore.GetTopicsAsync(150);
         _roots = BuildTree(_topics);
+        _candidates = await CandidateFinder.FindAsync();
     }
 
     /// <summary>

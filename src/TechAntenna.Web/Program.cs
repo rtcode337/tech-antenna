@@ -47,6 +47,8 @@ builder.Services.AddHttpClient(QiitaTrendTopicSource.HttpClientName, client =>
     client.MaxResponseContentBufferSize = MaxResponseBytes;
 });
 builder.Services.AddSingleton<ITrendTopicSource, QiitaTrendTopicSource>();
+// はてブの人気エントリー RSS からも話題度を作る(その場で1リクエスト。収集済み記事に依存しない)
+builder.Services.AddSingleton<ITrendTopicSource, HatenaHotentryTrendSource>();
 
 // トピックの語彙と別名の対応表。**コードではなくデータ**として持ち、人が直せるようにしている。
 // 読めなくても起動は止めない(別名がまとまらないだけで、収集も表示も成立する)。
@@ -141,10 +143,11 @@ if (jstage.Enabled)
 }
 
 // はてなブックマークの件数 API(キー不要)。全ソース横断の人気指標として、
-// 収集の最後に直近の記事・ニュースの件数をまとめて引き直す
+// 記事収集の最後とトピック収集(話題度の材料)で直近の記事・ニュースの件数を引き直す
 builder.Services.AddHttpClient(HatenaBookmarkCounts.HttpClientName, ConfigureFeedClient);
 builder.Services.AddSingleton(sp => new HatenaBookmarkCounts(
     sp.GetRequiredService<IHttpClientFactory>()));
+builder.Services.AddSingleton<BookmarkCountRefresher>();
 
 builder.Services.AddSingleton<ArticleCollectionRunner>();
 
@@ -284,7 +287,9 @@ if (qiita.Enabled && qiita.Queries.Count > 0)
 }
 
 builder.Services.AddSingleton<BookCollectionRunner>();
-builder.Services.AddSingleton<TopicCollectionRunner>();
+// 新規トピックの候補(集めたデータから導出)。設定画面の表示と再編成の入力で共用する
+builder.Services.AddSingleton<TopicCandidateFinder>();
+builder.Services.AddSingleton<TopicReorganizationRunner>();
 // タグの正規化規則を変えたときに保存済みデータを追従させる(外部へは出ないので常に登録する)
 builder.Services.AddSingleton<TagRenormalizationRunner>();
 // 外部連携の一覧(/integrations)。設定を読むだけなので常に登録する

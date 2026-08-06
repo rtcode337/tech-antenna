@@ -5,10 +5,15 @@ using TechAntenna.Core.Trends;
 namespace TechAntenna.Web.Services;
 
 /// <summary>
-/// トピック一覧を作り直す。**語彙・話題度・収集済み件数の 3 つを 1 回で組み立てる**。
+/// トピックを再編成する。**語彙・話題度・収集済み件数の 3 つを 1 回で組み立てる**。
+/// 「収集」ではなく「再編成」なのは、材料の性質が分かれているから ——
+/// **新規トピックの候補は記事などの収集で自然に溜まる**(語彙の問題。ここでは集めない)。
+/// このジョブは溜まった候補を LLM でツリーへ組み込み、**話題度だけをその場で取り直す**
+/// (鮮度の問題)。
 ///
-/// 1. 語彙 —— `topic-catalog.json` のトピック(名前と別名の対応表)
-/// 2. 話題度 —— 外部トレンド(<see cref="ITrendTopicSource"/>)。カタログに無い語もここから入る
+/// 1. 語彙 —— `topic-catalog.json` のトピック + 候補(<see cref="TopicCandidateFinder"/>)
+/// 2. 話題度 —— 外部トレンド(<see cref="ITrendTopicSource"/>)。Qiita の新着(いいね重み)と
+///    はてブ人気エントリー RSS(ブックマーク数重み)を実行時にその場から取得する
 /// 3. 収集済み件数 —— 自分が集めた記事・イベント・書籍にそのタグが何回付いているか
 ///
 /// **1 本のジョブにしてあるのは、分けると互いの結果を消し合うから。** 以前はカタログ生成が
@@ -23,7 +28,7 @@ namespace TechAntenna.Web.Services;
 /// 表記ゆれの判定は機械的にできるが、意味の同一と粒度の上下は語を知らないと判定できない。
 /// LLM が未設定でも収集は動く(未知の語が平置きのまま残るだけ)。
 /// </summary>
-public class TopicCollectionRunner(
+public class TopicReorganizationRunner(
     TopicCatalog catalog,
     IEnumerable<ITrendTopicSource> sources,
     ITopicStore topicStore,
@@ -31,8 +36,9 @@ public class TopicCollectionRunner(
     IEventStore eventStore,
     IBookStore bookStore,
     ITopicClassificationStore classificationStore,
+    TopicCandidateFinder candidateFinder,
     TagRenormalizationRunner renormalizationRunner,
-    ILogger<TopicCollectionRunner> logger,
+    ILogger<TopicReorganizationRunner> logger,
     TimeProvider clock,
     ITopicClassifier? classifier = null) : JobRunner
 {
@@ -47,15 +53,15 @@ public class TopicCollectionRunner(
 
     int _failedSources;
 
-    public override string Name => "トピックを収集";
+    public override string Name => "トピックを再編成";
 
     // カタログだけでも一覧は作れる(外部トレンドが無ければ話題度が 0 になるだけ)
     public override bool IsConfigured => catalog.Entries.Count > 0 || _sources.Count > 0;
 
-    public Task<TopicCollectionResult> RunOnceAsync(CancellationToken cancellationToken = default) =>
-        RunExclusiveAsync(() => CollectAsync(cancellationToken), TopicCollectionResult.Nothing, cancellationToken);
+    public Task<TopicReorganizationResult> RunOnceAsync(CancellationToken cancellationToken = default) =>
+        RunExclusiveAsync(() => CollectAsync(cancellationToken), TopicReorganizationResult.Nothing, cancellationToken);
 
-    async Task<TopicCollectionResult> CollectAsync(CancellationToken cancellationToken)
+    async Task<TopicReorganizationResult> CollectAsync(CancellationToken cancellationToken)
     {
         Progress = "外部トレンドを取得中…";
         var trends = await FetchTrendsAsync(cancellationToken);
@@ -64,15 +70,16 @@ public class TopicCollectionRunner(
 
         // 未知の語を LLM で分類し、通ったぶんでカタログとデータを追従させる
         var classified = await ClassifyUnknownAsync(trends, counts, cancellationToken);
-        if (classified > 0)
-        {
-            // 別名が増えたので、保存済みデータのタグと件数の集計を作り直す。
-            // トレンドの語も新しいカタログで寄せ直す(`ai駆動開発` が別名になったら合算する)
-            Progress = "分類を保存済みデータへ反映中…";
-            await renormalizationRunner.RunOnceAsync(cancellationToken);
-            counts = await FetchCountsAsync(cancellationToken);
-            trends = Remap(trends);
-        }
+
+        // 保存済みデータのタグを常に作り直してから集計する。LLM 分類だけでなく、
+        // 手で編集したカタログ(topic-catalog.json)の別名もここで過去データに効く ——
+        // かつては別ボタン(タグを再正規化)だったが、収集のたびに走らせても数秒で
+        // 冪等なので、ボタンを覚えて押してもらうより毎回やるほうが確実。
+        // トレンドの語も同じカタログで寄せ直す(`ai駆動開発` が別名になったら合算する)
+        Progress = "タグを再正規化中…";
+        await renormalizationRunner.RunOnceAsync(cancellationToken);
+        counts = await FetchCountsAsync(cancellationToken);
+        trends = Remap(trends);
 
         Progress = "トピック一覧を書き込み中…";
 
@@ -120,12 +127,8 @@ public class TopicCollectionRunner(
 
         await topicStore.UpsertAsync(topics, clock.GetUtcNow(), cancellationToken);
 
-        return new TopicCollectionResult(topics.Count, trends.Count, _failedSources, classified);
+        return new TopicReorganizationResult(topics.Count, trends.Count, _failedSources, classified);
     }
-
-    /// <summary>分類の対象にする収集済み件数の下限。1〜2件しか付いていない語は誤記や一過性のタグが
-    /// 多く、LLM の枠を使ってまで整理する価値が無い(平置きのまま残る)。</summary>
-    const int MinInventoryForClassification = 3;
 
     /// <summary>
     /// カタログに無く、まだ分類していない語を LLM に渡し、検証を通った分類の件数を返す。
@@ -144,19 +147,14 @@ public class TopicCollectionRunner(
 
         try
         {
-            // 分類済みの語(Skip 含む)は除く —— 同じ語を毎回聞き直すと LLM の枠を無駄にする
-            var alreadyClassified = (await classificationStore.GetAllAsync(cancellationToken))
-                .Select(c => c.Tag)
-                .ToHashSet(StringComparer.Ordinal);
-
-            // 対象は「外部トレンドに現れた語」と「収集済み件数が下限以上の語」。
+            // 候補は「集めたデータから溜まった語」(TopicCandidateFinder。設定画面の
+            // 「新規トピック候補」と同じもの)+「今回のトレンドに現れた語」。
             // 上限で切れる分は、目立つ語(件数 + 話題度)から先に分類する
-            var unknown = trends.Keys
-                .Concat(counts
-                    .Where(pair => Total(pair.Value) >= MinInventoryForClassification)
-                    .Select(pair => pair.Key))
+            var excluded = await candidateFinder.GetExcludedAsync(cancellationToken);
+            var unknown = (await candidateFinder.FindAsync(cancellationToken))
+                .Select(candidate => candidate.Tag)
+                .Concat(trends.Keys.Where(tag => !catalog.Contains(tag) && !excluded.Contains(tag)))
                 .Distinct(StringComparer.Ordinal)
-                .Where(tag => !catalog.Contains(tag) && !alreadyClassified.Contains(tag))
                 .OrderByDescending(tag => Total(counts.GetValueOrDefault(tag))
                     + trends.GetValueOrDefault(tag).Score)
                 .ThenBy(tag => tag, StringComparer.Ordinal)
@@ -180,11 +178,13 @@ public class TopicCollectionRunner(
             await classificationStore.UpsertAsync(accepted, cancellationToken);
             catalog.Extend(accepted);
 
-            var effective = accepted.Count(c => c.Kind != TopicClassificationKind.Skip);
+            var effective = accepted.Count(c => c.Kind
+                is TopicClassificationKind.Alias or TopicClassificationKind.NewTopic);
             logger.LogInformation(
-                "{Classifier} が未知の語 {Unknown} 件を分類: 反映 {Effective} 件(対象外 {Skipped} 件)",
+                "{Classifier} が未知の語 {Unknown} 件を分類: 反映 {Effective} 件(対象外 {Skipped} 件・保留 {Pending} 件)",
                 classifier.Name, unknown.Count, effective,
-                accepted.Count(c => c.Kind == TopicClassificationKind.Skip));
+                accepted.Count(c => c.Kind == TopicClassificationKind.Skip),
+                accepted.Count(c => c.Kind == TopicClassificationKind.Unknown));
 
             return effective;
         }
@@ -348,7 +348,7 @@ public class TopicCollectionRunner(
 /// <param name="Trending">そのうち話題度が付いた(外部トレンドに現れた)数。</param>
 /// <param name="FailedSources">取得に失敗した収集元の数。</param>
 /// <param name="Classified">今回 LLM の分類でツリーに入った語の数(同義語 + 新トピック)。</param>
-public record TopicCollectionResult(int Count, int Trending, int FailedSources, int Classified = 0)
+public record TopicReorganizationResult(int Count, int Trending, int FailedSources, int Classified = 0)
 {
-    public static readonly TopicCollectionResult Nothing = new(0, 0, 0);
+    public static readonly TopicReorganizationResult Nothing = new(0, 0, 0);
 }
