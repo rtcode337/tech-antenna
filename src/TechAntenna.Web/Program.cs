@@ -17,6 +17,12 @@ using TechAntenna.Web.Components;
 using TechAntenna.Web.Services;
 using TechAntenna.Web.Workers;
 
+// 収集先からの応答サイズの上限。収集先が侵害されて巨大な応答を返してきたとき、
+// swap の無いホストでは読み込みで OOM になりアプリごと落ちるため、バッファを打ち切る
+// (超過は HttpRequestException になり、そのソースの収集が失敗するだけで済む)。
+// 実データはフィードで数百 KB、書籍 API で数十 KB なので 10MB は十分に余裕がある
+const long MaxResponseBytes = 10 * 1024 * 1024;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
@@ -38,6 +44,7 @@ builder.Services.AddHttpClient(QiitaTrendTopicSource.HttpClientName, client =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd(
         "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
     client.Timeout = TimeSpan.FromSeconds(30);
+    client.MaxResponseContentBufferSize = MaxResponseBytes;
 });
 builder.Services.AddSingleton<ITrendTopicSource, QiitaTrendTopicSource>();
 
@@ -146,6 +153,7 @@ if (!string.IsNullOrWhiteSpace(connpass.ApiKey))
         client.DefaultRequestHeaders.UserAgent.ParseAdd(
             "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
         client.Timeout = TimeSpan.FromSeconds(30);
+        client.MaxResponseContentBufferSize = MaxResponseBytes;
     });
 
     builder.Services.AddSingleton<IEventSource>(sp => new ConnpassEventSource(
@@ -169,6 +177,7 @@ if (!string.IsNullOrWhiteSpace(doorkeeper.AccessToken) && doorkeeper.Keywords.Co
         client.DefaultRequestHeaders.UserAgent.ParseAdd(
             "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
         client.Timeout = TimeSpan.FromSeconds(30);
+        client.MaxResponseContentBufferSize = MaxResponseBytes;
     });
 
     builder.Services.AddSingleton<IEventSource>(sp => new DoorkeeperEventSource(
@@ -364,6 +373,7 @@ static void ConfigureFeedClient(HttpClient client)
     client.DefaultRequestHeaders.UserAgent.ParseAdd(
         "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
     client.Timeout = TimeSpan.FromSeconds(30);
+    client.MaxResponseContentBufferSize = MaxResponseBytes;
 }
 
 // 書籍まわりの収集先へ共通で使う HttpClient の設定。
@@ -373,4 +383,5 @@ static void ConfigureBookClient(HttpClient client)
     client.DefaultRequestHeaders.UserAgent.ParseAdd(
         "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
     client.Timeout = TimeSpan.FromSeconds(30);
+    client.MaxResponseContentBufferSize = MaxResponseBytes;
 }

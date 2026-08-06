@@ -90,6 +90,18 @@ docker compose では `.env` の `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` /
 外部 API を叩くコードを書くときは、**User-Agent に個人のメールアドレスを入れないこと**。
 連絡先が必要な場合はリポジトリ URL のみを記載する。
 
+収集まわりの共通の守り(理由はコードのコメントにもある):
+
+- **取り込む URL は `WebUrl`(Core)で http/https だけに絞る**。`Uri.TryCreate` は
+  `javascript:` も絶対 URI として通し、画面の `href`/`img src` にそのまま出るため。
+  新しい収集元を足すときもパーサで `WebUrl` を通すこと
+- **HttpClient には `MaxResponseContentBufferSize` を掛ける**(`Program.cs` の
+  `MaxResponseBytes`)。上限なしだと、収集先が侵害されて巨大応答を返したとき
+  swap の無いホストで OOM になる
+- **`System.Net.Http.HttpClient` カテゴリのログは Warning に落としてある**
+  (appsettings.json)。既定の Information はリクエスト URI を出すので、
+  クエリ文字列でキーを渡す API(Google Books・楽天)のキーがログに残るため
+
 連携先とキーの状態は `/integrations`(設定 → 外部連携)にまとめて出す。一覧は
 `IntegrationCatalog` に**手で並べてある** —— 「未設定だと何が起きるか」は設定値には書いて
 いないし、キーの要否は収集元ごとの事情(申請の要不要・無料枠)で決まるため自動生成できない。

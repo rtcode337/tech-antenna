@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Xml.Linq;
+using TechAntenna.Core;
 
 namespace TechAntenna.Infrastructure.Events;
 
@@ -49,8 +50,8 @@ public static class TechPlayFeedParser
 
     static TechPlayEventEntry? ParseItem(XElement item)
     {
-        // 辿れないもの・開催日時が読めないものは取り込まない
-        if (!Uri.TryCreate((string?)item.Element("link"), UriKind.Absolute, out var url))
+        // 辿れないもの・開催日時が読めないものは取り込まない(http/https 以外も WebUrl が弾く)
+        if (!WebUrl.TryCreate((string?)item.Element("link"), out var url))
         {
             return null;
         }

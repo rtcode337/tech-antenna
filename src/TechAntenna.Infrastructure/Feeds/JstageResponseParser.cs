@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Xml.Linq;
+using TechAntenna.Core;
 
 namespace TechAntenna.Infrastructure.Feeds;
 
@@ -36,7 +37,7 @@ public static class JstageResponseParser
         var link = Localized(entry.Element(Atom + "article_link"));
 
         if (title is not { Length: > 0 }
-            || !Uri.TryCreate(link, UriKind.Absolute, out var url))
+            || !WebUrl.TryCreate(link, out var url))
         {
             return null;
         }

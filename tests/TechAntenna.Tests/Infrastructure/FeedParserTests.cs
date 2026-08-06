@@ -109,6 +109,25 @@ public class FeedParserTests
     }
 
     [Fact]
+    public void linkがhttp以外のスキームならFormatExceptionを投げる()
+    {
+        // href にそのまま出るため、javascript: 等を通すと格納型 XSS になる
+        var xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <rss version="2.0">
+              <channel>
+                <item>
+                  <title>不正なリンク</title>
+                  <link>javascript:alert(1)</link>
+                </item>
+              </channel>
+            </rss>
+            """;
+
+        Assert.Throws<FormatException>(() => FeedParser.Parse(xml));
+    }
+
+    [Fact]
     public void Atomを解析できる()
     {
         var entries = FeedParser.Parse(AtomFeed);

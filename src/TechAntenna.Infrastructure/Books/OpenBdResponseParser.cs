@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using TechAntenna.Core;
 
 namespace TechAntenna.Infrastructure.Books;
 
@@ -86,6 +87,7 @@ public static class OpenBdResponseParser
             ? value.GetString() is { Length: > 0 } s ? s : null
             : null;
 
+    // http/https 以外(javascript: 等)は href/img src に出すと XSS になるため WebUrl で弾く
     static Uri? ParseUri(string? value) =>
-        Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : null;
+        WebUrl.TryCreate(value, out var uri) ? uri : null;
 }

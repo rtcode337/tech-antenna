@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TechAntenna.Core;
 
 namespace TechAntenna.Infrastructure.Events;
 
@@ -36,7 +37,8 @@ public static class ConnpassResponseParser
 
         return new ConnpassEventEntry(
             GetString(e, "title") ?? "",
-            new Uri(url),
+            // http/https 以外(javascript: 等)は href に出すと XSS になるため WebUrl で弾く
+            WebUrl.Require(url),
             GetDate(e, "started_at"),
             GetDate(e, "ended_at"),
             GetString(e, "place"),

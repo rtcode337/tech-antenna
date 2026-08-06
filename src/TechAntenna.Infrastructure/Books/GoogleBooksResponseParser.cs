@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TechAntenna.Core;
 
 namespace TechAntenna.Infrastructure.Books;
 
@@ -87,6 +88,7 @@ public static class GoogleBooksResponseParser
             ? value.GetString()
             : null;
 
+    // http/https 以外(javascript: 等)は href/img src に出すと XSS になるため WebUrl で弾く
     static Uri? ParseUri(string? value) =>
-        Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : null;
+        WebUrl.TryCreate(value, out var uri) ? uri : null;
 }

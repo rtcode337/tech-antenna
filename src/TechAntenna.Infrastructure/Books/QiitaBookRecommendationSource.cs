@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using TechAntenna.Core;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Models;
 
@@ -62,7 +63,8 @@ public partial class QiitaBookRecommendationSource(
         {
             var body = GetString(item, "body");
             var url = GetString(item, "url");
-            if (body is null || url is null)
+            // 出典記事の URL は /books の href に出るため、http/https 以外は取り込まない
+            if (body is null || url is null || !WebUrl.TryCreate(url, out _))
             {
                 continue;
             }

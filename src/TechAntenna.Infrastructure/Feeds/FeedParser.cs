@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Xml.Linq;
+using TechAntenna.Core;
 
 namespace TechAntenna.Infrastructure.Feeds;
 
@@ -73,10 +74,8 @@ public static class FeedParser
                 HtmlText.Strip((string?)item.Element(Rss10 + "description"))))
             .ToList();
 
-    static Uri RequireUrl(string? value) =>
-        Uri.TryCreate(value, UriKind.Absolute, out var url)
-            ? url
-            : throw new FormatException($"エントリの link が絶対 URL でない: '{value}'");
+    // http/https 以外(javascript: 等)は href に出すと XSS になるため WebUrl で弾く
+    static Uri RequireUrl(string? value) => WebUrl.Require(value);
 
     // pubDate は RFC 822 形式("Tue, 29 Jul 2026 12:34:56 +0900")、
     // Atom / dc:date は ISO 8601 形式。どちらも DateTimeOffset が解釈できる。

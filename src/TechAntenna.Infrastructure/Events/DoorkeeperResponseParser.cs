@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TechAntenna.Core;
 
 namespace TechAntenna.Infrastructure.Events;
 
@@ -45,8 +46,8 @@ public static class DoorkeeperResponseParser
 
     static DoorkeeperEventEntry? ParseEvent(JsonElement e)
     {
-        // public_url が無いイベントは辿れないので取り込まない
-        if (!Uri.TryCreate(GetString(e, "public_url"), UriKind.Absolute, out var url))
+        // public_url が無いイベントは辿れないので取り込まない(http/https 以外も WebUrl が弾く)
+        if (!WebUrl.TryCreate(GetString(e, "public_url"), out var url))
         {
             return null;
         }

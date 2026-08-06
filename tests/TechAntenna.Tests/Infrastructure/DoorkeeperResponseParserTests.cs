@@ -85,4 +85,15 @@ public class DoorkeeperResponseParserTests
     {
         Assert.Throws<FormatException>(() => DoorkeeperResponseParser.Parse("""{"error":"bad"}"""));
     }
+
+    [Fact]
+    public void public_urlがhttp以外のスキームなら取り込まない()
+    {
+        // href にそのまま出るため、javascript: 等を通すと格納型 XSS になる
+        var json = """
+            [{"event":{"title":"不正な URL","public_url":"javascript:alert(1)"}}]
+            """;
+
+        Assert.Empty(DoorkeeperResponseParser.Parse(json));
+    }
 }
