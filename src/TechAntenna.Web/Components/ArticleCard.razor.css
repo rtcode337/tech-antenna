@@ -32,15 +32,21 @@
     color: var(--accent);
 }
 
-/* 選んだトピックの記事。左の帯をアクセント色にし、面をうっすら染める
-   —— 文字の大きさだけだと、流し読みでは他の記事に埋もれるため */
-.article.selected {
-    border-left-color: var(--accent);
-    background: var(--accent-soft);
+/* 興味のあるトピックに当たる記事の★。カード全体を染めるのはやめた ——
+   話題度の強調(hot-*)と重なると、どちらの意味の強調か読めなくなる */
+.star {
+    margin-right: 0.3rem;
+    color: var(--star);
 }
 
-.article.selected > a {
-    font-weight: 700;
+/* 話題度によるカードの強調(直近動向)。左の帯 → 面の染めの2段階 */
+.article.hot-mid {
+    border-left-color: var(--accent);
+}
+
+.article.hot-high {
+    border-left-color: var(--accent);
+    background: var(--accent-soft);
 }
 
 /* 訳題を見出しにしたときの原題。突き合わせに使えるよう残すが、主役ではない */

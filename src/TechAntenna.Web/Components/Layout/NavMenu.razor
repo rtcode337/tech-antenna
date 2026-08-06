@@ -39,29 +39,25 @@
                     <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> ホーム
                 </NavLink>
             </summary>
+            @* 直近動向(一望のハブ)の下に、種別ごとの一覧をさらに1段下げてぶら下げる。
+               ニュースが先 —— 動きの速いものから読む *@
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="recent">直近動向</NavLink>
+            </div>
+            <div class="nav-item nav-child nav-grandchild px-3">
+                <NavLink class="nav-link" href="news">ニュース</NavLink>
+            </div>
+            <div class="nav-item nav-child nav-grandchild px-3">
+                <NavLink class="nav-link" href="articles">記事</NavLink>
+            </div>
+            <div class="nav-item nav-child nav-grandchild px-3">
+                <NavLink class="nav-link" href="papers">論文</NavLink>
+            </div>
             <div class="nav-item nav-child px-3">
                 <NavLink class="nav-link" href="books">書籍</NavLink>
             </div>
             <div class="nav-item nav-child px-3">
                 <NavLink class="nav-link" href="events">イベント</NavLink>
-            </div>
-        </details>
-
-        @* 記事は親(注目のハブ)と子(種別ごとの一覧)の階層があるので独立したグループにする *@
-        <details class="nav-group" open="@InArticles">
-            <summary class="nav-item px-3">
-                <NavLink class="nav-link" href="articles" Match="NavLinkMatch.All">
-                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> 記事
-                </NavLink>
-            </summary>
-            <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="articles/list">記事の一覧</NavLink>
-            </div>
-            <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="news">ニュース</NavLink>
-            </div>
-            <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="papers">論文</NavLink>
             </div>
         </details>
 
@@ -80,17 +76,13 @@
 
 @code {
     /// <summary>ホームの下にぶら下げるページ。トピックの詳細もここに属する。</summary>
-    static readonly string[] HomeChildren = ["books", "events", "topics"];
-
-    /// <summary>記事の下にぶら下げるページ。"articles" は親(/articles)と /articles/list の両方に当たる。</summary>
-    static readonly string[] ArticleChildren = ["articles", "news", "papers"];
+    static readonly string[] HomeChildren =
+        ["recent", "news", "articles", "papers", "books", "events", "topics"];
 
     /// <summary>設定の下にぶら下げるページ。</summary>
     static readonly string[] SettingsChildren = ["integrations"];
 
     bool InHome => IsCurrent("") || HomeChildren.Any(IsCurrent);
-
-    bool InArticles => ArticleChildren.Any(IsCurrent);
 
     bool InSettings => IsCurrent("settings") || SettingsChildren.Any(IsCurrent);
 

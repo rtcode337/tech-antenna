@@ -33,6 +33,8 @@
     --success-soft: #e7f6ee;
     --success-text: #17694a;
     --warning-text: #8a6216;
+    /* 興味のあるトピックに付ける★。白地でも沈まない濃いめの黄 */
+    --star: #eab308;
 
     /* サイドバー。ライト/ダークどちらでも暗い面のままにする */
     --nav-bg: #14161c;
@@ -77,6 +79,7 @@
         --success-soft: #14301f;
         --success-text: #6ddba2;
         --warning-text: #d9ab55;
+        --star: #facc15;
 
         --nav-bg: #0f1218;
         --nav-bg-top: #0a0c11;

@@ -1,4 +1,4 @@
-@page "/articles"
+@page "/recent"
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
 @using TechAntenna.Core.Topics
@@ -10,9 +10,14 @@
 @inject ArticleCollectionRunner CollectionRunner
 @inject SummaryRunner SummaryRunner
 
-<PageTitle>記事 - tech-antenna</PageTitle>
+@* 「直近動向」— このページだけは、**興味があるとマークしたトピックの外も含めて**
+   直近の話題を一望する場所(そもそも記事の収集は選択で絞っていない)。
+   並びは新着順のまま、話題度(はてなブックマーク数)をカードの強調で重ねる。
+   種別ごとの全量は子ページ(/news・/articles・/papers)が受け持つ *@
 
-<h1>記事・ニュース</h1>
+<PageTitle>直近動向 - tech-antenna</PageTitle>
+
+<h1>直近動向</h1>
 
 @* 開発環境では定期実行を止めてあるので(Collection:AutoRun / Anthropic:AutoRun)、
    ここから手動で走らせる。論文タイトルの翻訳ボタンは /papers にある *@
@@ -21,57 +26,52 @@
 <JobButton Runner="SummaryRunner" FormName="summarize"
            Message="@_summaryMessage" Error="@_summaryError" OnRun="SummarizeAsync" />
 
-@if (_featured is null)
+@if (_sections is null)
 {
     <p>読み込み中…</p>
 }
-else if (_featured.Count == 0)
+else if (_sections.Count == 0)
 {
     <p>まだ記事がありません。「記事の収集」を実行してください。</p>
 }
 else
 {
     <p class="text-muted">
-        直近 @WindowDays 日でブックマークが多いものを出しています。
-        すべての一覧は各セクションの「すべて見る」からどうぞ。
-        @if (_selected.Count > 0)
-        {
-            <text>選んだトピック(@string.Join("・", _selected.Select(Catalog.DisplayOf)))のものは<strong>強調</strong>しています。</text>
-        }
+        直近 @WindowDays 日の話題を、興味のあるトピックに限らず新着順で並べています。
+        カードの濃さは話題度(はてなブックマーク数)、
+        <span class="star" aria-hidden="true">★</span> は興味のあるトピックに当たる記事です。
     </p>
 
     @* ループ変数を section にすると Razor の @@section ディレクティブと衝突する *@
-    @foreach (var kindGroup in _featured)
+    @foreach (var kindGroup in _sections)
     {
         <div class="section-heading">
-            <h2>注目の@(kindGroup.Title)</h2>
+            <h2>@kindGroup.Title</h2>
             <a class="see-all" href="@kindGroup.AllHref">すべて見る →</a>
         </div>
         <ul class="list-unstyled">
             @foreach (var article in kindGroup.Articles)
             {
-                <ArticleCard Article="article" Selected="IsSelected(article)" SelectedTags="_selected" />
+                <ArticleCard Article="article" Selected="IsSelected(article)"
+                             SelectedTags="_selected" EmphasizeByPopularity="true" />
             }
         </ul>
     }
 
     <p class="papers-link">
-        論文は注目には出しません(はてブにほぼ載らないため)。
+        論文はここには出しません(はてブにほぼ載らず、話題度で測れないため)。
         <a href="/papers">論文の一覧 →</a>
     </p>
 }
 
 @code {
-    /// <summary>セクションごとに出す件数。ハブなので少なめにして、全量は子ページに任せる。</summary>
-    const int FeaturedCount = 5;
+    /// <summary>セクションごとに出す件数。一望のためのページなので、全量は子ページに任せる。</summary>
+    const int PerSection = 10;
 
-    /// <summary>注目の対象にする公開からの日数。窓が無いと古い有名記事が居座り続ける。</summary>
+    /// <summary>「直近」とみなす公開からの日数。窓が無いと動きの止まった話題が居座る。</summary>
     const int WindowDays = 7;
 
-    /// <summary>窓の中から候補にする件数(新着順で先頭から)。</summary>
-    const int CandidateCount = 100;
-
-    IReadOnlyList<Section>? _featured;
+    IReadOnlyList<Section>? _sections;
     HashSet<string> _selected = new(StringComparer.Ordinal);
     string? _collectMessage;
     string? _collectError;
@@ -110,47 +110,35 @@ else
 
     async Task LoadAsync()
     {
+        var threshold = Clock.GetUtcNow().AddDays(-WindowDays);
         var sections = new List<Section>();
         foreach (var (kind, title, allHref) in Kinds)
         {
-            var articles = await Pick(kind);
+            // 新着順のまま直近の窓で切る(話題度は並びではなくカードの強調に出す)
+            var articles = (await ArticleStore.GetRecentAsync(PerSection, kind))
+                .Where(a => (a.PublishedAt ?? a.CollectedAt) >= threshold)
+                .ToList();
             if (articles.Count > 0)
             {
                 sections.Add(new Section(title, allHref, articles));
             }
         }
 
-        _featured = sections;
+        _sections = sections;
         _selected = (await TopicStore.GetSelectedAsync())
             .Select(topic => topic.Tag)
             .ToHashSet(StringComparer.Ordinal);
     }
 
-    /// <summary>
-    /// 直近 <see cref="WindowDays"/> 日の中からブックマーク数の多い順に選ぶ。
-    /// まだ件数が入っていない環境では全件が同率になり、自然に新着順の先頭が出る
-    /// (空のセクションを出すより、収集直後から画面が埋まるほうがよい)。
-    /// </summary>
-    async Task<IReadOnlyList<Article>> Pick(ArticleKind kind)
-    {
-        var threshold = Clock.GetUtcNow().AddDays(-WindowDays);
-
-        return (await ArticleStore.GetRecentAsync(CandidateCount, kind))
-            .Where(a => (a.PublishedAt ?? a.CollectedAt) >= threshold)
-            .OrderByDescending(a => a.BookmarkCount ?? -1)
-            .ThenByDescending(a => a.PublishedAt ?? a.CollectedAt)
-            .Take(FeaturedCount)
-            .ToList();
-    }
-
+    /// <summary>ニュースが先 —— 動きの速いものから読む。</summary>
     static readonly (ArticleKind Kind, string Title, string AllHref)[] Kinds =
     [
-        (ArticleKind.Article, "記事", "/articles/list"),
         (ArticleKind.News, "ニュース", "/news"),
+        (ArticleKind.Article, "記事", "/articles"),
     ];
 
     record Section(string Title, string AllHref, IReadOnlyList<Article> Articles);
 
-    /// <summary>選んだトピックの記事か。強調するかどうかの判定にだけ使う(収集では絞らない)。</summary>
+    /// <summary>興味のあるトピックの記事か。★を付けるかの判定にだけ使う(収集では絞らない)。</summary>
     bool IsSelected(Article article) => article.Tags.Any(_selected.Contains);
 }

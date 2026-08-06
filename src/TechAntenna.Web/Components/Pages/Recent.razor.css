@@ -31,3 +31,8 @@
     color: var(--text-muted);
     font-size: 0.9rem;
 }
+
+/* 凡例の★(カード側の★は ArticleCard.razor.css にある) */
+.star {
+    color: var(--star);
+}

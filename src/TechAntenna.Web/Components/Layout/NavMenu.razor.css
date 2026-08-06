@@ -178,6 +178,13 @@
     border-left-color: var(--nav-accent);
 }
 
+/* 直近動向の下の種別一覧(ニュース/記事/論文)。子よりさらに1段下げる */
+.nav-item.nav-grandchild ::deep .nav-link {
+    margin-left: 3.1rem;
+    width: calc(100% - 3.1rem);
+    font-size: 0.82rem;
+}
+
     /* 上下の余白はグループ単位で付ける。.nav-item に :first-of-type を使うと
        グループごとに効いてしまい、2つ目の親の手前だけ大きく空く */
     .nav-group:first-of-type > summary {

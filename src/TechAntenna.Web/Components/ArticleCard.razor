@@ -1,11 +1,20 @@
 @using TechAntenna.Core.Models
 
-@* 記事1件ぶんのカード。親(/articles の注目)と子(記事一覧・ニュース・論文)で同じものを使う。
+@* 記事1件ぶんのカード。直近動向(/recent)と種別ごとの一覧(記事・ニュース・論文)で
+   同じものを使う。
 
-   ブックマーク数は**多いほど目立つ段階バッジ**で出す。並び順は新着のまま変えない ——
-   並びまで人気順にすると「今日なにが出たか」を追う導線が壊れるため。 *@
+   - **興味のあるトピックに当たる記事は、タイトルの前に黄色い★**を付ける
+     (かつてのカード全体の強調はやめた —— 話題度の強調と重なると意味が読めなくなる)
+   - **話題度(はてなブックマーク数)は多いほど目立つ段階バッジ**。
+     EmphasizeByPopularity を立てるとカードの面にも段階が出る(直近動向で使う)
+   - 並び順は新着のまま変えない —— 並びまで人気順にすると「今日なにが出たか」を
+     追う導線が壊れるため *@
 
-<li class="article @(Selected ? "selected" : "")">
+<li class="article @PopularityClass()">
+    @if (Selected)
+    {
+        <span class="star" title="興味のあるトピックに当たる記事">★</span>
+    }
     @* 訳題があればそれを見出しにし、原題は下に小さく残す
        —— 原題を消すと他の文献と突き合わせられなくなる *@
     @if (Article.TitleJa is { Length: > 0 } titleJa)
@@ -31,7 +40,7 @@
         {
             <text> — @publishedAt.ToString("yyyy-MM-dd HH:mm zzz")</text>
         }
-        @* 選んだトピックのタグだけ色を変える(なぜ強調されているかが分かるように) *@
+        @* 興味のあるトピックのタグだけ色を変える(なぜ★が付いているかが分かるように) *@
         @foreach (var tag in Article.Tags)
         {
             <span class="badge ms-1 @(SelectedTags.Contains(tag) ? "bg-primary" : "bg-secondary")">@tag</span>
@@ -43,13 +52,17 @@
     [Parameter, EditorRequired]
     public Article Article { get; set; } = default!;
 
-    /// <summary>選んだトピックの記事として強調するか。</summary>
+    /// <summary>興味のあるトピックに当たる記事として★を付けるか。</summary>
     [Parameter]
     public bool Selected { get; set; }
 
     /// <summary>選択中のトピックのキー(タグのバッジの色分けに使う)。</summary>
     [Parameter]
     public IReadOnlySet<string> SelectedTags { get; set; } = new HashSet<string>();
+
+    /// <summary>話題度をカードの面にも出すか(直近動向で使う。一覧では出さない)。</summary>
+    [Parameter]
+    public bool EmphasizeByPopularity { get; set; }
 
     /// <summary>
     /// ブックマーク数の段階。閾値ははてブの肌感 ——
@@ -61,4 +74,9 @@
         >= 10 => "users-mid",
         _ => "users-low",
     };
+
+    string PopularityClass() =>
+        EmphasizeByPopularity && Article.BookmarkCount is { } users and >= 10
+            ? users >= 100 ? "hot-high" : "hot-mid"
+            : "";
 }

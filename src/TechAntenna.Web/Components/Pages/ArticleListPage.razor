@@ -1,4 +1,4 @@
-@page "/articles/list"
+@page "/articles"
 @page "/news"
 @page "/papers"
 @using TechAntenna.Core.Abstractions
@@ -13,7 +13,7 @@
 
 @* 記事・ニュース・論文の一覧ページ。種別ごとの違いは「どの Kind を出すか」と
    論文だけにある翻訳ボタンだけなので、3ルートを1コンポーネントにまとめている。
-   親(/articles)が注目のハブで、こちらは**新着順の全量**を受け持つ *@
+   親(/recent「直近動向」)が一望のハブで、こちらは**新着順の全量**を受け持つ *@
 
 <PageTitle>@_title - tech-antenna</PageTitle>
 
@@ -32,7 +32,7 @@
 }
 else if (_articles.Count == 0)
 {
-    <p>まだありません。<a href="/articles">記事・ニュース</a>から「記事の収集」を実行してください。</p>
+    <p>まだありません。<a href="/recent">直近動向</a>から「記事の収集」を実行してください。</p>
 }
 else
 {
