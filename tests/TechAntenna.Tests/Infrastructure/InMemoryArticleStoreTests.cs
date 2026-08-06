@@ -55,4 +55,22 @@ public class InMemoryArticleStoreTests
 
         Assert.Equal(["undated", "dated"], recent.Select(a => a.Title));
     }
+
+    [Fact]
+    public async Task ブックマーク数をまとめて更新し変わった件数を返す()
+    {
+        var store = new InMemoryArticleStore();
+        var article = NewArticle("a");
+        var unchanged = NewArticle("b");
+        unchanged.BookmarkCount = 5;
+        await store.AddRangeAsync([article, unchanged]);
+
+        var updated = await store.UpdateBookmarkCountsAsync(
+            [(article.Id, 111), (unchanged.Id, 5), (Guid.NewGuid(), 9)]);
+
+        // 値が変わったのは a だけ。同じ値と、存在しない Id は数えない
+        Assert.Equal(1, updated);
+        var stored = (await store.GetRecentAsync(10)).Single(a => a.Title == "a");
+        Assert.Equal(111, stored.BookmarkCount);
+    }
 }

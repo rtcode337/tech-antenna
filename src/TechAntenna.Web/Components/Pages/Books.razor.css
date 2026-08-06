@@ -38,9 +38,17 @@
     padding: 0.5rem 1rem 0.9rem;
 }
 
-/* 1冊ぶん。書影と書誌情報を横に並べる */
+/* 1冊ぶん。書影と書誌情報を横に並べる。
+   非強調でも同じ幅の帯(透明)を置いて、強調の有無でタイトルの位置がずれないようにする */
 .topic-group > ul > li {
-    padding: 0.6rem 0;
+    padding: 0.6rem 0 0.6rem 0.6rem;
+    border-left: 3px solid transparent;
+}
+
+/* 記事で薦められている本。記事一覧の「選んだトピック」と同じ文法(左帯 + 薄い面) */
+.topic-group li.recommended-book {
+    border-left-color: var(--accent);
+    background: var(--accent-soft);
 }
 
 .topic-group > ul > li + li {

@@ -6,101 +6,79 @@
 @inject IArticleStore ArticleStore
 @inject ITopicStore TopicStore
 @inject TopicCatalog Catalog
+@inject TimeProvider Clock
 @inject ArticleCollectionRunner CollectionRunner
 @inject SummaryRunner SummaryRunner
-@inject TitleTranslationRunner TranslationRunner
 
 <PageTitle>記事 - tech-antenna</PageTitle>
 
-<h1>最新記事</h1>
+<h1>記事・ニュース</h1>
 
 @* 開発環境では定期実行を止めてあるので(Collection:AutoRun / Anthropic:AutoRun)、
-   ここから手動で走らせる *@
+   ここから手動で走らせる。論文タイトルの翻訳ボタンは /papers にある *@
 <JobButton Runner="CollectionRunner" FormName="collect-articles"
            Message="@_collectMessage" Error="@_collectError" OnRun="CollectAsync" />
 <JobButton Runner="SummaryRunner" FormName="summarize"
            Message="@_summaryMessage" Error="@_summaryError" OnRun="SummarizeAsync" />
-<JobButton Runner="TranslationRunner" FormName="translate-titles"
-           Message="@_translateMessage" Error="@_translateError" OnRun="TranslateAsync" />
 
-@if (_sections is null)
+@if (_featured is null)
 {
     <p>読み込み中…</p>
 }
-else if (_sections.Count == 0)
+else if (_featured.Count == 0)
 {
     <p>まだ記事がありません。「記事の収集」を実行してください。</p>
 }
 else
 {
     <p class="text-muted">
-        流れてきたものはすべて並べています。
+        直近 @WindowDays 日でブックマークが多いものを出しています。
+        すべての一覧は各セクションの「すべて見る」からどうぞ。
         @if (_selected.Count > 0)
         {
             <text>選んだトピック(@string.Join("・", _selected.Select(Catalog.DisplayOf)))のものは<strong>強調</strong>しています。</text>
         }
-        else
-        {
-            <text><a href="/settings">設定</a>でトピックを選ぶと、そのトピックのものが強調されます。</text>
-        }
     </p>
 
     @* ループ変数を section にすると Razor の @@section ディレクティブと衝突する *@
-    @foreach (var kindGroup in _sections)
+    @foreach (var kindGroup in _featured)
     {
-        <h2 class="section-heading">@kindGroup.Title <span class="badge bg-secondary">@kindGroup.Articles.Count</span></h2>
+        <div class="section-heading">
+            <h2>注目の@(kindGroup.Title)</h2>
+            <a class="see-all" href="@kindGroup.AllHref">すべて見る →</a>
+        </div>
         <ul class="list-unstyled">
             @foreach (var article in kindGroup.Articles)
             {
-                <li class="article @(IsSelected(article) ? "selected" : "")">
-                    @* 訳題があればそれを見出しにし、原題は下に小さく残す
-                       —— 原題を消すと他の文献と突き合わせられなくなる *@
-                    @if (article.TitleJa is { Length: > 0 } titleJa)
-                    {
-                        <a href="@article.Url" target="_blank" rel="noopener">@titleJa</a>
-                        <div class="original-title">@article.Title</div>
-                    }
-                    else
-                    {
-                        <a href="@article.Url" target="_blank" rel="noopener">@article.Title</a>
-                    }
-                    @if (!string.IsNullOrEmpty(article.Summary))
-                    {
-                        <div class="text-body-secondary">@article.Summary</div>
-                    }
-                    <small class="text-muted">
-                        @article.SourceName
-                        @if (article.PublishedAt is { } publishedAt)
-                        {
-                            <text> — @publishedAt.ToString("yyyy-MM-dd HH:mm zzz")</text>
-                        }
-                        @* 選んだトピックのタグだけ色を変える(なぜ強調されているかが分かるように) *@
-                        @foreach (var tag in article.Tags)
-                        {
-                            <span class="badge ms-1 @(_selected.Contains(tag) ? "bg-primary" : "bg-secondary")">@tag</span>
-                        }
-                    </small>
-                </li>
+                <ArticleCard Article="article" Selected="IsSelected(article)" SelectedTags="_selected" />
             }
         </ul>
     }
+
+    <p class="papers-link">
+        論文は注目には出しません(はてブにほぼ載らないため)。
+        <a href="/papers">論文の一覧 →</a>
+    </p>
 }
 
 @code {
-    /// <summary>種別ごとに読み込む件数。混ぜて上位 N 件にすると、更新の速いニュースが記事を押し出す。</summary>
-    const int PerKind = 30;
+    /// <summary>セクションごとに出す件数。ハブなので少なめにして、全量は子ページに任せる。</summary>
+    const int FeaturedCount = 5;
 
-    IReadOnlyList<Section>? _sections;
-    /// <summary>選択中のトピックのキー(記事の正規化済みタグと突き合わせる)。</summary>
+    /// <summary>注目の対象にする公開からの日数。窓が無いと古い有名記事が居座り続ける。</summary>
+    const int WindowDays = 7;
+
+    /// <summary>窓の中から候補にする件数(新着順で先頭から)。</summary>
+    const int CandidateCount = 100;
+
+    IReadOnlyList<Section>? _featured;
     HashSet<string> _selected = new(StringComparer.Ordinal);
     string? _collectMessage;
     string? _collectError;
     string? _summaryMessage;
     string? _summaryError;
-    string? _translateMessage;
-    string? _translateError;
 
-    protected override async Task OnInitializedAsync() => await LoadArticlesAsync();
+    protected override async Task OnInitializedAsync() => await LoadAsync();
 
     async Task CollectAsync()
     {
@@ -113,25 +91,7 @@ else
             _collectError = ex.Message;
         }
 
-        await LoadArticlesAsync();
-    }
-
-    async Task TranslateAsync()
-    {
-        try
-        {
-            var result = await TranslationRunner.RunOnceAsync();
-            _translateMessage = result.Requested == 0
-                ? "訳題の付いていない論文はありません。"
-                : $"{result.Requested} 件中 {result.Translated} 件に訳題を付けました。";
-            _translateError = null;
-        }
-        catch (Exception ex)
-        {
-            _translateError = ex.Message;
-        }
-
-        await LoadArticlesAsync();
+        await LoadAsync();
     }
 
     async Task SummarizeAsync()
@@ -145,37 +105,51 @@ else
             _summaryError = ex.Message;
         }
 
-        await LoadArticlesAsync();
+        await LoadAsync();
     }
 
-    async Task LoadArticlesAsync()
+    async Task LoadAsync()
     {
-        // 種別ごとに引く(混ぜて上位 N 件にすると、件数の多い種別に埋もれる)
         var sections = new List<Section>();
-        foreach (var (kind, title) in Kinds)
+        foreach (var (kind, title, allHref) in Kinds)
         {
-            var articles = await ArticleStore.GetRecentAsync(PerKind, kind);
+            var articles = await Pick(kind);
             if (articles.Count > 0)
             {
-                sections.Add(new Section(title, articles));
+                sections.Add(new Section(title, allHref, articles));
             }
         }
 
-        _sections = sections;
+        _featured = sections;
         _selected = (await TopicStore.GetSelectedAsync())
             .Select(topic => topic.Tag)
             .ToHashSet(StringComparer.Ordinal);
     }
 
-    static readonly (ArticleKind Kind, string Title)[] Kinds =
+    /// <summary>
+    /// 直近 <see cref="WindowDays"/> 日の中からブックマーク数の多い順に選ぶ。
+    /// まだ件数が入っていない環境では全件が同率になり、自然に新着順の先頭が出る
+    /// (空のセクションを出すより、収集直後から画面が埋まるほうがよい)。
+    /// </summary>
+    async Task<IReadOnlyList<Article>> Pick(ArticleKind kind)
+    {
+        var threshold = Clock.GetUtcNow().AddDays(-WindowDays);
+
+        return (await ArticleStore.GetRecentAsync(CandidateCount, kind))
+            .Where(a => (a.PublishedAt ?? a.CollectedAt) >= threshold)
+            .OrderByDescending(a => a.BookmarkCount ?? -1)
+            .ThenByDescending(a => a.PublishedAt ?? a.CollectedAt)
+            .Take(FeaturedCount)
+            .ToList();
+    }
+
+    static readonly (ArticleKind Kind, string Title, string AllHref)[] Kinds =
     [
-        (ArticleKind.Article, "記事"),
-        (ArticleKind.News, "ニュース"),
-        (ArticleKind.Paper, "論文"),
+        (ArticleKind.Article, "記事", "/articles/list"),
+        (ArticleKind.News, "ニュース", "/news"),
     ];
 
-    /// <summary>種別1つぶんの見出しと中身。</summary>
-    record Section(string Title, IReadOnlyList<Article> Articles);
+    record Section(string Title, string AllHref, IReadOnlyList<Article> Articles);
 
     /// <summary>選んだトピックの記事か。強調するかどうかの判定にだけ使う(収集では絞らない)。</summary>
     bool IsSelected(Article article) => article.Tags.Any(_selected.Contains);

@@ -20,8 +20,11 @@ public class QiitaBookRecommendationSourceTests
         ]
         """;
 
-    static QiitaBookRecommendationSource NewSource(StubHttpClientFactory factory) =>
-        new(factory, "tag:技術書 stocks:>100");
+    static QiitaBookRecommendationSource NewSource(
+        StubHttpClientFactory factory, params IReadOnlyList<string> queries) =>
+        new(factory,
+            queries.Count > 0 ? queries : ["tag:技術書 stocks:>100"],
+            delayBetweenRequests: TimeSpan.Zero);
 
     [Fact]
     public async Task 複数の記事で薦められた本ほど推薦回数が多くなる()
@@ -54,9 +57,36 @@ public class QiitaBookRecommendationSourceTests
     public async Task 検索クエリを指定しなければ問い合わせない()
     {
         var factory = new StubHttpClientFactory(Response);
-        var source = new QiitaBookRecommendationSource(factory, "");
+        var source = new QiitaBookRecommendationSource(factory, [" "], delayBetweenRequests: TimeSpan.Zero);
 
         Assert.Empty(await source.FetchAsync());
         Assert.Empty(factory.RequestedUris);
+    }
+
+    [Fact]
+    public async Task 同じ記事が複数のクエリに当たっても1票に数える()
+    {
+        // スタブは全クエリに同じ2記事を返す。記事の URL で重複を落とすので票は増えない
+        var factory = new StubHttpClientFactory(Response);
+        var source = NewSource(factory, "tag:技術書 stocks:>100", "おすすめ 技術書 stocks:>100");
+
+        var recommendations = await source.FetchAsync();
+
+        Assert.Equal(2, factory.RequestedUris.Count);
+        var readable = recommendations.Single(r => r.Isbn13 == "9784873115658");
+        Assert.Equal(2, readable.ArticleUrls.Count);
+    }
+
+    [Fact]
+    public async Task ページが埋まらなければ次のページは要求しない()
+    {
+        // スタブの応答は2記事 < per_page なので、1クエリにつき1リクエストで止まる
+        var factory = new StubHttpClientFactory(Response);
+        var source = NewSource(factory);
+
+        await source.FetchAsync();
+
+        var uri = Assert.Single(factory.RequestedUris);
+        Assert.Contains("page=1", uri.Query);
     }
 }

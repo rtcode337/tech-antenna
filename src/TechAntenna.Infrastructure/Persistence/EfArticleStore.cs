@@ -95,6 +95,35 @@ public class EfArticleStore(IDbContextFactory<TechAntennaDbContext> contextFacto
             .ExecuteUpdateAsync(set => set.SetProperty(a => a.TitleJa, titleJa), cancellationToken);
     }
 
+    public async Task<int> UpdateBookmarkCountsAsync(
+        IReadOnlyList<(Guid ArticleId, int Count)> counts, CancellationToken cancellationToken = default)
+    {
+        if (counts.Count == 0)
+        {
+            return 0;
+        }
+
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var ids = counts.Select(pair => pair.ArticleId).ToList();
+        var articles = await db.Articles
+            .Where(a => ids.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, cancellationToken);
+
+        var updated = 0;
+        foreach (var (articleId, count) in counts)
+        {
+            if (articles.TryGetValue(articleId, out var article) && article.BookmarkCount != count)
+            {
+                article.BookmarkCount = count;
+                updated++;
+            }
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return updated;
+    }
+
     public async Task UpdateSummaryAsync(Guid articleId, string summary, CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);

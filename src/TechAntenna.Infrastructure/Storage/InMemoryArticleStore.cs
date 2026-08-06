@@ -113,6 +113,26 @@ public class InMemoryArticleStore : IArticleStore
         }
     }
 
+    public Task<int> UpdateBookmarkCountsAsync(
+        IReadOnlyList<(Guid ArticleId, int Count)> counts, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            var byId = _byUrl.Values.ToDictionary(a => a.Id);
+            var updated = 0;
+            foreach (var (articleId, count) in counts)
+            {
+                if (byId.TryGetValue(articleId, out var article) && article.BookmarkCount != count)
+                {
+                    article.BookmarkCount = count;
+                    updated++;
+                }
+            }
+
+            return Task.FromResult(updated);
+        }
+    }
+
     public Task UpdateSummaryAsync(Guid articleId, string summary, CancellationToken cancellationToken = default)
     {
         lock (_gate)

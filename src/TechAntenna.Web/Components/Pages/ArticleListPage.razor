@@ -1,0 +1,111 @@
+@page "/articles/list"
+@page "/news"
+@page "/papers"
+@using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Models
+@using TechAntenna.Core.Topics
+@using TechAntenna.Web.Services
+@inject IArticleStore ArticleStore
+@inject ITopicStore TopicStore
+@inject TopicCatalog Catalog
+@inject NavigationManager Navigation
+@inject TitleTranslationRunner TranslationRunner
+
+@* 記事・ニュース・論文の一覧ページ。種別ごとの違いは「どの Kind を出すか」と
+   論文だけにある翻訳ボタンだけなので、3ルートを1コンポーネントにまとめている。
+   親(/articles)が注目のハブで、こちらは**新着順の全量**を受け持つ *@
+
+<PageTitle>@_title - tech-antenna</PageTitle>
+
+<h1>@_title</h1>
+
+@if (_kind == ArticleKind.Paper)
+{
+    @* 翻訳の対象は論文だけなので、ボタンも論文のページに置く *@
+    <JobButton Runner="TranslationRunner" FormName="translate-titles"
+               Message="@_translateMessage" Error="@_translateError" OnRun="TranslateAsync" />
+}
+
+@if (_articles is null)
+{
+    <p>読み込み中…</p>
+}
+else if (_articles.Count == 0)
+{
+    <p>まだありません。<a href="/articles">記事・ニュース</a>から「記事の収集」を実行してください。</p>
+}
+else
+{
+    <p class="text-muted">
+        新着順に並べています。流れてきたものはすべて保存しています。
+        @if (_selected.Count > 0)
+        {
+            <text>選んだトピック(@string.Join("・", _selected.Select(Catalog.DisplayOf)))のものは<strong>強調</strong>しています。</text>
+        }
+        else
+        {
+            <text><a href="/settings">設定</a>でトピックを選ぶと、そのトピックのものが強調されます。</text>
+        }
+    </p>
+
+    <ul class="list-unstyled">
+        @foreach (var article in _articles)
+        {
+            <ArticleCard Article="article" Selected="IsSelected(article)" SelectedTags="_selected" />
+        }
+    </ul>
+}
+
+@code {
+    /// <summary>一覧に出す件数。親ページと違い全量を追う導線なので多めに取る。</summary>
+    const int Limit = 100;
+
+    ArticleKind _kind = ArticleKind.Article;
+    string _title = "記事";
+    IReadOnlyList<Article>? _articles;
+    HashSet<string> _selected = new(StringComparer.Ordinal);
+    string? _translateMessage;
+    string? _translateError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // どの Kind を出すかはルートで決まる(3ルートを1コンポーネントで受けている)
+        (_kind, _title) = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/') switch
+        {
+            "news" => (ArticleKind.News, "ニュース"),
+            "papers" => (ArticleKind.Paper, "論文"),
+            _ => (ArticleKind.Article, "記事"),
+        };
+
+        await LoadAsync();
+    }
+
+    async Task TranslateAsync()
+    {
+        try
+        {
+            var result = await TranslationRunner.RunOnceAsync();
+            _translateMessage = result.Requested == 0
+                ? "訳題の付いていない論文はありません。"
+                : $"{result.Requested} 件中 {result.Translated} 件に訳題を付けました。";
+            _translateError = null;
+        }
+        catch (Exception ex)
+        {
+            _translateError = ex.Message;
+        }
+
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        _articles = await ArticleStore.GetRecentAsync(Limit, _kind);
+        _selected = (await TopicStore.GetSelectedAsync())
+            .Select(topic => topic.Tag)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>選んだトピックの記事か。強調するかどうかの判定にだけ使う(収集では絞らない)。</summary>
+    bool IsSelected(Article article) => article.Tags.Any(_selected.Contains);
+}

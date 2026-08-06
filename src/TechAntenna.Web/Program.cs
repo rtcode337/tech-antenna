@@ -138,6 +138,12 @@ if (jstage.Enabled)
         TimeSpan.FromSeconds(jstage.DelaySeconds)));
 }
 
+// はてなブックマークの件数 API(キー不要)。全ソース横断の人気指標として、
+// 収集の最後に直近の記事・ニュースの件数をまとめて引き直す
+builder.Services.AddHttpClient(HatenaBookmarkCounts.HttpClientName, ConfigureFeedClient);
+builder.Services.AddSingleton(sp => new HatenaBookmarkCounts(
+    sp.GetRequiredService<IHttpClientFactory>()));
+
 builder.Services.AddSingleton<ArticleCollectionRunner>();
 
 // --- イベント収集(connpass)---
@@ -264,14 +270,15 @@ if (books.AutoRun)
 var qiita = builder.Configuration
     .GetSection(QiitaOptions.SectionName)
     .Get<QiitaOptions>() ?? new QiitaOptions();
-if (qiita.Enabled && !string.IsNullOrWhiteSpace(qiita.Query))
+if (qiita.Enabled && qiita.Queries.Count > 0)
 {
     builder.Services.AddHttpClient(QiitaBookRecommendationSource.HttpClientName, ConfigureBookClient);
     builder.Services.AddSingleton<IBookRecommendationSource>(sp => new QiitaBookRecommendationSource(
         sp.GetRequiredService<IHttpClientFactory>(),
-        qiita.Query,
+        qiita.Queries,
         qiita.MaxArticles,
-        qiita.AccessToken));
+        qiita.AccessToken,
+        TimeSpan.FromSeconds(qiita.DelaySeconds)));
 }
 
 builder.Services.AddSingleton<BookCollectionRunner>();

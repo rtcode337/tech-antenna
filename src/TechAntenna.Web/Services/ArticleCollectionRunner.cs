@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Options;
 using TechAntenna.Core.Abstractions;
+using TechAntenna.Core.Models;
+using TechAntenna.Infrastructure.Feeds;
 
 namespace TechAntenna.Web.Services;
 
@@ -15,7 +17,9 @@ public class ArticleCollectionRunner(
     IEnumerable<IArticleSource> sources,
     IArticleStore store,
     IOptions<CollectionOptions> options,
-    ILogger<ArticleCollectionRunner> logger) : JobRunner
+    TimeProvider clock,
+    ILogger<ArticleCollectionRunner> logger,
+    HatenaBookmarkCounts? bookmarkCounts = null) : JobRunner
 {
     readonly IReadOnlyList<IArticleSource> _sources = sources.ToList();
 
@@ -64,6 +68,64 @@ public class ArticleCollectionRunner(
             }
         }
 
+        await RefreshBookmarkCountsAsync(cancellationToken);
+
         return new CollectionRunResult(fetched, added, failed);
+    }
+
+    /// <summary>直近の記事・ニュースを何件までブックマーク数の補完対象にするか(50 件 = 1 リクエスト)。</summary>
+    const int BookmarkRefreshLimit = 200;
+
+    /// <summary>ブックマーク数の補完対象にする公開からの日数。古い記事は数字がほぼ動かない。</summary>
+    const int BookmarkRefreshDays = 7;
+
+    /// <summary>
+    /// 直近の記事・ニュースのブックマーク数を、はてなブックマークの件数 API で引き直す。
+    /// はてブの RSS 由来は収集時点の値を持っているが、それ以外のソースは数値を持たないし、
+    /// 件数は時間とともに増えるので、収集のたびにまとめて更新する。
+    /// **論文は対象外** —— はてブにほぼ載らず、リクエストを増やすだけになる。
+    /// 失敗しても収集の結果は返す(人気の指標が古いだけで、記事自体は揃っているため)。
+    /// </summary>
+    async Task RefreshBookmarkCountsAsync(CancellationToken cancellationToken)
+    {
+        if (bookmarkCounts is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var threshold = clock.GetUtcNow().AddDays(-BookmarkRefreshDays);
+            var targets = new List<Article>();
+            foreach (var kind in (ArticleKind[])[ArticleKind.Article, ArticleKind.News])
+            {
+                targets.AddRange((await store.GetRecentAsync(BookmarkRefreshLimit, kind, cancellationToken))
+                    .Where(a => (a.PublishedAt ?? a.CollectedAt) >= threshold));
+            }
+
+            if (targets.Count == 0)
+            {
+                return;
+            }
+
+            var counts = await bookmarkCounts.FetchAsync(
+                targets.Select(a => a.Url).ToList(), cancellationToken);
+            var updates = targets
+                .Where(a => counts.ContainsKey(a.Url.ToString()))
+                .Select(a => (a.Id, counts[a.Url.ToString()]))
+                .ToList();
+
+            var updated = await store.UpdateBookmarkCountsAsync(updates, cancellationToken);
+            logger.LogInformation(
+                "はてなブックマーク件数: {Targets} 件を照会し、{Updated} 件を更新", targets.Count, updated);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "はてなブックマーク件数の取得に失敗");
+        }
     }
 }

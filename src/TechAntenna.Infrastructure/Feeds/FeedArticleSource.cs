@@ -48,6 +48,7 @@ public class FeedArticleSource(
                     CollectedAt = collectedAt,
                     Tags = topics.Normalize(rawTags),
                     RawTags = rawTags,
+                    BookmarkCount = entry.BookmarkCount,
                 };
             })
             .ToList();

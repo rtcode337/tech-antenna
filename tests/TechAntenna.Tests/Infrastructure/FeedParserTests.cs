@@ -47,7 +47,8 @@ public class FeedParserTests
         <?xml version="1.0" encoding="UTF-8"?>
         <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
                  xmlns="http://purl.org/rss/1.0/"
-                 xmlns:dc="http://purl.org/dc/elements/1.1/">
+                 xmlns:dc="http://purl.org/dc/elements/1.1/"
+                 xmlns:hatena="http://www.hatena.ne.jp/info/xmlns#">
           <channel rdf:about="https://example.com/hotentry">
             <title>サンプルフィード</title>
           </channel>
@@ -57,6 +58,7 @@ public class FeedParserTests
             <dc:date>2026-07-26T12:00:00+09:00</dc:date>
             <dc:subject>dotnet</dc:subject>
             <dc:subject>release</dc:subject>
+            <hatena:bookmarkcount>245</hatena:bookmarkcount>
           </item>
         </rdf:RDF>
         """;
@@ -150,6 +152,16 @@ public class FeedParserTests
         Assert.Equal(new Uri("https://example.com/entries/dotnet-10-release"), entry.Url);
         Assert.Equal(new DateTimeOffset(2026, 7, 26, 12, 0, 0, TimeSpan.FromHours(9)), entry.PublishedAt);
         Assert.Equal(["dotnet", "release"], entry.Tags);
+        // はてブの hotentry はブックマーク数を独自要素で持っている
+        Assert.Equal(245, entry.BookmarkCount);
+    }
+
+    [Fact]
+    public void bookmarkcountが無いフィードではBookmarkCountがnullになる()
+    {
+        // RSS 2.0 / Atom(Zenn・Qiita 等)は人気度の数値を持たない
+        Assert.All(FeedParser.Parse(Rss20), entry => Assert.Null(entry.BookmarkCount));
+        Assert.All(FeedParser.Parse(AtomFeed), entry => Assert.Null(entry.BookmarkCount));
     }
 
     [Fact]

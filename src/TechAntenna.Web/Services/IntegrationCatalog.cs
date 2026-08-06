@@ -73,6 +73,10 @@ public class IntegrationCatalog(
                 "RSS / Atom を巡回するだけなので申請もキーも要らない"));
         }
 
+        integrations.Add(new Integration(
+            "記事", "はてなブックマーク件数 API", CredentialNeed.NotNeeded, null, true,
+            "記事・ニュースの人気(ブックマーク数)を全ソース横断で補う。50 URL まで一括で引ける"));
+
         // --- 論文 ---
         integrations.Add(new Integration(
             "論文", "arXiv", CredentialNeed.NotNeeded, null, true,

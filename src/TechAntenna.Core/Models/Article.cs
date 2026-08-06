@@ -29,6 +29,14 @@ public class Article
     /// </summary>
     public string? TitleJa { get; set; }
 
+    /// <summary>
+    /// はてなブックマークの件数。**全ソース横断で使える人気の代理指標**として画面の
+    /// 強調と「注目」の抽出に使う(並び順は変えない —— 一覧は新着順のままにする)。
+    /// null は「未取得」、0 は「ブックマークされていない」で別物。
+    /// はてブの RSS 由来はパース時に入り、他ソースは収集後に件数 API で補完する。
+    /// </summary>
+    public int? BookmarkCount { get; set; }
+
     /// <summary>収集元が公開日時を提供しない場合は null。</summary>
     public DateTimeOffset? PublishedAt { get; init; }
 

@@ -1,0 +1,99 @@
+/* 1件ずつを面のあるカードにする。行の頭の点を並べるより、
+   タイトル・要約・出典の3段が視線でまとまって追える */
+.article {
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    /* 強調したときにタイトルの位置がずれないよう、非強調でも同じ幅の帯を置いておく */
+    border-left: 3px solid var(--border);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.article + .article {
+    margin-top: 0.5rem;
+}
+
+.article:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow);
+}
+
+.article > a {
+    display: inline-block;
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.55;
+}
+
+.article > a:hover {
+    color: var(--accent);
+}
+
+/* 選んだトピックの記事。左の帯をアクセント色にし、面をうっすら染める
+   —— 文字の大きさだけだと、流し読みでは他の記事に埋もれるため */
+.article.selected {
+    border-left-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.article.selected > a {
+    font-weight: 700;
+}
+
+/* 訳題を見出しにしたときの原題。突き合わせに使えるよう残すが、主役ではない */
+.original-title {
+    margin-top: 0.15rem;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+/* 出典・日時・タグ。本文より一段落として、拾い読みの邪魔にならないようにする */
+.article small {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.45rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.article .text-body-secondary {
+    margin-top: 0.3rem;
+    font-size: 0.89rem;
+    line-height: 1.7;
+}
+
+/* はてなブックマーク数。**多いほど目立つ**3段階(並び順は新着のまま変えないぶん、
+   ここで人気を拾えるようにする)。10 users で「読まれている」、100 users で「話題」 */
+.users {
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.users-low {
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+
+.users-mid {
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    font-weight: 650;
+}
+
+.users-high {
+    /* 塗りのアクセント。文字は面の色(ライトでは白、ダークでは暗色)にして
+       どちらのテーマでもコントラストを保つ */
+    color: var(--surface);
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    font-weight: 700;
+}

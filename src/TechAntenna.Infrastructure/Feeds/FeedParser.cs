@@ -5,12 +5,14 @@ using TechAntenna.Core;
 namespace TechAntenna.Infrastructure.Feeds;
 
 /// <summary>フィードから取り出した1エントリ。タグは未正規化のまま返す。</summary>
+/// <param name="BookmarkCount">はてなブックマークの件数。はてブの RSS(RSS 1.0)だけが持ち、他は null。</param>
 public record FeedEntry(
     string Title,
     Uri Url,
     DateTimeOffset? PublishedAt,
     IReadOnlyList<string> Tags,
-    string? Summary);
+    string? Summary,
+    int? BookmarkCount = null);
 
 /// <summary>
 /// RSS 2.0 / RSS 1.0 (RDF) / Atom のフィードを解析する。
@@ -22,6 +24,8 @@ public static class FeedParser
     static readonly XNamespace Atom = "http://www.w3.org/2005/Atom";
     static readonly XNamespace Rss10 = "http://purl.org/rss/1.0/";
     static readonly XNamespace Dc = "http://purl.org/dc/elements/1.1/";
+    // はてなブックマークの RSS 1.0 が付ける独自要素(hatena:bookmarkcount)
+    static readonly XNamespace Hatena = "http://www.hatena.ne.jp/info/xmlns#";
 
     public static IReadOnlyList<FeedEntry> Parse(string xml)
     {
@@ -71,7 +75,9 @@ public static class FeedParser
                 RequireUrl((string?)item.Element(Rss10 + "link")),
                 ParseDate((string?)item.Element(Dc + "date")),
                 item.Elements(Dc + "subject").Select(s => s.Value).ToList(),
-                HtmlText.Strip((string?)item.Element(Rss10 + "description"))))
+                HtmlText.Strip((string?)item.Element(Rss10 + "description")),
+                // はてブの hotentry はブックマーク数を要素で持っている。人気の指標としてそのまま使う
+                (int?)item.Element(Hatena + "bookmarkcount")))
             .ToList();
 
     // http/https 以外(javascript: 等)は href に出すと XSS になるため WebUrl で弾く

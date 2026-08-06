@@ -70,7 +70,8 @@ else
         <ul class="list-unstyled">
             @foreach (var book in _detail.Books)
             {
-                <li class="mb-2">
+                @* 記事で薦められている本は強調する(/books のトピック一覧と同じ見せ方) *@
+                <li class="mb-2 @(book.RecommendationCount > 0 ? "recommended-book" : "")">
                     @if (book.Url is { } url)
                     {
                         <a href="@url" target="_blank" rel="noopener">@book.Title</a>
@@ -86,6 +87,13 @@ else
                             <text>@string.Join("、", book.Authors) — </text>
                         }
                         @(book.Publisher ?? "出版社不明")
+                        @if (book.RecommendationCount > 0)
+                        {
+                            <a class="recommended ms-1" href="@book.RecommendedBy[0]"
+                               target="_blank" rel="noopener" title="この本を薦めている記事へ">
+                                推薦 @book.RecommendationCount 件
+                            </a>
+                        }
                     </small>
                 </li>
             }

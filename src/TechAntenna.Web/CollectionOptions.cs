@@ -134,13 +134,27 @@ public class QiitaOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// 検索クエリ(Qiita の検索構文)。**ストック数の下限で絞る**のが肝 ——
-    /// 誰も読んでいない記事の推薦まで数えると、指標が薄まる。
+    /// 検索クエリ(Qiita の検索構文)。複数指定でき、同じ記事が複数のクエリに当たっても
+    /// 1票に数える。**ストック数の下限で絞る**のが肝 —— 誰も読んでいない記事の推薦まで
+    /// 数えると、指標が薄まる。タグ検索だけだと「読むべき本」系の記事の多く(タグ無し)を
+    /// 取りこぼすので、本文検索のクエリも混ぜる —— ノイズは Amazon リンクの ISBN 検算が
+    /// 落とすので、当たりの広さは害にならない。
     /// </summary>
-    public string Query { get; set; } = "tag:技術書 stocks:>100";
+    public List<string> Queries { get; set; } =
+    [
+        "tag:技術書 stocks:>100",
+        "tag:書籍 stocks:>20",
+        "おすすめ 技術書 stocks:>100",
+    ];
 
-    /// <summary>1回に読む記事の本数。</summary>
-    public int MaxArticles { get; set; } = 20;
+    /// <summary>
+    /// クエリ1つあたりで読む記事数の上限。検索は新着順に返るため、
+    /// 少なすぎると古い定番記事が読めない(1ページ 50 件でページングする)。
+    /// </summary>
+    public int MaxArticles { get; set; } = 200;
+
+    /// <summary>リクエストの間隔(秒)。無料でコミュニティに開かれている API のため空ける。</summary>
+    public double DelaySeconds { get; set; } = 1;
 
     /// <summary>アクセストークン(任意)。未設定でも動くが、上限が 60 → 1000 リクエスト/時になる。
     /// 実値はコミットせず環境変数(Qiita__AccessToken)や user-secrets で渡す。</summary>

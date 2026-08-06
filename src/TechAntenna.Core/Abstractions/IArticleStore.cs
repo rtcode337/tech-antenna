@@ -38,6 +38,13 @@ public interface IArticleStore
     /// <summary>訳題を保存する。訳さないと決めたものは空文字で確定させる。</summary>
     Task UpdateTitleJaAsync(Guid articleId, string titleJa, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// ブックマーク数をまとめて更新し、値が変わった件数を返す。
+    /// 件数は時間とともに増えるので、取れたら常に新しい値で上書きする。
+    /// </summary>
+    Task<int> UpdateBookmarkCountsAsync(
+        IReadOnlyList<(Guid ArticleId, int Count)> counts, CancellationToken cancellationToken = default);
+
     /// <summary>タグ <paramref name="tag"/> が付いたものを公開日時(無ければ収集日時)の新しい順に最大 <paramref name="count"/> 件返す。</summary>
     Task<IReadOnlyList<Article>> GetByTagAsync(string tag, int count, CancellationToken cancellationToken = default);
 
