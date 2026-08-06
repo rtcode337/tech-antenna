@@ -15,6 +15,24 @@
    「この語はどう整理されているか」と「この語に何が紐づいているか」。前者が上、後者が下 *@
 @if (_structure is { } structure)
 {
+    @* 用語の一言説明。見慣れない語を開いたときに、まずこれで何の話か分かるようにする *@
+    @if (structure.Description is { Length: > 0 } description)
+    {
+        <p class="topic-description">
+            @description
+            <span class="text-muted">
+                （<code>topic-catalog.json</code> に書かれていなければ LLM が付けた説明です）
+            </span>
+        </p>
+    }
+    else
+    {
+        <p class="text-muted">
+            この用語の説明はまだありません
+            （<a href="/topics">トピック</a>の「トピックを再編成」で LLM が埋めます）。
+        </p>
+    }
+
     <h2 class="h4 mt-4">同義語</h2>
     @if (!structure.InCatalog)
     {

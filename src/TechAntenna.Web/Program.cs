@@ -83,6 +83,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
     builder.Services.AddSingleton<IBookStore, InMemoryBookStore>();
     builder.Services.AddSingleton<ITopicStore, InMemoryTopicStore>();
     builder.Services.AddSingleton<ITopicClassificationStore, InMemoryTopicClassificationStore>();
+    builder.Services.AddSingleton<ITopicDescriptionStore, InMemoryTopicDescriptionStore>();
 }
 else
 {
@@ -92,6 +93,7 @@ else
     builder.Services.AddSingleton<IBookStore, EfBookStore>();
     builder.Services.AddSingleton<ITopicStore, EfTopicStore>();
     builder.Services.AddSingleton<ITopicClassificationStore, EfTopicClassificationStore>();
+    builder.Services.AddSingleton<ITopicDescriptionStore, EfTopicDescriptionStore>();
 }
 
 var collection = builder.Configuration
@@ -329,12 +331,18 @@ if (hasClaudeCodeToken)
         claudeCode.ExecutablePath,
         string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
         TimeSpan.FromSeconds(claudeCode.TimeoutSeconds)));
-    // カタログに無いタグの分類も同じ方式(トピック収集の中で動く)
-    builder.Services.AddSingleton<ITopicClassifier>(sp => new ClaudeCodeTopicClassifier(
+    // カタログに無いタグの分類と、用語の一言説明も同じ方式(どちらも再編成の中で動く)。
+    // 1 つのインスタンスを 2 つの抽象として配る —— 分類の応答に説明を相乗りさせるので、
+    // 実装も設定も分ける理由が無い
+    builder.Services.AddSingleton(sp => new ClaudeCodeTopicClassifier(
         sp.GetRequiredService<IProcessRunner>(),
         claudeCode.ExecutablePath,
         string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
         TimeSpan.FromSeconds(claudeCode.TimeoutSeconds)));
+    builder.Services.AddSingleton<ITopicClassifier>(
+        sp => sp.GetRequiredService<ClaudeCodeTopicClassifier>());
+    builder.Services.AddSingleton<ITopicDescriber>(
+        sp => sp.GetRequiredService<ClaudeCodeTopicClassifier>());
 }
 else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
 {
@@ -342,8 +350,9 @@ else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
         new AnthropicSummarizer(anthropic.ApiKey, anthropic.Model));
     builder.Services.AddSingleton<ITitleTranslator>(
         new AnthropicTitleTranslator(anthropic.ApiKey, anthropic.Model));
-    builder.Services.AddSingleton<ITopicClassifier>(
-        new AnthropicTopicClassifier(anthropic.ApiKey, anthropic.Model));
+    var topicClassifier = new AnthropicTopicClassifier(anthropic.ApiKey, anthropic.Model);
+    builder.Services.AddSingleton<ITopicClassifier>(topicClassifier);
+    builder.Services.AddSingleton<ITopicDescriber>(topicClassifier);
 }
 
 // 画面の手動ボタンからも呼ぶので、要約が未設定でも常に登録する(未設定なら何もしない)
@@ -376,6 +385,13 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     {
         topicCatalog.Extend(storedClassifications);
     }
+
+    // 一言説明も同じ扱い(JSON に書いた説明が優先される)
+    var storedDescriptions = await app.Services
+        .GetRequiredService<ITopicDescriptionStore>()
+        .GetAllAsync();
+    topicCatalog.ApplyDescriptions(
+        storedDescriptions.ToDictionary(d => d.Key, d => d.Text, StringComparer.Ordinal));
 }
 
 if (!app.Environment.IsDevelopment())

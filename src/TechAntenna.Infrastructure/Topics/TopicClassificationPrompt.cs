@@ -11,14 +11,17 @@ namespace TechAntenna.Infrastructure.Topics;
 /// </summary>
 public static class TopicClassificationPrompt
 {
-    public const string System =
+    // 文字数の上限(int の定数)を埋め込むので const にはできない
+    public static readonly string System =
         "あなたは技術トピックの分類器。収集した記事・イベント・書籍のタグのうち、" +
         "トピック一覧にまだ無い語を、既存のトピックツリーと突き合わせて分類する。" +
         "各タグについて kind をちょうど1つ選ぶ。" +
         "alias = 既存トピックと同じものを指す別表記(target に既存トピックの表記をそのまま書く)。" +
         "粒度が違うだけの語(上位概念・下位概念)は alias にしない。" +
         "new = 新しい技術トピック(display に画面へ出す正式表記、" +
-        "target に1つ上の粒度のトピックの表記。最上位なら target を書かない)。" +
+        "target に1つ上の粒度のトピックの表記。最上位なら target を書かない。" +
+        "description に " + TopicDescriptionPrompt.MaxLength + " 文字以内の一言説明。" +
+        "口調は「" + TopicDescriptionPrompt.System + "」に従う)。" +
         "skip = 技術トピックでないと確信できる語(メディア名・イベント名・読み手の行動・一般語)。" +
         "unknown = その語を知らない、または新しすぎて判断できない。" +
         "迷ったら unknown にする —— 誤った分類はツリーを壊し、誤った skip はその語を" +
@@ -30,7 +33,8 @@ public static class TopicClassificationPrompt
         "{\"type\":\"object\",\"properties\":{\"classifications\":{\"type\":\"array\",\"items\":"
         + "{\"type\":\"object\",\"properties\":{\"index\":{\"type\":\"integer\"},"
         + "\"kind\":{\"type\":\"string\",\"enum\":[\"alias\",\"new\",\"skip\",\"unknown\"]},"
-        + "\"target\":{\"type\":\"string\"},\"display\":{\"type\":\"string\"}},"
+        + "\"target\":{\"type\":\"string\"},\"display\":{\"type\":\"string\"},"
+        + "\"description\":{\"type\":\"string\"}},"
         + "\"required\":[\"index\",\"kind\"]}}},\"required\":[\"classifications\"]}";
 
     /// <summary>既存ツリーと未知タグをまとめた入力。タグは 1 始まりの番号で参照させる。</summary>
@@ -86,7 +90,8 @@ public static class TopicClassificationPrompt
                 index.GetInt32(),
                 kind.GetString() ?? "",
                 GetString(item, "target"),
-                GetString(item, "display")));
+                GetString(item, "display"),
+                TopicDescriptionPrompt.Trim(GetString(item, "description"))));
         }
 
         return verdicts;

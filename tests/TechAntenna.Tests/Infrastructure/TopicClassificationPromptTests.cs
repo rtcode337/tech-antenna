@@ -42,6 +42,26 @@ public class TopicClassificationPromptTests
     }
 
     [Fact]
+    public void 新トピックの一言説明も読む()
+    {
+        // 説明は**分類の応答に相乗り**させている(説明のために呼び出しを増やさないため)
+        using var doc = JsonDocument.Parse(
+            """
+            {"classifications": [
+              {"index":1,"kind":"new","display":"RAG","target":"生成AI",
+               "description":"検索で引いた文書を添えて答えさせる手法"},
+              {"index":2,"kind":"skip","description":"  "}
+            ]}
+            """);
+
+        var verdicts = TopicClassificationPrompt.ReadVerdicts(doc.RootElement);
+
+        Assert.Equal("検索で引いた文書を添えて答えさせる手法", verdicts[0].Description);
+        // 空文字は説明なしとして扱う(知らない語は空で返させている)
+        Assert.Null(verdicts[1].Description);
+    }
+
+    [Fact]
     public void 形の崩れた要素は読み飛ばす()
     {
         using var doc = JsonDocument.Parse("""

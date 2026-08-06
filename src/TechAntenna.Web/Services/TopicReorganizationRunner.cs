@@ -1,3 +1,4 @@
+using TechAntenna.Core;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Topics;
 using TechAntenna.Core.Trends;
@@ -36,11 +37,13 @@ public class TopicReorganizationRunner(
     IEventStore eventStore,
     IBookStore bookStore,
     ITopicClassificationStore classificationStore,
+    ITopicDescriptionStore descriptionStore,
     TopicCandidateFinder candidateFinder,
     TagRenormalizationRunner renormalizationRunner,
     ILogger<TopicReorganizationRunner> logger,
     TimeProvider clock,
-    ITopicClassifier? classifier = null) : JobRunner
+    ITopicClassifier? classifier = null,
+    ITopicDescriber? describer = null) : JobRunner
 {
     /// <summary>
     /// 1回の実行で LLM に渡す未知タグの上限(呼び出し回数の暴走を防ぐ枠)。
@@ -48,6 +51,12 @@ public class TopicReorganizationRunner(
     /// 「1回の実行で LLM を何回呼ぶか」(60 語 × 5 バッチ)で決めている。
     /// </summary>
     const int MaxTagsPerClassification = 300;
+
+    /// <summary>
+    /// 1回の実行で一言説明を埋める語の上限。分類と同じ考え方(60 語 × 5 バッチ)。
+    /// **1 語につき 1 回しか聞かない**(結果は DB に残る)ので、数回の再編成で行き渡る。
+    /// </summary>
+    const int MaxTermsPerDescription = 300;
 
     readonly IReadOnlyList<ITrendTopicSource> _sources = sources.ToList();
 
@@ -70,6 +79,9 @@ public class TopicReorganizationRunner(
 
         // 未知の語を LLM で分類し、通ったぶんでカタログとデータを追従させる
         var classified = await ClassifyUnknownAsync(trends, counts, cancellationToken);
+
+        // 説明がまだ無い用語を埋める(分類で新しく入った語の説明は上で保存済み)
+        var described = await DescribeMissingAsync(trends, cancellationToken);
 
         // 保存済みデータのタグを常に作り直してから集計する。LLM 分類だけでなく、
         // 手で編集したカタログ(topic-catalog.json)の別名もここで過去データに効く ——
@@ -127,7 +139,8 @@ public class TopicReorganizationRunner(
 
         await topicStore.UpsertAsync(topics, clock.GetUtcNow(), cancellationToken);
 
-        return new TopicReorganizationResult(topics.Count, trends.Count, _failedSources, classified);
+        return new TopicReorganizationResult(
+            topics.Count, trends.Count, _failedSources, classified, described);
     }
 
     /// <summary>
@@ -178,6 +191,11 @@ public class TopicReorganizationRunner(
             await classificationStore.UpsertAsync(accepted, cancellationToken);
             catalog.Extend(accepted);
 
+            // 新トピックの一言説明は**この応答に相乗りしている**(説明のために呼び出しを
+            // 増やさない)。番号 → タグ → 新トピックのキーの順で結びつけて保存する
+            await SaveDescriptionsAsync(
+                accepted, unknown, verdicts, cancellationToken);
+
             var effective = accepted.Count(c => c.Kind
                 is TopicClassificationKind.Alias or TopicClassificationKind.NewTopic);
             logger.LogInformation(
@@ -195,6 +213,148 @@ public class TopicReorganizationRunner(
         catch (Exception ex)
         {
             logger.LogError(ex, "未知タグの分類に失敗(収集は続ける)");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 分類の応答に相乗りしてきた一言説明を、新トピックのキーで保存してカタログへ合成する。
+    /// 対象は<b>新トピックだけ</b> —— alias は寄せ先の説明があるし、skip / unknown は
+    /// トピックにならないので説明の置き場が無い。
+    /// </summary>
+    async Task SaveDescriptionsAsync(
+        IReadOnlyList<TopicClassification> accepted,
+        IReadOnlyList<string> tags,
+        IReadOnlyList<TopicClassifierVerdict> verdicts,
+        CancellationToken cancellationToken)
+    {
+        // 応答の番号(1 始まり)を入力のタグに戻す。範囲外の番号は捨てる
+        var byTag = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var verdict in verdicts)
+        {
+            if (verdict.Index >= 1 && verdict.Index <= tags.Count
+                && verdict.Description is { Length: > 0 } description)
+            {
+                byTag.TryAdd(tags[verdict.Index - 1], description);
+            }
+        }
+
+        var now = clock.GetUtcNow();
+        var descriptions = accepted
+            .Where(classification => classification.Kind == TopicClassificationKind.NewTopic
+                && classification.Display is { Length: > 0 }
+                && byTag.ContainsKey(classification.Tag))
+            .Select(classification => new TopicDescription
+            {
+                Key = TagNormalizer.ToKey(classification.Display!),
+                Text = byTag[classification.Tag],
+                DescribedAt = now,
+            })
+            .ToList();
+
+        if (descriptions.Count == 0)
+        {
+            return;
+        }
+
+        await descriptionStore.UpsertAsync(descriptions, cancellationToken);
+        catalog.ApplyDescriptions(
+            descriptions.ToDictionary(d => d.Key, d => d.Text, StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// 一言説明がまだ無いトピックを LLM に説明させる。**1 語につき 1 回だけ聞く**
+    /// (結果は DB に残るので、次の再編成では聞かない)。上限で切れる分は、
+    /// 目立つ語 —— 収集対象に選んだトピック、次に話題度の高いもの —— から先に埋める。
+    ///
+    /// **失敗しても再編成は続ける**(説明は次の実行で埋め直せるが、トピック一覧が
+    /// 作られないと選択まで狂う)。
+    /// </summary>
+    async Task<int> DescribeMissingAsync(
+        Dictionary<string, (double Score, int Sources)> trends,
+        CancellationToken cancellationToken)
+    {
+        if (describer is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            var already = (await descriptionStore.GetAllAsync(cancellationToken))
+                .Select(description => description.Key)
+                .ToHashSet(StringComparer.Ordinal);
+            var selected = (await topicStore.GetSelectedAsync(cancellationToken))
+                .Select(topic => topic.Tag)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var missing = catalog.Entries
+                .Where(entry => entry.Description is not { Length: > 0 }
+                    && !already.Contains(entry.Key))
+                .OrderByDescending(entry => selected.Contains(entry.Key))
+                .ThenByDescending(entry => trends.GetValueOrDefault(entry.Key).Score)
+                .ThenBy(entry => entry.Key, StringComparer.Ordinal)
+                .Take(MaxTermsPerDescription)
+                .ToList();
+
+            if (missing.Count == 0)
+            {
+                return 0;
+            }
+
+            // 説明させるのは正式表記(キーは小文字で区切りも落ちているので語として読みにくい)
+            var terms = missing.Select(entry => entry.Display).ToList();
+            var verdicts = await describer.DescribeAsync(
+                terms,
+                step => Progress = $"説明の無い用語 {terms.Count} 件を LLM で説明中: {step}…",
+                cancellationToken);
+
+            var now = clock.GetUtcNow();
+            var descriptions = new List<TopicDescription>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var verdict in verdicts)
+            {
+                // 番号が範囲外・同じ番号の重複・空文字は捨てる(LLM の応答をそのまま信じない)
+                if (verdict.Index < 1 || verdict.Index > missing.Count
+                    || string.IsNullOrWhiteSpace(verdict.Text))
+                {
+                    continue;
+                }
+
+                var key = missing[verdict.Index - 1].Key;
+                if (seen.Add(key))
+                {
+                    descriptions.Add(new TopicDescription
+                    {
+                        Key = key,
+                        Text = verdict.Text,
+                        DescribedAt = now,
+                    });
+                }
+            }
+
+            if (descriptions.Count == 0)
+            {
+                return 0;
+            }
+
+            await descriptionStore.UpsertAsync(descriptions, cancellationToken);
+            catalog.ApplyDescriptions(
+                descriptions.ToDictionary(d => d.Key, d => d.Text, StringComparer.Ordinal));
+
+            logger.LogInformation(
+                "{Describer} が用語 {Asked} 件のうち {Filled} 件に説明を付けた",
+                describer.Name, terms.Count, descriptions.Count);
+
+            return descriptions.Count;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "用語の説明に失敗(再編成は続ける)");
             return 0;
         }
     }
@@ -348,7 +508,9 @@ public class TopicReorganizationRunner(
 /// <param name="Trending">そのうち話題度が付いた(外部トレンドに現れた)数。</param>
 /// <param name="FailedSources">取得に失敗した収集元の数。</param>
 /// <param name="Classified">今回 LLM の分類でツリーに入った語の数(同義語 + 新トピック)。</param>
-public record TopicReorganizationResult(int Count, int Trending, int FailedSources, int Classified = 0)
+/// <param name="Described">今回 LLM が一言説明を付けた用語の数。</param>
+public record TopicReorganizationResult(
+    int Count, int Trending, int FailedSources, int Classified = 0, int Described = 0)
 {
     public static readonly TopicReorganizationResult Nothing = new(0, 0, 0);
 }

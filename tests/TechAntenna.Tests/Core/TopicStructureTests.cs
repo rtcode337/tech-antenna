@@ -96,6 +96,59 @@ public class TopicStructureTests
     }
 
     [Fact]
+    public void 配下のキーを全部返す()
+    {
+        var catalog = Catalog();
+
+        Assert.Equal(["llm", "rag"], catalog.DescendantKeysOf("生成ai"));
+        // 孫まで含める(選択を配下へ広げるのに使うので、直下だけでは足りない)
+        Assert.Equal(["機械学習", "生成ai", "llm", "rag"], catalog.DescendantKeysOf("ai"));
+        Assert.Empty(catalog.DescendantKeysOf("rag"));
+        Assert.Empty(catalog.DescendantKeysOf("わからない語"));
+    }
+
+    [Fact]
+    public void 選択を配下へ広げる()
+    {
+        // 親を選んだら子も収集対象にする(「AI を集めたい」のに RAG が集まらないのは期待と合わない)
+        var catalog = Catalog();
+
+        var expanded = catalog.ExpandWithDescendants(["生成AI"]);
+
+        Assert.Equal(["生成ai", "llm", "rag"], expanded);
+        // 別名で渡しても正式表記のキーに寄せる。重複は落とす
+        Assert.Equal(
+            ["ai", "機械学習", "生成ai", "llm", "rag"],
+            catalog.ExpandWithDescendants(["人工知能", "LLM"]));
+        // カタログに無い語はそのまま(配下は無い)
+        Assert.Equal(["わからない語"], catalog.ExpandWithDescendants(["わからない語"]));
+        Assert.Empty(catalog.ExpandWithDescendants([]));
+    }
+
+    [Fact]
+    public void 説明はJSONに書いたものを優先する()
+    {
+        // JSON は「人が書いた説明」、DB は「LLM が埋めた説明」。役割が分かれている
+        var catalog = new TopicCatalog(
+        [
+            new TopicCatalogEntry("AI", [], null, "人が書いた説明"),
+            new TopicCatalogEntry("RAG", [], null),
+        ]);
+
+        catalog.ApplyDescriptions(new Dictionary<string, string>
+        {
+            ["ai"] = "LLM が付けた説明",
+            ["rag"] = "検索で引いた文書を添えて答えさせる手法",
+            ["いない語"] = "無視される",
+        });
+
+        Assert.Equal("人が書いた説明", catalog.DescriptionOf("ai"));
+        Assert.Equal("検索で引いた文書を添えて答えさせる手法", catalog.DescriptionOf("rag"));
+        Assert.Equal("検索で引いた文書を添えて答えさせる手法", catalog.StructureOf("rag").Description);
+        Assert.Null(catalog.DescriptionOf("わからない語"));
+    }
+
+    [Fact]
     public void 自分自身を親にしていても止まる()
     {
         var catalog = new TopicCatalog([new TopicCatalogEntry("A", [], "A")]);

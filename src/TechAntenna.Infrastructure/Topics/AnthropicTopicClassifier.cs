@@ -10,7 +10,7 @@ namespace TechAntenna.Infrastructure.Topics;
 /// Anthropic API(Messages API)で未知タグを分類する。従量課金だが呼び出しの固定費が
 /// 小さい。とはいえ既存ツリーを毎回渡すので、こちらも**1回にまとめて**呼ぶ。
 /// </summary>
-public class AnthropicTopicClassifier(string apiKey, string model) : ITopicClassifier
+public class AnthropicTopicClassifier(string apiKey, string model) : ITopicClassifier, ITopicDescriber
 {
     readonly AnthropicClient _client = new() { ApiKey = apiKey };
 
@@ -65,6 +65,56 @@ public class AnthropicTopicClassifier(string apiKey, string model) : ITopicClass
             var batchOffset = offset;
             using var doc = JsonDocument.Parse(ExtractJson(text));
             verdicts.AddRange(TopicClassificationPrompt.ReadVerdicts(doc.RootElement)
+                .Select(verdict => verdict with { Index = verdict.Index + batchOffset }));
+        }
+
+        return verdicts;
+    }
+
+    /// <summary>説明の無い用語に一言説明を付ける(分類と同じバッチの作法)。</summary>
+    public async Task<IReadOnlyList<TopicDescriptionVerdict>> DescribeAsync(
+        IReadOnlyList<string> terms,
+        Action<string>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var verdicts = new List<TopicDescriptionVerdict>();
+        var totalBatches = (terms.Count + BatchSize - 1) / BatchSize;
+
+        for (var offset = 0; offset < terms.Count; offset += BatchSize)
+        {
+            var batch = terms.Skip(offset).Take(BatchSize).ToList();
+            progress?.Invoke($"バッチ {offset / BatchSize + 1}/{totalBatches}({batch.Count} 語)を説明中");
+            if (offset > 0)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            }
+
+            var response = await _client.Messages.Create(
+                new MessageCreateParams
+                {
+                    Model = model,
+                    MaxTokens = 8192,
+                    System = TopicDescriptionPrompt.System
+                        + "応答は指定の JSON だけを出力する。前置きも説明も書かない。"
+                        + "形式: " + TopicDescriptionPrompt.Schema,
+                    Messages =
+                    [
+                        new()
+                        {
+                            Role = Role.User,
+                            Content = TopicDescriptionPrompt.ForTerms(batch),
+                        },
+                    ],
+                },
+                cancellationToken: cancellationToken);
+
+            var text = string.Join(
+                "",
+                response.Content.Select(b => b.Value).OfType<TextBlock>().Select(t => t.Text)).Trim();
+
+            var batchOffset = offset;
+            using var doc = JsonDocument.Parse(ExtractJson(text));
+            verdicts.AddRange(TopicDescriptionPrompt.ReadDescriptions(doc.RootElement)
                 .Select(verdict => verdict with { Index = verdict.Index + batchOffset }));
         }
 

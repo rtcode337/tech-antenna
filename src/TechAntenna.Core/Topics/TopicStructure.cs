@@ -15,6 +15,7 @@ public record TopicTreeNode(string Key, string Display, IReadOnlyList<TopicTreeN
 /// <param name="Key">突き合わせキー(別名で引かれても正式表記のキーに寄せてある)。</param>
 /// <param name="Display">画面に出す正式表記。カタログに無い語はキーと同じ。</param>
 /// <param name="InCatalog">カタログ(人手の JSON + LLM 分類)に載っているか。載っていない語は平置き。</param>
+/// <param name="Description">用語の一言説明(JSON に書いた記述、または LLM が埋めたもの)。無ければ null。</param>
 /// <param name="Aliases">この正式表記へ寄せている別名。</param>
 /// <param name="Ancestors">上の粒度へ辿った並び。<b>根 → 直近の親</b>の順。</param>
 /// <param name="Children">1つ下の粒度(さらに配下を含む)。</param>
@@ -22,6 +23,7 @@ public record TopicStructure(
     string Key,
     string Display,
     bool InCatalog,
+    string? Description,
     IReadOnlyList<string> Aliases,
     IReadOnlyList<TopicName> Ancestors,
     IReadOnlyList<TopicTreeNode> Children)

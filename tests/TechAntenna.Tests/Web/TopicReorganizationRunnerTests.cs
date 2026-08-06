@@ -32,6 +32,7 @@ public class TopicReorganizationRunnerTests
             events,
             books,
             classifications,
+            new InMemoryTopicDescriptionStore(),
             new TopicCandidateFinder(
                 catalog, articles, events, books, classifications, TimeProvider.System),
             new TagRenormalizationRunner(catalog, articles, events, books),

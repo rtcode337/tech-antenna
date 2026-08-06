@@ -1,3 +1,15 @@
+/* 用語の一言説明。ページの主題の言い換えなので、見出しの直下で本文より少し大きく出す */
+.topic-description {
+    max-width: 62rem;
+    margin-top: 0.5rem;
+    font-size: 1.02rem;
+    line-height: 1.75;
+}
+
+.topic-description .text-muted {
+    font-size: 0.8rem;
+}
+
 /* 同義語のバッジ。折り返して詰める(トピックの候補一覧と同じ並べ方) */
 .alias-list {
     display: flex;

@@ -159,6 +159,14 @@ details[open] > summary .caret::before {
     line-height: 1.7;
 }
 
+/* 説明がまだ無い語の印。名前の一部に見えないよう、小さく薄く離して置く */
+.no-description {
+    margin-left: 0.2rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: help;
+}
+
 /* 新規トピック候補の語の並び。バッジを折り返して詰める */
 .candidate-list {
     display: flex;

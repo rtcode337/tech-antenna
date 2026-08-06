@@ -3,6 +3,7 @@
 @using TechAntenna.Core.Topics
 @using TechAntenna.Web.Services
 @inject ITopicStore TopicStore
+@inject TopicCatalog Catalog
 @inject TopicCandidateFinder CandidateFinder
 @inject TopicReorganizationRunner ReorganizationRunner
 
@@ -17,6 +18,15 @@
     まとめてトピック一覧にします。<strong>収集対象に選んだトピックは消えない</strong>ので、
     選択が勝手に外れることはありません。
     トピック名を押すと、その語の<strong>同義語と親子ツリー</strong>、紐づいた記事・イベント・書籍が見られます。
+    用語の説明はトピック名にカーソルを当てると出ます(<code>?</code> が付いている行は説明がまだ無い語)。
+</p>
+
+<p class="page-note text-muted">
+    <strong>親を選ぶと、その配下のトピックもまとめて収集対象になります</strong>
+    (保存のときに広げるので、チェックが外れていた子も選択されます)。
+    イベントと書籍は<strong>トピック 1 つごとに外部へ問い合わせる</strong>ので、
+    大きな親を選ぶとリクエスト数もその配下のぶんだけ増えます。
+    子だけを外したいときは、親のチェックを外してから選び直してください。
 </p>
 
 @* 挙動が画面から分かるようにしておく(説明は再編成の実装と揃えること) *@
@@ -34,6 +44,11 @@
             判断できなかった語は 1 週間おいて再挑戦します。
             1 回に渡すのは 300 語までで、残りは次回に続きから。
             LLM が未設定ならこの手順は飛ばします(語は候補のまま残る)</li>
+        <li><strong>用語の説明を埋める</strong> —— 説明がまだ無い用語に LLM が一言説明を付けます
+            (トピック名のツールチップと詳細ページに出ます)。<strong>新しく見つかった語の説明は
+            手順 2 の応答に相乗り</strong>していて追加の呼び出しはありません。ここで聞くのは
+            以前から一覧にあって説明だけ無い語で、1 回に 300 語まで・<strong>1 語につき 1 回だけ</strong>
+            (結果は保存され、次回は聞き直しません)。収集対象に選んだトピックから先に埋めます</li>
         <li><strong>タグを作り直す</strong> —— 増えた別名を、保存済みの記事・イベント・書籍の
             タグへ反映します(カタログを手で編集した分もここで効きます)</li>
         <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
@@ -122,7 +137,7 @@ else
                     {
                         <tr>
                             <td>@Checkbox(topic)</td>
-                            <td><a href="@TopicHref(topic)">@Label(topic)</a></td>
+                            <td>@TopicLink(topic)</td>
                             <td class="text-end">@topic.TrendScore.ToString("0.0")</td>
                             <td>@topic.CollectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
                         </tr>
@@ -202,11 +217,27 @@ else
             {
                 <span class="caret-spacer" aria-hidden="true"></span>
             }
-            <a href="@TopicHref(node.Topic)">@Label(node.Topic)</a>
+            @TopicLink(node.Topic)
         </span>
         <span class="score-cell" title="配下込みの話題度">@node.Topic.SubtreeTrendScore.ToString("0.0")</span>
         <span class="date-cell">@node.Topic.CollectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
     </span>;
+
+    @* トピックへのリンク。**説明はツールチップに出す** —— 一覧の行に入れると
+       話題度・日時の列が押し出され、ツリーの字下げも読めなくなる *@
+    RenderFragment TopicLink(StoredTopic topic) =>
+    @<text>
+        @if (Description(topic) is { } description)
+        {
+            <a href="@TopicHref(topic)" title="@description">@Label(topic)</a>
+        }
+        else
+        {
+            <a href="@TopicHref(topic)">@Label(topic)</a>
+            <span class="no-description" title="説明はまだありません（「トピックを再編成」で埋まります）"
+                  aria-hidden="true">?</span>
+        }
+    </text>;
 
     RenderFragment Checkbox(StoredTopic topic) =>
     @<input class="form-check-input" type="checkbox" name="SelectedTopics"
@@ -244,12 +275,16 @@ else
         ct => ReorganizationRunner.RunOnceAsync(ct),
         result => $"{result.Count} 件のトピックを更新しました（うち {result.Trending} 件に話題度が付きました）。"
             + (result.Classified > 0 ? $" LLM が {result.Classified} 件の語をツリーへ分類しました。" : "")
+            + (result.Described > 0 ? $" {result.Described} 件の用語に説明を付けました。" : "")
             + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : ""));
 
     // 画面に出すのはキー(生成ai)ではなくカタログの正式表記(生成AI)
     static string Label(StoredTopic topic) => topic.Display is { Length: > 0 } display ? display : topic.Tag;
 
     static string TopicHref(StoredTopic topic) => $"/topics/{Uri.EscapeDataString(topic.Tag)}";
+
+    /// <summary>用語の一言説明(カタログ。JSON に書いた分と LLM が埋めた分の合成)。</summary>
+    string? Description(StoredTopic topic) => Catalog.DescriptionOf(topic.Tag);
 
     async Task LoadAsync()
     {
@@ -302,13 +337,22 @@ else
             .ToList();
     }
 
+    /// <summary>
+    /// 収集対象を保存する。**親を選んだら配下のトピックも選択に含める**
+    /// (`TopicCatalog.ExpandWithDescendants`)。画面側でも JS がチェックを配下へ広げるが、
+    /// **保存の正体はこちら** —— JS が動かない環境でも同じ結果になるようにしてある。
+    /// </summary>
     async Task SaveSelectionAsync()
     {
-        var selected = SelectedTopics ?? [];
+        var checkedTags = SelectedTopics ?? [];
+        var selected = Catalog.ExpandWithDescendants(checkedTags);
         await TopicStore.UpdateSelectionAsync(selected);
-        _selectionMessage = selected.Length == 0
+
+        var added = selected.Count - checkedTags.Length;
+        _selectionMessage = selected.Count == 0
             ? "収集対象を空にしました（このままでは何も集まりません）。"
-            : $"{selected.Length} 件のトピックを収集対象にしました。";
+            : $"{selected.Count} 件のトピックを収集対象にしました。"
+                + (added > 0 ? $"（うち {added} 件は選んだ親の配下）" : "");
         await LoadAsync();
     }
 }

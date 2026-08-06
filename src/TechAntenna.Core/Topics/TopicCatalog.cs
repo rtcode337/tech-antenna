@@ -6,7 +6,15 @@ namespace TechAntenna.Core.Topics;
 /// <param name="Display">画面に出す正式表記(`生成AI`)。検索語として外部 API へ投げるのもこれ。</param>
 /// <param name="Aliases">同じものを指す別の書き方(`人工知能`・`generative ai`)。突き合わせのときに正式表記へ寄せる。</param>
 /// <param name="Parent">1つ上の粒度(`LLM` の親は `生成AI`)。**統合はしない** —— まとめると上位の語だけが巨大化するため。</param>
-public record TopicCatalogEntry(string Display, IReadOnlyList<string> Aliases, string? Parent)
+/// <param name="Description">
+/// 用語の一言説明(1〜2文)。見慣れない語が一覧に並んだときに、開かなくても何の話か分かるように持つ。
+/// JSON に書けば人の記述が使われ、無ければ LLM が再編成のときに埋める。
+/// </param>
+public record TopicCatalogEntry(
+    string Display,
+    IReadOnlyList<string> Aliases,
+    string? Parent,
+    string? Description = null)
 {
     /// <summary>突き合わせに使うキー。正式表記を機械的に正規化したもの。</summary>
     public string Key => TagNormalizer.ToKey(Display);
@@ -156,6 +164,35 @@ public class TopicCatalog
     }
 
     /// <summary>
+    /// LLM が付けた一言説明を合成する(キー → 説明文)。
+    /// **JSON に書かれている説明は上書きしない** —— 別名や親と同じく、人の記述を優先する。
+    /// </summary>
+    public void ApplyDescriptions(IReadOnlyDictionary<string, string> descriptions)
+    {
+        if (descriptions.Count == 0)
+        {
+            return;
+        }
+
+        var entries = _snapshot.Entries
+            .Select(entry => entry.Description is { Length: > 0 }
+                    || !descriptions.TryGetValue(entry.Key, out var description)
+                    || string.IsNullOrWhiteSpace(description)
+                ? entry
+                : entry with { Description = description.Trim() })
+            .ToList();
+
+        _snapshot = Build(entries);
+    }
+
+    /// <summary>キーに対する一言説明。無ければ null。</summary>
+    public string? DescriptionOf(string key) =>
+        _snapshot.ByKey.TryGetValue(key, out var entry)
+            && entry.Description is { Length: > 0 } description
+            ? description
+            : null;
+
+    /// <summary>
     /// タグ1つを、カタログの正式表記のキーに寄せる。
     /// **カタログに無い語は落とさず、機械的に正規化しただけの値を返す** ——
     /// 落とすと新しいトピックが永久に入ってこなくなるため。
@@ -240,7 +277,7 @@ public class TopicCatalog
 
         if (!snapshot.ByKey.TryGetValue(key, out var entry))
         {
-            return new TopicStructure(key, key, InCatalog: false, [], [], []);
+            return new TopicStructure(key, key, InCatalog: false, Description: null, [], [], []);
         }
 
         // 同じ語を二度出さない。**LLM の分類は人手で検証されない**ので、親子が万一
@@ -264,9 +301,64 @@ public class TopicCatalog
             entry.Key,
             entry.Display,
             InCatalog: true,
+            entry.Description,
             entry.Aliases,
             ancestors,
             BuildChildren(snapshot, entry.Key, visited));
+    }
+
+    /// <summary>
+    /// そのトピックの配下(子・孫…)のキーを全部返す。自分自身は含めない。
+    /// カタログに無い語・葉のトピックは空。
+    /// </summary>
+    public IReadOnlyList<string> DescendantKeysOf(string tag)
+    {
+        var keys = new List<string>();
+        Walk(StructureOf(tag).Children);
+
+        void Walk(IReadOnlyList<TopicTreeNode> nodes)
+        {
+            foreach (var node in nodes)
+            {
+                keys.Add(node.Key);
+                Walk(node.Children);
+            }
+        }
+
+        return keys;
+    }
+
+    /// <summary>
+    /// 選択されたトピックに<b>その配下すべて</b>を足したキーの一覧を返す。
+    ///
+    /// **親を選んだら子も収集対象にする**ため —— 「AI を集めたい」と言っているのに
+    /// `LLM` や `RAG` のイベント・書籍が集まらないのは、選んだ側の期待と合わない。
+    /// (イベントと書籍はトピック 1 つごとに外部へ問い合わせるので、
+    /// 大きな親を選ぶとリクエスト数もその配下のぶんだけ増える)
+    /// </summary>
+    public IReadOnlyList<string> ExpandWithDescendants(IEnumerable<string> tags)
+    {
+        var expanded = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var tag in tags)
+        {
+            var key = Resolve(tag);
+            if (seen.Add(key))
+            {
+                expanded.Add(key);
+            }
+
+            foreach (var descendant in DescendantKeysOf(key))
+            {
+                if (seen.Add(descendant))
+                {
+                    expanded.Add(descendant);
+                }
+            }
+        }
+
+        return expanded;
     }
 
     /// <summary>配下のツリーを組む。並びは正式表記順(話題度は語彙側では持たないため)。</summary>

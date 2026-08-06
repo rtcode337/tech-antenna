@@ -1,4 +1,8 @@
-// トピックのツリー(/topics)の開閉状態をブラウザに覚えて、次に開いたとき再現する。
+// トピックのツリー(/topics)の見え方と操作を補う。JS が無くても一覧の機能は成立する
+// (開閉は details/summary、選択の保存はサーバー側で配下へ広げる)ので、ここは上乗せ。
+//
+//   1. 開閉状態をブラウザに覚えて、次に開いたとき再現する
+//   2. 親のチェックを配下のトピックへ広げる(保存時にサーバーが広げるのと同じ結果を先に見せる)
 //
 // 既定は**全て開いた状態**で、ユーザーが閉じたノードだけを localStorage に持つ
 // (トピックの一覧は何度も開き直すものなので、タブを閉じても覚えておきたい ——
@@ -55,13 +59,40 @@
         });
     }
 
+    // 親のチェックを配下へ広げる。**保存の正体はサーバー側**(ExpandWithDescendants)で、
+    // ここでやるのは「保存したらこうなる」を押した瞬間に見せること。
+    // 外す方向も配下へ広げる —— 親を外したのに子が残ると、消したつもりの収集が続く
+    function cascade() {
+        var nodes = document.querySelectorAll('.topic-tree details[data-tag]');
+        nodes.forEach(function (node) {
+            var box = node.querySelector('summary input[name="SelectedTopics"]');
+            if (!box || box.dataset.cascade) {
+                return;
+            }
+
+            box.dataset.cascade = '1';
+            box.addEventListener('change', function () {
+                // summary の外(= 配下の行)のチェックボックスだけを揃える
+                node.querySelectorAll('input[name="SelectedTopics"]').forEach(function (child) {
+                    if (child !== box) {
+                        child.checked = box.checked;
+                    }
+                });
+            });
+        });
+    }
+
     // defer 付きで読むので、この時点で DOM は組み上がっている
     apply();
+    cascade();
 
     // enhanced navigation 後にも当て直す(登録の仕方は nav-menu.js と同じ)
     function hookBlazor() {
         if (window.Blazor && typeof Blazor.addEventListener === 'function') {
-            Blazor.addEventListener('enhancedload', apply);
+            Blazor.addEventListener('enhancedload', function () {
+                apply();
+                cascade();
+            });
             return true;
         }
 

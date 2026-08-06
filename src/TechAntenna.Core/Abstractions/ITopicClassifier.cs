@@ -7,8 +7,11 @@ namespace TechAntenna.Core.Abstractions;
 /// (タグをそのまま写させると表記を崩す余地ができるため、番号で対応づける)。
 /// <c>Kind</c> は alias / new / skip。alias なら <c>Target</c> に寄せ先、
 /// new なら <c>Display</c> に正式表記と <c>Target</c> に親(無ければ null)。
+/// <c>Description</c> は new のときの一言説明(**分類の応答に相乗りさせている** ——
+/// 説明のために呼び出しを増やさないため。知らない語では空で返る)。
 /// </summary>
-public record TopicClassifierVerdict(int Index, string Kind, string? Target, string? Display);
+public record TopicClassifierVerdict(
+    int Index, string Kind, string? Target, string? Display, string? Description = null);
 
 /// <summary>
 /// カタログに無いタグを、既存トピックの同義語・新トピック(親付き)・トピック外に

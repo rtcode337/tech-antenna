@@ -22,6 +22,8 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
 
     public DbSet<TopicClassification> TopicClassifications => Set<TopicClassification>();
 
+    public DbSet<TopicDescription> TopicDescriptions => Set<TopicDescription>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Article>(article =>
@@ -117,6 +119,13 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
             classification.Property(c => c.Tag).IsRequired();
             // 種別は数値ではなく名前で持つ(SQL で覗いたときに読めるほうを優先)
             classification.Property(c => c.Kind).HasConversion<string>().IsRequired();
+        });
+
+        modelBuilder.Entity<TopicDescription>(description =>
+        {
+            description.HasKey(d => d.Key);
+            description.Property(d => d.Key).IsRequired();
+            description.Property(d => d.Text).IsRequired();
         });
     }
 

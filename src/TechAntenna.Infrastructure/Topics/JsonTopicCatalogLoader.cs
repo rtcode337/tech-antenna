@@ -31,7 +31,8 @@ public static class JsonTopicCatalogLoader
         return new TopicCatalog(
             (file?.Topics ?? [])
                 .Where(topic => !string.IsNullOrWhiteSpace(topic.Display))
-                .Select(topic => new TopicCatalogEntry(topic.Display.Trim(), topic.Aliases ?? [], topic.Parent))
+                .Select(topic => new TopicCatalogEntry(
+                    topic.Display.Trim(), topic.Aliases ?? [], topic.Parent, topic.Description?.Trim()))
                 .ToList());
     }
 
@@ -47,5 +48,8 @@ public static class JsonTopicCatalogLoader
         public List<string>? Aliases { get; set; }
 
         public string? Parent { get; set; }
+
+        /// <summary>一言説明(任意)。書いておけば LLM の説明より優先される。</summary>
+        public string? Description { get; set; }
     }
 }
