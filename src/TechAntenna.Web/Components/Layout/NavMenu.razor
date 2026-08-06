@@ -67,6 +67,10 @@
                     <span class="bi bi-gear-fill-nav-menu" aria-hidden="true"></span> 設定
                 </NavLink>
             </summary>
+            @* トピック(何を集めるかの選択と語彙の再編成)。トピックの詳細もこの下に属する *@
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="topics">トピック</NavLink>
+            </div>
             <div class="nav-item nav-child px-3">
                 <NavLink class="nav-link" href="integrations">外部連携</NavLink>
             </div>
@@ -75,12 +79,12 @@
 </div>
 
 @code {
-    /// <summary>ホームの下にぶら下げるページ。トピックの詳細もここに属する。</summary>
+    /// <summary>ホームの下にぶら下げるページ。</summary>
     static readonly string[] HomeChildren =
-        ["recent", "news", "articles", "papers", "books", "events", "topics"];
+        ["recent", "news", "articles", "papers", "books", "events"];
 
-    /// <summary>設定の下にぶら下げるページ。</summary>
-    static readonly string[] SettingsChildren = ["integrations"];
+    /// <summary>設定の下にぶら下げるページ。トピックの詳細(`/topics/…`)もここに属する。</summary>
+    static readonly string[] SettingsChildren = ["topics", "integrations"];
 
     bool InHome => IsCurrent("") || HomeChildren.Any(IsCurrent);
 

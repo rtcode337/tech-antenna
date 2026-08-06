@@ -1,12 +1,128 @@
 @page "/topics/{Tag}"
+@using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Topics
 @inject TopicService TopicService
+@inject TopicCatalog Catalog
+@inject ITopicClassificationStore ClassificationStore
 
-<PageTitle>@Tag - tech-antenna</PageTitle>
+<PageTitle>@Title - tech-antenna</PageTitle>
 
-<h1>@Tag</h1>
+<h1>@Title</h1>
 
-<p><a href="/settings">← トピック一覧</a></p>
+<p><a href="/topics">← トピック一覧</a></p>
+
+@* 語彙としての姿(同義語・ツリー上の位置)を先に出す。**このページは2つの問いに答える**:
+   「この語はどう整理されているか」と「この語に何が紐づいているか」。前者が上、後者が下 *@
+@if (_structure is { } structure)
+{
+    <h2 class="h4 mt-4">同義語</h2>
+    @if (!structure.InCatalog)
+    {
+        <p class="text-muted">
+            この語はまだ語彙(カタログ)に載っていません —— 記事などのタグとしては生きていますが、
+            同義語も親子も決まっていない<strong>平置きの語</strong>です。
+            <a href="/topics">トピック</a>の「トピックを再編成」で LLM が分類します。
+        </p>
+    }
+    else if (structure.Aliases.Count == 0)
+    {
+        <p class="text-muted">
+            寄せている別名はありません(<code>@structure.Key</code> の表記ゆれだけが吸収されます)。
+        </p>
+    }
+    else
+    {
+        <p class="text-muted">
+            これらの表記は正式表記「@structure.Display」へ寄せて数えます。
+            <strong>LLM</strong> と付いた語は再編成のときに LLM が分類したもので、
+            残りは <code>topic-catalog.json</code> に人が書いたものです。
+        </p>
+        <p class="alias-list">
+            @foreach (var alias in structure.Aliases)
+            {
+                @if (_llmAliases.Contains(alias))
+                {
+                    <span class="badge bg-primary" title="LLM が分類した別名">
+                        @alias<span class="alias-origin">LLM</span>
+                    </span>
+                }
+                else
+                {
+                    <span class="badge" title="カタログ（topic-catalog.json）に書いた別名">@alias</span>
+                }
+            }
+        </p>
+    }
+
+    <h2 class="h4 mt-4">ツリー構造</h2>
+    @if (structure.IsIsolated)
+    {
+        <p class="text-muted">
+            親も子もありません(ツリー上は単独の語です)。
+        </p>
+    }
+    else
+    {
+        <p class="text-muted">
+            上が大きい粒度です。<strong>粒度の違う語は統合しません</strong> ——
+            まとめると上位の語だけが巨大化して、何の話題か分からなくなるため。
+        </p>
+        <div class="topic-path">
+            @* 祖先(根 → 直近の親)→ このトピック → 直下の子。
+               **孫より下は畳んでおく** —— 「プログラミング」のような大きな語では配下が
+               70 語を超え、開いたまま出すと下の記事・イベント・書籍が画面外へ押し出される *@
+            @for (var depth = 0; depth < structure.Ancestors.Count; depth++)
+            {
+                var ancestor = structure.Ancestors[depth];
+                <div class="path-row" style="--depth: @depth">
+                    @Branch(depth)
+                    <a href="@Href(ancestor.Key)">@ancestor.Display</a>
+                </div>
+            }
+            <div class="path-row current" style="--depth: @structure.Ancestors.Count">
+                @Branch(structure.Ancestors.Count)
+                <strong>@structure.Display</strong>
+                <span class="text-muted">（このトピック）</span>
+            </div>
+            @foreach (var child in structure.Children)
+            {
+                @RenderChild(child, structure.Ancestors.Count + 1)
+            }
+        </div>
+    }
+}
+
+@* 配下の1ノード。子を持つなら折りたたみ(既定は閉じる。JS は使わない) *@
+@{
+    RenderFragment RenderChild(TopicTreeNode node, int depth) =>
+    @<text>
+        @if (node.Children.Count == 0)
+        {
+            <div class="path-row" style="--depth: @depth">
+                @Branch(depth)
+                <a href="@Href(node.Key)">@node.Display</a>
+            </div>
+        }
+        else
+        {
+            <details class="path-node">
+                <summary class="path-row" style="--depth: @depth">
+                    <span class="caret" aria-hidden="true"></span>
+                    <a href="@Href(node.Key)">@node.Display</a>
+                    <span class="text-muted">（配下 @Count(node) 語）</span>
+                </summary>
+                @foreach (var child in node.Children)
+                {
+                    @RenderChild(child, depth + 1)
+                }
+            </details>
+        }
+    </text>;
+
+    @* 字下げの頭をそろえる印。深さ 0(根)には引かない *@
+    RenderFragment Branch(int depth) =>
+    @<span class="tree-branch" aria-hidden="true">@(depth > 0 ? "└" : "")</span>;
+}
 
 @if (_detail is null)
 {
@@ -106,9 +222,33 @@ else
     public string Tag { get; set; } = "";
 
     TopicDetail? _detail;
+    TopicStructure? _structure;
+
+    /// <summary>LLM の分類で足された別名。カタログ(JSON)に人が書いた分と見分けるために持つ。</summary>
+    HashSet<string> _llmAliases = new(StringComparer.Ordinal);
+
+    static string Href(string key) => $"/topics/{Uri.EscapeDataString(key)}";
+
+    /// <summary>そのノードの配下の語数(折りたたみを開く前に規模が分かるように出す)。</summary>
+    static int Count(TopicTreeNode node) => node.Children.Count + node.Children.Sum(Count);
+
+    /// <summary>見出しは正式表記(カタログに無い語はキーのまま)。</summary>
+    string Title => _structure?.Display is { Length: > 0 } display ? display : Tag;
 
     protected override async Task OnParametersSetAsync()
     {
+        // 語彙としての姿はカタログから引く(LLM の分類は起動時と再編成時に合成済み)
+        _structure = Catalog.StructureOf(Tag);
+
+        // 別名の出どころ。**分類は DB、人手の語彙は JSON** と役割が分かれているので、
+        // どちらが付けた別名なのか画面から分かるようにしておく
+        var classifications = await ClassificationStore.GetAllAsync();
+        _llmAliases = classifications
+            .Where(classification => classification.Kind == TopicClassificationKind.Alias
+                && classification.TargetKey == _structure.Key)
+            .Select(classification => classification.Tag)
+            .ToHashSet(StringComparer.Ordinal);
+
         _detail = await TopicService.GetTopicAsync(Tag, 20);
     }
 }

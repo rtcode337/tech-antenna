@@ -32,7 +32,8 @@ public class TopicCatalog
     sealed record Snapshot(
         IReadOnlyList<TopicCatalogEntry> Entries,
         Dictionary<string, TopicCatalogEntry> ByKey,
-        Dictionary<string, string> AliasToKey);
+        Dictionary<string, string> AliasToKey,
+        ILookup<string, TopicCatalogEntry> ChildrenByParent);
 
     volatile Snapshot _snapshot;
 
@@ -61,7 +62,30 @@ public class TopicCatalog
             }
         }
 
-        return new Snapshot(kept, byKey, aliasToKey);
+        // 親のキー → 子。トピック詳細のツリーで使う(引くたびに全件を走らせずに済む)
+        var childrenByParent = kept
+            .Select(entry => (Parent: ParentKeyOf(entry, aliasToKey), Entry: entry))
+            .Where(pair => pair.Parent is { Length: > 0 } parent && parent != pair.Entry.Key)
+            .ToLookup(pair => pair.Parent!, pair => pair.Entry, StringComparer.Ordinal);
+
+        return new Snapshot(kept, byKey, aliasToKey, childrenByParent);
+    }
+
+    /// <summary>
+    /// エントリの親を突き合わせキーに直す。**別名で書かれていても正式表記へ寄せる** ——
+    /// 寄せないと(JSON に <c>parent: 人工知能</c> と書いたときなど)実在しないキーを指し、
+    /// ツリーで親を見失って根として孤立する。
+    /// </summary>
+    static string? ParentKeyOf(TopicCatalogEntry entry, Dictionary<string, string> aliasToKey)
+    {
+        if (entry.Parent is not { Length: > 0 } parent)
+        {
+            return null;
+        }
+
+        var key = TagNormalizer.ToKey(parent);
+
+        return aliasToKey.GetValueOrDefault(key, key);
     }
 
     public IReadOnlyList<TopicCatalogEntry> Entries => _snapshot.Entries;
@@ -192,8 +216,68 @@ public class TopicCatalog
             : key;
 
     /// <summary>キーに対する1つ上の粒度。無ければ null。</summary>
-    public string? ParentOf(string key) =>
-        _snapshot.ByKey.TryGetValue(key, out var entry) && entry.Parent is { Length: > 0 } parent
-            ? TagNormalizer.ToKey(parent)
+    public string? ParentOf(string key)
+    {
+        var snapshot = _snapshot;
+
+        return snapshot.ByKey.TryGetValue(key, out var entry)
+            ? ParentKeyOf(entry, snapshot.AliasToKey)
             : null;
+    }
+
+    /// <summary>
+    /// トピック1件の<b>語彙としての姿</b>(同義語と親子ツリー上の位置)を組む。トピック詳細で使う。
+    ///
+    /// 引数は正式表記のキーでも別名でも、正規化前の表記でもよい(内部で寄せる)。
+    /// **カタログに無い語でも null は返さない** —— まだ分類されていないタグ(平置きの語)にも
+    /// 詳細ページはあるので、同義語も親子も空の姿を返して「載っていない」と示す。
+    /// </summary>
+    public TopicStructure StructureOf(string tag)
+    {
+        var snapshot = _snapshot;
+        var key = TagNormalizer.ToKey(tag);
+        key = snapshot.AliasToKey.GetValueOrDefault(key, key);
+
+        if (!snapshot.ByKey.TryGetValue(key, out var entry))
+        {
+            return new TopicStructure(key, key, InCatalog: false, [], [], []);
+        }
+
+        // 同じ語を二度出さない。**LLM の分類は人手で検証されない**ので、親子が万一
+        // 循環していてもここで打ち切る(ツリーを組む側で無限に潜らないようにする)
+        var visited = new HashSet<string>(StringComparer.Ordinal) { entry.Key };
+
+        var ancestors = new List<TopicName>();
+        var current = entry;
+        while (ParentKeyOf(current, snapshot.AliasToKey) is { } parentKey
+            && visited.Add(parentKey)
+            && snapshot.ByKey.TryGetValue(parentKey, out var parent))
+        {
+            ancestors.Add(new TopicName(parent.Key, parent.Display));
+            current = parent;
+        }
+
+        // 辿った順は「直近の親 → 根」なので、画面の描画順(上から)に合わせて反転する
+        ancestors.Reverse();
+
+        return new TopicStructure(
+            entry.Key,
+            entry.Display,
+            InCatalog: true,
+            entry.Aliases,
+            ancestors,
+            BuildChildren(snapshot, entry.Key, visited));
+    }
+
+    /// <summary>配下のツリーを組む。並びは正式表記順(話題度は語彙側では持たないため)。</summary>
+    static IReadOnlyList<TopicTreeNode> BuildChildren(
+        Snapshot snapshot,
+        string key,
+        HashSet<string> visited) =>
+        snapshot.ChildrenByParent[key]
+            .Where(child => visited.Add(child.Key))
+            .OrderBy(child => child.Display, StringComparer.Ordinal)
+            .Select(child => new TopicTreeNode(
+                child.Key, child.Display, BuildChildren(snapshot, child.Key, visited)))
+            .ToList();
 }

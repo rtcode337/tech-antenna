@@ -1,0 +1,168 @@
+/* 冒頭の説明文。長いので本文より一段落とし、読み幅も抑える */
+.page-note {
+    max-width: 62rem;
+    font-size: 0.89rem;
+}
+
+/* トピックの表を面の上に載せる。行数が多いので、区切りは横線だけにする */
+.table {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+/* 行頭のチェックボックス列と話題度の列は内容が短いので詰める */
+.table td:first-child,
+.table th:first-child {
+    width: 3.5rem;
+    text-align: center;
+}
+
+.table td:nth-child(3),
+.table th:nth-child(3) {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* 更新日時は判断に使わない補足なので、目立たせない */
+.table td:last-child {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* ツリー/ランキングの切り替え。リンクだけのタブ(JS 不要) */
+.view-switch {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.view-switch a {
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 0.86rem;
+    text-decoration: none;
+}
+
+.view-switch a.active {
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 650;
+}
+
+/* トピックのツリー。子を持つノードは details/summary で折りたためる。
+   見た目は以前のテーブル型に合わせる —— 各行を同じ列構成のグリッドにして列を縦にそろえ、
+   字下げは名前のセルの中だけで行う(コンテナごと下げると話題度・日時の列がずれる)。
+   summary の標準マーカーも列ずれの原因になるので消し、開閉の三角は名前セル内の
+   .caret で自前に描く(開閉の手がかりは失わない) */
+.topic-tree {
+    margin-bottom: 1rem;
+}
+
+.topic-grid {
+    display: grid;
+    grid-template-columns: 2.4rem minmax(0, 1fr) 4.5rem 9.5rem;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.topic-header {
+    padding: 0.45rem 0.25rem;
+    border-bottom: 2px solid var(--border-strong);
+    color: var(--text);
+    font-weight: 650;
+    font-size: 0.9rem;
+}
+
+.topic-row {
+    display: block;
+    padding: 0.4rem 0.25rem;
+    border-bottom: 1px solid var(--border);
+}
+
+summary.topic-row {
+    cursor: pointer;
+    list-style: none;
+}
+
+summary.topic-row::-webkit-details-marker {
+    display: none;
+}
+
+.name-cell {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    min-width: 0;
+    padding-left: calc(var(--depth, 0) * 1.1rem);
+}
+
+/* 開閉の三角(▶/▼)・葉の └ ・字下げ合わせの空白は同じ幅にして、名前の頭をそろえる */
+.caret,
+.tree-branch,
+.caret-spacer {
+    flex: none;
+    width: 0.9rem;
+    color: var(--text-muted);
+}
+
+.caret::before {
+    content: "▶";
+    font-size: 0.7rem;
+}
+
+details[open] > summary .caret::before {
+    content: "▼";
+}
+
+.score-cell {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.topic-header .score-cell {
+    text-align: right;
+}
+
+.date-cell {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+/* 話題度の算出方法の説明。普段は畳んでおく(読みたい人だけ開く) */
+.score-help {
+    margin-bottom: 1rem;
+    font-size: 0.86rem;
+}
+
+.score-help > summary {
+    cursor: pointer;
+    color: var(--text-muted);
+}
+
+.score-help ul,
+.score-help ol {
+    margin: 0.5rem 0 0;
+    padding-left: 1.4rem;
+}
+
+.score-help li {
+    margin-bottom: 0.25rem;
+    line-height: 1.7;
+}
+
+/* 新規トピック候補の語の並び。バッジを折り返して詰める */
+.candidate-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin: 0.25rem 0 0;
+}

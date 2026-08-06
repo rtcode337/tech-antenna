@@ -1,3 +1,79 @@
+/* 同義語のバッジ。折り返して詰める(トピックの候補一覧と同じ並べ方) */
+.alias-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin: 0.25rem 0 0;
+}
+
+/* 別名の出どころ(LLM 分類)。色だけで分けると見分けが色覚に依存するので、字でも示す */
+.alias-origin {
+    margin-left: 0.35rem;
+    padding-left: 0.35rem;
+    border-left: 1px solid currentColor;
+    font-size: 0.66rem;
+    letter-spacing: 0.02em;
+    opacity: 0.85;
+}
+
+/* ツリー上の位置。祖先 → このトピック → 配下を1行ずつ並べ、深さで字下げする。
+   カードにはしない —— 語彙の構造を見るための列なので、下の記事・イベント・書籍のカードと
+   同じ重さで出すと主従が分からなくなる。
+   字下げは行の padding で付ける(コンテナごと下げると details の中で二重に効く) */
+.topic-path {
+    margin: 0.25rem 0 0;
+    max-width: 62rem;
+}
+
+.path-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    padding: 0.2rem 0;
+    padding-left: calc(var(--depth, 0) * 1.1rem);
+    font-size: 0.94rem;
+}
+
+/* 子を持つノードは折りたたみ。標準マーカーは消して、字下げのそろう .caret を自前で描く */
+summary.path-row {
+    cursor: pointer;
+    list-style: none;
+}
+
+summary.path-row::-webkit-details-marker {
+    display: none;
+}
+
+.path-row .text-muted {
+    font-size: 0.82rem;
+}
+
+/* 開閉の三角と字下げの印は同じ幅にして、名前の頭をそろえる */
+.tree-branch,
+.caret {
+    flex: none;
+    width: 0.9rem;
+    color: var(--text-muted);
+}
+
+.caret::before {
+    content: "▶";
+    font-size: 0.7rem;
+}
+
+details[open] > summary .caret::before {
+    content: "▼";
+}
+
+/* このトピックの行。太字だけだと祖先の行と紛れるので、左に帯を足して現在地を示す */
+.path-row.current {
+    border-left: 3px solid var(--accent);
+    margin-left: calc(var(--depth, 0) * 1.1rem);
+    padding-left: 0.5rem;
+    background: var(--accent-soft);
+    border-radius: var(--radius-sm);
+}
+
 /* 記事・イベント・書籍を同じ形のカードで並べる。3種を1画面で見比べるページなので、
    種別ごとに見た目を変えないほうが追いやすい(作りは Articles / Events と同じ) */
 li {
