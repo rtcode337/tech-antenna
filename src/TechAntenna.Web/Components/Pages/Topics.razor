@@ -18,8 +18,10 @@
     まとめてトピック一覧にします。<strong>収集対象に選んだトピックは消えない</strong>ので、
     選択が勝手に外れることはありません。
     トピック名を押すと、その語の<strong>同義語と親子ツリー</strong>、紐づいた記事・イベント・書籍が見られます。
-    トピック名の後ろのかっこ書きが<strong>用語の一言説明</strong>です
-    (幅に収まらない分はカーソルを当てると全文が出ます。<code>?</code> が付いている行は説明がまだ無い語)。
+    トピック名の横の「記事 N」は<strong>その語がタグに付いた記事の件数</strong>(配下は含みません)、
+    後ろのかっこ書きが<strong>用語の一言説明</strong>です
+    (幅に収まらない分はカーソルを当てると全文が出ます。スマホでは <code>?</code> を押すと出ます)。
+    <strong>ツリーは話題度 0 のトピックも含めて全件</strong>、ランキングは上位 @RankingCount 件です。
 </p>
 
 <p class="page-note text-muted">
@@ -229,10 +231,27 @@ else
     RenderFragment TopicLink(StoredTopic topic) =>
     @<span class="topic-name">
         <a href="@TopicHref(topic)">@Label(topic)</a>
+        @* 集めた記事の件数。**0 のときは出さない**(ほとんどの行に「記事 0」が並ぶと、
+           件数が付いている行を見つけられなくなる)。配下は含めない単体の件数 *@
+        @if (topic.ArticleCount > 0)
+        {
+            <span class="article-count"
+                  title="@($"この語がタグに付いた記事の件数（{topic.CollectedAt.ToLocalTime():yyyy-MM-dd HH:mm} 時点）")">
+                記事 @topic.ArticleCount
+            </span>
+        }
         @if (Description(topic) is { } description)
         {
-            @* 長い説明は CSS で1行に切る(全文はツールチップで読める) *@
+            @* PC は1行に切ったかっこ書き(全文はツールチップ)。
+               **スマホは hover が無いので `?` を押して出すチップにする**(下の popover)。
+               どちらを見せるかは CSS のメディアクエリで決める *@
             <span class="topic-note" title="@description">（@description）</span>
+            <button class="note-toggle" type="button" popovertarget="@NoteId(topic)"
+                    aria-label="@($"{Label(topic)} の説明")">?</button>
+            <span class="note-popover" id="@NoteId(topic)" popover>
+                <strong>@Label(topic)</strong>
+                @description
+            </span>
         }
         else
         {
@@ -288,9 +307,22 @@ else
     /// <summary>用語の一言説明(カタログ。JSON に書いた分と LLM が埋めた分の合成)。</summary>
     string? Description(StoredTopic topic) => Catalog.DescriptionOf(topic.Tag);
 
+    /// <summary>
+    /// 説明チップ(popover)の id。タグをそのまま使わずエスケープするのは、
+    /// `c#` のような記号を含むキーでも一意で妥当な id にするため。
+    /// </summary>
+    static string NoteId(StoredTopic topic) => $"note-{Uri.EscapeDataString(topic.Tag)}";
+
+    /// <summary>ランキング表示で出す上限。上位を見る表なので全件は要らない。</summary>
+    const int RankingCount = 150;
+
     async Task LoadAsync()
     {
-        _topics = await TopicStore.GetTopicsAsync(150);
+        // **ツリーは全件出す。** 話題度で足切りすると、話題度 0 の子が消えてツリーが欠ける ——
+        // 親を選べば配下も収集対象になるので、配下が見えていないと何を選んだのか分からない
+        _topics = IsRanking
+            ? await TopicStore.GetTopicsAsync(RankingCount)
+            : await TopicStore.GetAllAsync();
         _roots = BuildTree(_topics);
         _candidates = await CandidateFinder.FindAsync();
     }

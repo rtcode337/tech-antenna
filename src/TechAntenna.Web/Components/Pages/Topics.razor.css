@@ -205,6 +205,50 @@ details[open] > summary .caret::before {
     cursor: help;
 }
 
+/* 集めた記事の件数。**縮ませない**(名前と同じ扱い) —— 短いので説明に譲る必要はなく、
+   潰れると桁が読めなくなる。数字は等幅にして行ごとの見比べができるようにする */
+.article-count {
+    flex: none;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    cursor: help;
+}
+
+/* スマホ用の「?」ボタンと説明チップ。**PC では出さない**(かっこ書きとツールチップで足りる)。
+   チップは HTML 標準の popover —— JS を使わずに「押して出す・外を押して閉じる」が成り立つ。
+   位置は画面下に固定する(行の隣に出すには CSS のアンカー位置指定が要り、対応がまだ狭い) */
+.note-toggle {
+    display: none;
+}
+
+.note-popover:popover-open {
+    display: block;
+    position: fixed;
+    inset: auto 0.75rem 0.75rem;
+    margin: 0;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    color: var(--text);
+    font-size: 0.92rem;
+    line-height: 1.7;
+}
+
+.note-popover strong {
+    display: block;
+    margin-bottom: 0.15rem;
+}
+
+.note-popover::backdrop {
+    background: rgb(0 0 0 / 0.25);
+}
+
 /* 説明がまだ無い語の印。名前の一部に見えないよう、小さく薄く離して置く */
 .no-description {
     margin-left: 0.2rem;
@@ -242,15 +286,32 @@ details[open] > summary .caret::before {
         padding-left: calc(var(--depth, 0) * 0.7rem);
     }
 
-    .topic-name {
-        flex-wrap: wrap;
+    /* 説明は行に並べず、「?」を押してチップで出す —— タッチ端末に hover は無く、
+       かっこ書きを2行目に回すと 1000 行超の一覧が縦に伸びすぎる */
+    .topic-note {
+        display: none;
     }
 
-    .topic-note {
-        flex: 1 1 100%;
-        overflow: visible;
-        white-space: normal;
-        cursor: auto;
+    /* 説明が無い語の「?」は出さない(丸い「?」ボタンと紛れる。
+       ボタンが無いこと自体が「説明が無い」の印になる) */
+    .no-description {
+        display: none;
+    }
+
+    .note-toggle {
+        display: inline-flex;
+        flex: none;
+        align-items: center;
+        justify-content: center;
+        width: 1.35rem;
+        height: 1.35rem;
+        padding: 0;
+        border: 1px solid var(--border-strong);
+        border-radius: 50%;
+        background: var(--surface-sunken);
+        color: var(--text-muted);
+        font-size: 0.78rem;
+        line-height: 1;
     }
 
     /* ランキング表示の表も同じ扱い(列幅固定なので、th の幅を詰める) */

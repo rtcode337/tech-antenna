@@ -82,9 +82,26 @@
         });
     }
 
+    // 説明チップ(popover)の「?」は summary の中にも置くので、クリックが summary へ
+    // 伝わると折りたたみまで動いてしまう。**チップを出すだけにする**ため伝播を止める
+    // (popover 自体は JS 無しで動く。ここは操作の取り違えを防ぐだけの上乗せ)
+    function isolateNoteToggles() {
+        document.querySelectorAll('.topic-tree .note-toggle').forEach(function (button) {
+            if (button.dataset.isolated) {
+                return;
+            }
+
+            button.dataset.isolated = '1';
+            button.addEventListener('click', function (event) {
+                event.stopPropagation();
+            });
+        });
+    }
+
     // defer 付きで読むので、この時点で DOM は組み上がっている
     apply();
     cascade();
+    isolateNoteToggles();
 
     // enhanced navigation 後にも当て直す(登録の仕方は nav-menu.js と同じ)
     function hookBlazor() {
@@ -92,6 +109,7 @@
             Blazor.addEventListener('enhancedload', function () {
                 apply();
                 cascade();
+                isolateNoteToggles();
             });
             return true;
         }

@@ -355,6 +355,12 @@ else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
     builder.Services.AddSingleton<ITopicDescriber>(topicClassifier);
 }
 
+// 応答を圧縮する。**トピックのツリーは全件(1000 行超)を出すので HTML が 1MB を超える** ——
+// 素のままだとスマホや外出先の回線で待たされる(Kestrel は既定で圧縮しない)。
+// HTTPS では既定で無効のまま(EnableForHttps を触らない) —— 圧縮と TLS の併用には
+// BREACH の懸念があり、TLS を終端するのは前段のプロキシなのでそちらに任せる
+builder.Services.AddResponseCompression();
+
 // 画面の手動ボタンからも呼ぶので、要約が未設定でも常に登録する(未設定なら何もしない)
 builder.Services.AddSingleton<SummaryRunner>();
 builder.Services.AddSingleton<TitleTranslationRunner>();
@@ -402,6 +408,9 @@ if (!app.Environment.IsDevelopment())
         app.UseHsts();
     }
 }
+// 圧縮は応答を包むので、静的アセットやコンポーネントより前に置く
+app.UseResponseCompression();
+
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 if (httpsConfigured)
 {

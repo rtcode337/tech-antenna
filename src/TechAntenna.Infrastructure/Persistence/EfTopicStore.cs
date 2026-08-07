@@ -75,6 +75,17 @@ public class EfTopicStore(IDbContextFactory<TechAntennaDbContext> contextFactory
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<StoredTopic>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await db.Topics
+            .OrderByDescending(topic => topic.IsSelected)
+            .ThenByDescending(topic => topic.SubtreeTrendScore)
+            .ThenBy(topic => topic.Tag)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task UpdateSelectionAsync(IReadOnlyList<string> tags, CancellationToken cancellationToken = default)
     {
         var selected = TagNormalizer.Normalize(tags);

@@ -80,6 +80,20 @@ public class InMemoryTopicStore : ITopicStore
         }
     }
 
+    public Task<IReadOnlyList<StoredTopic>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<StoredTopic> result = _byTag.Values
+                .OrderByDescending(topic => topic.IsSelected)
+                .ThenByDescending(topic => topic.SubtreeTrendScore)
+                .ThenBy(topic => topic.Tag, StringComparer.Ordinal)
+                .ToList();
+
+            return Task.FromResult(result);
+        }
+    }
+
     public Task UpdateSelectionAsync(IReadOnlyList<string> tags, CancellationToken cancellationToken = default)
     {
         var selected = TagNormalizer.Normalize(tags).ToHashSet(StringComparer.Ordinal);

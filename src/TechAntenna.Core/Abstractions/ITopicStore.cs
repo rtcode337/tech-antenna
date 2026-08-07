@@ -29,6 +29,15 @@ public interface ITopicStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// トピックを全件返す(並びは <see cref="GetTopicsAsync"/> と同じ)。
+    ///
+    /// **ツリー表示のため。** 話題度で足切りすると、話題度 0 の子が消えてツリーが欠ける ——
+    /// 「親を選べば配下も収集対象になる」以上、配下が見えていないと何を選んだのか分からない。
+    /// ランキング表示は上位だけでよいので、そちらは <see cref="GetTopicsAsync"/> を使う。
+    /// </summary>
+    Task<IReadOnlyList<StoredTopic>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// トピックを一覧から取り除く。LLM が「トピックでない」と確定させた語(Skip)の掃除に使う。
     /// **選択済み(IsSelected)の行は消さない** —— 消すと収集キーワードごと失われる。
     /// 実際に消した件数を返す。
