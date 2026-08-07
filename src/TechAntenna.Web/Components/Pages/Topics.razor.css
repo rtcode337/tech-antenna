@@ -4,8 +4,11 @@
     font-size: 0.89rem;
 }
 
-/* トピックの表を面の上に載せる。行数が多いので、区切りは横線だけにする */
+/* トピックの表を面の上に載せる。行数が多いので、区切りは横線だけにする。
+   **列幅は固定にする**(table-layout: fixed) —— 内容なりに広げると、
+   タグの列に入れた説明の長さで話題度・日時の列の位置が行ごとにずれる */
 .table {
+    table-layout: fixed;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
@@ -20,10 +23,21 @@
     text-align: center;
 }
 
+/* タグの列(名前 + 説明)だけが残りを取る。溢れは名前セルの中で … に切る */
+.table td:nth-child(2) {
+    overflow: hidden;
+}
+
+/* 見出しの「話題度(単体)」が折り返さない幅を取る(列幅固定なので溢れると隣に重なる) */
 .table td:nth-child(3),
 .table th:nth-child(3) {
+    width: 8.5rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+}
+
+.table th:last-child {
+    width: 10.5rem;
 }
 
 /* 更新日時は判断に使わない補足なので、目立たせない */
@@ -159,6 +173,38 @@ details[open] > summary .caret::before {
     line-height: 1.7;
 }
 
+/* トピック名と、その後ろのかっこ書きの説明。
+   **説明は1行に収めて溢れを … にする** —— 折り返させると 150 行の一覧が縦に伸び、
+   話題度や日時を追いにくくなる(全文はツールチップで読める) */
+.topic-name {
+    display: flex;
+    flex: 1;
+    align-items: baseline;
+    gap: 0.3rem;
+    min-width: 0;
+}
+
+/* **名前を先に確保する。** 縮むのを許すと、長い説明に押されて名前が消える
+   (実際にスマホで名前が読めなくなった)。名前が入り切らないときだけ … に切る */
+.topic-name > a {
+    flex: 0 0 auto;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.topic-note {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: help;
+}
+
 /* 説明がまだ無い語の印。名前の一部に見えないよう、小さく薄く離して置く */
 .no-description {
     margin-left: 0.2rem;
@@ -173,4 +219,58 @@ details[open] > summary .caret::before {
     flex-wrap: wrap;
     gap: 0.3rem;
     margin: 0.25rem 0 0;
+}
+
+/* 狭い画面(スマホ)。列の幅の合計が画面を超えると、伸縮する名前の列だけが潰れて
+   トピック名が読めなくなる。**列を減らして名前に幅を戻す**:
+
+   - 更新日時は落とす(判断に使わない補足で、いちばん幅を食う)
+   - 説明はかっこ書きのまま名前の下へ回して折り返す —— タッチ端末には hover が無く、
+     1行に切ると全文を読む手段が無くなるため(PC のツールチップの代わり)
+   - 字下げも詰める(深い階層で名前の開始位置が右に寄りすぎる) */
+@media (max-width: 640px) {
+    .topic-grid {
+        grid-template-columns: 2.1rem minmax(0, 1fr) 3.4rem;
+        gap: 0.35rem;
+    }
+
+    .date-cell {
+        display: none;
+    }
+
+    .name-cell {
+        padding-left: calc(var(--depth, 0) * 0.7rem);
+    }
+
+    .topic-name {
+        flex-wrap: wrap;
+    }
+
+    .topic-note {
+        flex: 1 1 100%;
+        overflow: visible;
+        white-space: normal;
+        cursor: auto;
+    }
+
+    /* ランキング表示の表も同じ扱い(列幅固定なので、th の幅を詰める) */
+    .table td:first-child,
+    .table th:first-child {
+        width: 2.6rem;
+    }
+
+    .table td:nth-child(3),
+    .table th:nth-child(3) {
+        width: 4.2rem;
+    }
+
+    /* 「話題度(単体)」は詰めた幅に収まらないので、見出しだけ折り返させる */
+    .table th:nth-child(3) {
+        white-space: normal;
+    }
+
+    .table td:last-child,
+    .table th:last-child {
+        display: none;
+    }
 }

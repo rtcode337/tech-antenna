@@ -18,7 +18,8 @@
     まとめてトピック一覧にします。<strong>収集対象に選んだトピックは消えない</strong>ので、
     選択が勝手に外れることはありません。
     トピック名を押すと、その語の<strong>同義語と親子ツリー</strong>、紐づいた記事・イベント・書籍が見られます。
-    用語の説明はトピック名にカーソルを当てると出ます(<code>?</code> が付いている行は説明がまだ無い語)。
+    トピック名の後ろのかっこ書きが<strong>用語の一言説明</strong>です
+    (幅に収まらない分はカーソルを当てると全文が出ます。<code>?</code> が付いている行は説明がまだ無い語)。
 </p>
 
 <p class="page-note text-muted">
@@ -45,7 +46,7 @@
             1 回に渡すのは 300 語までで、残りは次回に続きから。
             LLM が未設定ならこの手順は飛ばします(語は候補のまま残る)</li>
         <li><strong>用語の説明を埋める</strong> —— 説明がまだ無い用語に LLM が一言説明を付けます
-            (トピック名のツールチップと詳細ページに出ます)。<strong>新しく見つかった語の説明は
+            (トピック名の後ろのかっこ書きと、詳細ページに出ます)。<strong>新しく見つかった語の説明は
             手順 2 の応答に相乗り</strong>していて追加の呼び出しはありません。ここで聞くのは
             以前から一覧にあって説明だけ無い語で、1 回に 300 語まで・<strong>1 語につき 1 回だけ</strong>
             (結果は保存され、次回は聞き直しません)。収集対象に選んだトピックから先に埋めます</li>
@@ -158,7 +159,7 @@ else
                     <span>収集</span>
                     <span>タグ</span>
                     <span class="score-cell">話題度</span>
-                    <span>更新日時</span>
+                    <span class="date-cell">更新日時</span>
                 </div>
                 @foreach (var root in _roots!)
                 {
@@ -226,18 +227,19 @@ else
     @* トピックへのリンク。**説明はツールチップに出す** —— 一覧の行に入れると
        話題度・日時の列が押し出され、ツリーの字下げも読めなくなる *@
     RenderFragment TopicLink(StoredTopic topic) =>
-    @<text>
+    @<span class="topic-name">
+        <a href="@TopicHref(topic)">@Label(topic)</a>
         @if (Description(topic) is { } description)
         {
-            <a href="@TopicHref(topic)" title="@description">@Label(topic)</a>
+            @* 長い説明は CSS で1行に切る(全文はツールチップで読める) *@
+            <span class="topic-note" title="@description">（@description）</span>
         }
         else
         {
-            <a href="@TopicHref(topic)">@Label(topic)</a>
             <span class="no-description" title="説明はまだありません（「トピックを再編成」で埋まります）"
                   aria-hidden="true">?</span>
         }
-    </text>;
+    </span>;
 
     RenderFragment Checkbox(StoredTopic topic) =>
     @<input class="form-check-input" type="checkbox" name="SelectedTopics"
