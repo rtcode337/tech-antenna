@@ -14,7 +14,10 @@
         "commandName": "Project",
         "dotnetRunMessages": true,
         "launchBrowser": false,
-        "applicationUrl": "http://localhost:7022",
+        // LAN・VPN の他の端末から見えるよう 0.0.0.0 に bind する(localhost だと
+        // loopback だけになり、スマホや外出先からは届かない)。
+        // このマシンからは http://localhost:7022 でそのまま開ける
+        "applicationUrl": "http://0.0.0.0:7022",
         "environmentVariables": {
           "ASPNETCORE_ENVIRONMENT": "Development"
         }

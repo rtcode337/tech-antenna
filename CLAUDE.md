@@ -714,8 +714,16 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
 |---|---|
 | 7020 | アプリ。`dotnet run`・コンテナ内・compose の公開ポート(`PORT` の既定)すべて同じ |
 | 7021 | PostgreSQL。コンテナ内も `PGPORT` で 7021(`docker-compose.dev.yml` で開くときも同じ) |
-| 7022 | `dotnet watch`(ホットリロード) |
+| 7022 | `dotnet watch`(ホットリロード)。**LAN・VPN の他の端末からも見える** |
 | 7023 | `https` プロファイルの HTTPS(開発でだけ使う) |
+
+**`watch` プロファイルは `0.0.0.0` に bind する**(`Properties/launchSettings.json`)。
+`localhost` にすると loopback だけを待ち受けるので、スマホや VPN 経由の端末からは
+ポートが開いていても届かない(症状は接続できないだけで、ログには何も出ない)。
+**`http` プロファイル(7020)は `localhost` のまま** —— ブラウザを自動で開く設定なので、
+`0.0.0.0` の URL を渡すと開けない。7020 を他の端末へ見せたいときは
+`dotnet run --project src/TechAntenna.Web -- --urls http://0.0.0.0:7020` で上書きする
+(compose で動かす場合は Docker が公開するので、この指定は要らない)。
 
 **ホスト側とコンテナ内の番号をそろえてある** —— compose の `"7020:7020"` を読むだけで
 対応が分かるようにするため。アプリ側はベースイメージの既定(8080)を Dockerfile の
@@ -736,7 +744,7 @@ python3 tools/generate-icons.py src/TechAntenna.Web/wwwroot
 
 ```
 dotnet watch --project src/TechAntenna.Web --launch-profile watch
-# → http://localhost:7022
+# → http://localhost:7022（他の端末からは http://<このホスト>:7022）
 ```
 
 - **効く**: Razor のマークアップ、scoped CSS(`*.razor.css`)、メソッド本体の C#
