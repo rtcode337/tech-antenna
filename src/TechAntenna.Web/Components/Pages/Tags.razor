@@ -206,6 +206,15 @@ else
                             <span class="tag-name">
                                 @* 名前はタグの詳細(仕分けの状態と紐づくデータ)へのリンク *@
                                 <a href="@($"/tags/{Uri.EscapeDataString(tag.Key)}")">@tag.Key</a>
+                                @* 紐づくアイテムの件数(記事・ニュース・論文・イベント・書籍の合算)。
+                                   トピック一覧と同じ見せ方 —— ラベル無しのかっこ書き。0 は出さない *@
+                                @if (tag.TotalCount > 0)
+                                {
+                                    <span class="item-count"
+                                          title="@($"この語に紐づくアイテム数。記事・ニュース・論文 {tag.ArticleCount} / イベント {tag.EventCount} / 書籍 {tag.BookCount}")">
+                                        (@tag.TotalCount)
+                                    </span>
+                                }
                                 @if (tag.TopicKey is { Length: > 0 } topicKey && topicKey != tag.Key)
                                 {
                                     <span class="text-muted">→ @Catalog.DisplayOf(topicKey)</span>
@@ -304,12 +313,8 @@ else
     /// <summary>件数と話題度、状態の出どころ。なぜこの状態なのかが読めるように出す。</summary>
     static string Meta(Tag tag)
     {
-        var parts = new List<string>(3);
-        if (tag.TotalCount > 0)
-        {
-            parts.Add($"{tag.TotalCount}件");
-        }
-
+        // 件数は名前の隣の (N) に移した(ここにも出すと同じ数字が2回並ぶ)
+        var parts = new List<string>(2);
         if (tag.TrendScore > 0)
         {
             parts.Add($"話題度 {tag.TrendScore:0.0}");

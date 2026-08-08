@@ -317,13 +317,15 @@ else
         @* 検索の先頭一致に autofocus を置く。**JS を使わずに「開いてフォーカス」を成立させる**
            —— ブラウザが読み込み時に焦点を移し、画面内までスクロールしてくれる *@
         <a href="@TopicHref(topic)" autofocus="@(topic.Key == _firstMatch)">@Label(topic)</a>
-        @* 集めた記事の件数。**0 のときは出さない**(ほとんどの行に「記事 0」が並ぶと、
+        @* 紐づくアイテムの件数。**「記事 N」と書かない** —— この数は記事だけでなく
+           ニュース・論文・イベント・書籍の合算なので、ラベルを付けると嘘になる。
+           内訳はツールチップに出す。**0 のときは出さない**(ほとんどの行に (0) が並ぶと、
            件数が付いている行を見つけられなくなる)。配下は含めない単体の件数 *@
-        @if (topic.ArticleCount > 0)
+        @if (topic.TotalCount > 0)
         {
             <span class="article-count"
-                  title="@($"この語がタグに付いた記事の件数（{topic.UpdatedAt.ToLocalTime():yyyy-MM-dd HH:mm} 時点）")">
-                記事 @topic.ArticleCount
+                  title="@($"この語に紐づくアイテム数。記事・ニュース・論文 {topic.ArticleCount} / イベント {topic.EventCount} / 書籍 {topic.BookCount}（{topic.UpdatedAt.ToLocalTime():yyyy-MM-dd HH:mm} 時点）")">
+                (@topic.TotalCount)
             </span>
         }
         @if (Description(topic) is { } description)
