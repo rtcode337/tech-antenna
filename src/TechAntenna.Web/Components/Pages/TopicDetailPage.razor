@@ -3,7 +3,7 @@
 @using TechAntenna.Core.Topics
 @inject TopicService TopicService
 @inject TopicCatalog Catalog
-@inject ITopicClassificationStore ClassificationStore
+@inject ITagStore TagStore
 
 <PageTitle>@Title - tech-antenna</PageTitle>
 
@@ -258,13 +258,14 @@ else
         // 語彙としての姿はカタログから引く(LLM の分類は起動時と再編成時に合成済み)
         _structure = Catalog.StructureOf(Tag);
 
-        // 別名の出どころ。**分類は DB、人手の語彙は JSON** と役割が分かれているので、
-        // どちらが付けた別名なのか画面から分かるようにしておく
-        var classifications = await ClassificationStore.GetAllAsync();
-        _llmAliases = classifications
-            .Where(classification => classification.Kind == TopicClassificationKind.Alias
-                && classification.TargetKey == _structure.Key)
-            .Select(classification => classification.Tag)
+        // 別名の出どころ(規則 / シード / LLM / 人の手直し)。どちらが付けた別名なのか
+        // 画面から分かるようにしておく —— LLM の判定は人が見て直せる必要がある
+        var tags = await TagStore.GetAllAsync();
+        _llmAliases = tags
+            .Where(tag => tag.Status == TagStatus.Alias
+                && tag.TopicKey == _structure.Key
+                && tag.DecidedBy == DecidedBy.Llm)
+            .Select(tag => tag.Key)
             .ToHashSet(StringComparer.Ordinal);
 
         _detail = await TopicService.GetTopicAsync(Tag, 20);

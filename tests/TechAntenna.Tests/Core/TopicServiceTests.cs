@@ -53,58 +53,6 @@ public class TopicServiceTests
     }
 
     [Fact]
-    public async Task 記事イベント書籍がそろったタグを上位に出す()
-    {
-        // "blazor" は記事だけで件数が多く、"c#" は3種そろっているが件数は少ない
-        var service = await BuildAsync(
-            articles: [
-                NewArticle("a1", "blazor"),
-                NewArticle("a2", "blazor"),
-                NewArticle("a3", "blazor"),
-                NewArticle("a4", "c#"),
-            ],
-            events: [NewEvent("e1", "c#")],
-            books: [NewBook("9784111111111", "c#")]);
-
-        var topics = await service.GetTopicsAsync(10);
-
-        Assert.Equal(["c#", "blazor"], topics.Select(t => t.Tag));
-        Assert.Equal(3, topics[0].Coverage);
-        Assert.Equal(1, topics[1].Coverage);
-    }
-
-    [Fact]
-    public async Task そろっている種類数が同じなら総件数の多い順()
-    {
-        var service = await BuildAsync(
-            articles: [
-                NewArticle("a1", "many"),
-                NewArticle("a2", "many"),
-                NewArticle("a3", "few"),
-            ]);
-
-        var topics = await service.GetTopicsAsync(10);
-
-        Assert.Equal(["many", "few"], topics.Select(t => t.Tag));
-    }
-
-    [Fact]
-    public async Task 種類ごとの件数を数える()
-    {
-        var service = await BuildAsync(
-            articles: [NewArticle("a1", "c#"), NewArticle("a2", "c#")],
-            events: [NewEvent("e1", "c#")],
-            books: []);
-
-        var topic = Assert.Single(await service.GetTopicsAsync(10));
-
-        Assert.Equal(2, topic.ArticleCount);
-        Assert.Equal(1, topic.EventCount);
-        Assert.Equal(0, topic.BookCount);
-        Assert.Equal(3, topic.Total);
-    }
-
-    [Fact]
     public async Task タグを指定して記事イベント書籍をまとめて引ける()
     {
         var service = await BuildAsync(
@@ -130,13 +78,5 @@ public class TopicServiceTests
 
         Assert.Equal("c#", detail.Tag);
         Assert.Single(detail.Articles);
-    }
-
-    [Fact]
-    public async Task 何も無ければ空を返す()
-    {
-        var service = await BuildAsync();
-
-        Assert.Empty(await service.GetTopicsAsync(10));
     }
 }

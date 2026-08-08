@@ -10,24 +10,30 @@ namespace TechAntenna.Core.Topics;
 /// 用語の一言説明(1〜2文)。見慣れない語が一覧に並んだときに、開かなくても何の話か分かるように持つ。
 /// JSON に書けば人の記述が使われ、無ければ LLM が再編成のときに埋める。
 /// </param>
+/// <param name="English">
+/// 英語圏の収集元へ投げる検索語(`generative ai`)。arXiv に日本語の正式表記を投げると
+/// 0 件になるため別に持つ。無ければ正式表記を使う。
+/// </param>
 public record TopicCatalogEntry(
     string Display,
     IReadOnlyList<string> Aliases,
     string? Parent,
-    string? Description = null)
+    string? Description = null,
+    string? English = null)
 {
     /// <summary>突き合わせに使うキー。正式表記を機械的に正規化したもの。</summary>
     public string Key => TagNormalizer.ToKey(Display);
 }
 
 /// <summary>
-/// トピックの語彙と別名の対応表。
+/// トピックの語彙と別名の対応表。**読み取り用のスナップショット**で、
+/// 権威は DB(<see cref="Topic"/> と <see cref="Tag"/>)にある ——
+/// 起動時と再編成のあとに <see cref="Replace"/> で組み直す。
 ///
 /// <see cref="TagNormalizer"/> が潰すのは機械的な表記ゆれだけなので、
-/// 「ai と 人工知能」のような**同義語をまとめるのはこちらの仕事**。
-/// 中身はコードではなくデータ(`topic-catalog.json`)として持ち、人が直せるようにしている。
+/// 「ai と 人工知能」のような**同義語をまとめるのはこちらの仕事**
+/// (別名は <see cref="TagStatus.Alias"/> のタグから組む)。
 ///
-/// **LLM の自動分類(<see cref="TopicClassification"/>)は <see cref="Extend"/> で後から合成する。**
 /// インスタンスは DI で各収集ソースに配られた後も同じ参照のまま差し替わる
 /// (中身を不変のスナップショットとして丸ごと入れ替えるので、読む側のロックは不要)。
 /// </summary>
@@ -49,7 +55,7 @@ public class TopicCatalog
 
     static Snapshot Build(IReadOnlyList<TopicCatalogEntry> entries)
     {
-        // 同じキーの後勝ちはさせない(人手の JSON を LLM の分類が上書きしないため、先を採る)
+        // 同じキーの後勝ちはさせない(呼ぶ側が並べた優先順を尊重する)
         var byKey = new Dictionary<string, TopicCatalogEntry>(StringComparer.Ordinal);
         var kept = new List<TopicCatalogEntry>();
         foreach (var entry in entries)
@@ -113,84 +119,11 @@ public class TopicCatalog
     }
 
     /// <summary>
-    /// LLM の分類を合成した中身に差し替える。**検証済みの分類だけを渡すこと**
-    /// (<see cref="TopicClassificationValidator"/>)。同義語は既存エントリの別名に足し、
-    /// 新トピックは末尾に追加する。Skip は何もしない。
-    /// 元の JSON 由来のエントリと衝突するキーは JSON 側を優先する。
+    /// 中身を丸ごと差し替える。**語彙の権威は DB 側**にあり、ここは読み取り用の
+    /// スナップショット —— 起動時と再編成のあとに、DB から組み直して入れ替える。
+    /// (以前は JSON に LLM の分類を合成していたが、DB を実体にしたので合成は要らなくなった)
     /// </summary>
-    public void Extend(IReadOnlyList<TopicClassification> classifications)
-    {
-        var snapshot = _snapshot;
-        var entries = snapshot.Entries.ToList();
-        var indexByKey = new Dictionary<string, int>(StringComparer.Ordinal);
-        for (var i = 0; i < entries.Count; i++)
-        {
-            indexByKey[entries[i].Key] = i;
-        }
-
-        foreach (var classification in classifications)
-        {
-            switch (classification.Kind)
-            {
-                case TopicClassificationKind.Alias
-                    when classification.TargetKey is { Length: > 0 } targetKey
-                        && indexByKey.TryGetValue(targetKey, out var index):
-                {
-                    var entry = entries[index];
-                    if (!entry.Aliases.Contains(classification.Tag, StringComparer.Ordinal))
-                    {
-                        entries[index] = entry with
-                        {
-                            Aliases = [.. entry.Aliases, classification.Tag],
-                        };
-                    }
-
-                    break;
-                }
-
-                case TopicClassificationKind.NewTopic
-                    when classification.Display is { Length: > 0 } display:
-                {
-                    var key = TagNormalizer.ToKey(display);
-                    if (indexByKey.ContainsKey(key))
-                    {
-                        break; // 既にある(JSON 側を優先)
-                    }
-
-                    // 正式表記のキーが元のタグと違うときは、元のタグを別名にして突き合わせを保つ
-                    IReadOnlyList<string> aliases =
-                        key == classification.Tag ? [] : [classification.Tag];
-                    entries.Add(new TopicCatalogEntry(display, aliases, classification.ParentKey));
-                    indexByKey[key] = entries.Count - 1;
-                    break;
-                }
-            }
-        }
-
-        _snapshot = Build(entries);
-    }
-
-    /// <summary>
-    /// LLM が付けた一言説明を合成する(キー → 説明文)。
-    /// **JSON に書かれている説明は上書きしない** —— 別名や親と同じく、人の記述を優先する。
-    /// </summary>
-    public void ApplyDescriptions(IReadOnlyDictionary<string, string> descriptions)
-    {
-        if (descriptions.Count == 0)
-        {
-            return;
-        }
-
-        var entries = _snapshot.Entries
-            .Select(entry => entry.Description is { Length: > 0 }
-                    || !descriptions.TryGetValue(entry.Key, out var description)
-                    || string.IsNullOrWhiteSpace(description)
-                ? entry
-                : entry with { Description = description.Trim() })
-            .ToList();
-
-        _snapshot = Build(entries);
-    }
+    public void Replace(IReadOnlyList<TopicCatalogEntry> entries) => _snapshot = Build(entries);
 
     /// <summary>
     /// キーに登録されている別名。カタログに無いキーは空。
@@ -254,16 +187,17 @@ public class TopicCatalog
         _snapshot.ByKey.TryGetValue(key, out var entry) ? entry.Display : key;
 
     /// <summary>
-    /// 英語圏の収集元へ投げる検索語。**ASCII だけでできた別名があればそれを、無ければ正式表記**を返す
-    /// (`生成AI` → `generative ai`、`機械学習` → `machine learning`)。
+    /// 英語圏の収集元へ投げる検索語。**英語表記があればそれを、無ければ ASCII だけの別名、
+    /// それも無ければ正式表記**を返す(`生成AI` → `generative ai`)。
     ///
-    /// arXiv のような英語の収集元に日本語の正式表記をそのまま投げると 0 件になる —— 実測で
-    /// `生成AI` は 0 件だった。別名カタログに英語表記を持たせてあるので、そこから拾う。
-    /// ASCII の別名が無いトピックは日本語のまま投げることになる(その収集元では当たらない)。
+    /// arXiv のような英語の収集元に日本語の正式表記をそのまま投げると 0 件になる
+    /// —— 実測で `生成AI` は 0 件だった。
     /// </summary>
     public string EnglishTermOf(string key) =>
         _snapshot.ByKey.TryGetValue(key, out var entry)
-            ? entry.Aliases.FirstOrDefault(alias => alias.All(char.IsAscii)) ?? entry.Display
+            ? entry.English is { Length: > 0 } english
+                ? english
+                : entry.Aliases.FirstOrDefault(alias => alias.All(char.IsAscii)) ?? entry.Display
             : key;
 
     /// <summary>キーに対する1つ上の粒度。無ければ null。</summary>

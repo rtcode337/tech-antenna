@@ -4,58 +4,72 @@ using TechAntenna.Core.Topics;
 
 namespace TechAntenna.Infrastructure.Storage;
 
-/// <summary>接続文字列が無い開発時用のメモリ上トピックストア。</summary>
+/// <summary>語彙(トピック)のメモリ上の実装。接続文字列なしのお試し起動とテストで使う。</summary>
 public class InMemoryTopicStore : ITopicStore
 {
     readonly object _gate = new();
-    readonly Dictionary<string, StoredTopic> _byTag = new(StringComparer.Ordinal);
+    readonly Dictionary<string, Topic> _byKey = new(StringComparer.Ordinal);
 
     public Task UpsertAsync(
-        IReadOnlyList<TopicUpdate> topics,
-        DateTimeOffset collectedAt,
+        IReadOnlyList<Topic> topics,
+        DateTimeOffset updatedAt,
         CancellationToken cancellationToken = default)
     {
         lock (_gate)
         {
-            // 今回現れなかったトピックは話題度だけ 0 にする(行は消さない)
-            var seen = topics.Select(topic => topic.Tag).ToHashSet(StringComparer.Ordinal);
-            foreach (var stored in _byTag.Values.Where(stored => !seen.Contains(stored.Tag)))
+            // 今回現れなかったトピックは件数と話題度だけ 0 にする(行は消さない)
+            var seen = topics.Select(topic => topic.Key).ToHashSet(StringComparer.Ordinal);
+            foreach (var missing in _byKey.Values.Where(topic => !seen.Contains(topic.Key)))
             {
-                stored.TrendScore = 0;
-                stored.SubtreeTrendScore = 0;
-                stored.SourceCount = 0;
-                // 収集済みの件数も落とす —— 別名がまとまってタグが消えたときに古い件数が残るため
-                stored.ArticleCount = 0;
-                stored.EventCount = 0;
-                stored.BookCount = 0;
+                Reset(missing);
             }
 
             foreach (var topic in topics)
             {
-                if (!_byTag.TryGetValue(topic.Tag, out var stored))
+                if (!_byKey.TryGetValue(topic.Key, out var stored))
                 {
-                    stored = new StoredTopic { Tag = topic.Tag };
-                    _byTag[topic.Tag] = stored;
+                    stored = new Topic { Key = topic.Key };
+                    _byKey[topic.Key] = stored;
                 }
 
-                Apply(stored, topic, collectedAt);
+                Apply(stored, topic, updatedAt);
             }
         }
 
         return Task.CompletedTask;
     }
 
-    public Task<int> RemoveAsync(IReadOnlyList<string> tags, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<Topic>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            return Task.FromResult<IReadOnlyList<Topic>>(_byKey.Values
+                .OrderByDescending(topic => topic.IsSelected)
+                .ThenByDescending(topic => topic.SubtreeTrendScore)
+                .ThenBy(topic => topic.Key, StringComparer.Ordinal)
+                .ToList());
+        }
+    }
+
+    public Task<Topic?> GetAsync(string key, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            return Task.FromResult(_byKey.GetValueOrDefault(key));
+        }
+    }
+
+    public Task<int> RemoveAsync(IReadOnlyList<string> keys, CancellationToken cancellationToken = default)
     {
         lock (_gate)
         {
             var removed = 0;
-            foreach (var tag in tags)
+            foreach (var key in keys)
             {
                 // 選択済みは消さない(収集キーワードごと失われるため)
-                if (_byTag.TryGetValue(tag, out var stored) && !stored.IsSelected)
+                if (_byKey.TryGetValue(key, out var topic) && !topic.IsSelected)
                 {
-                    _byTag.Remove(tag);
+                    _byKey.Remove(key);
                     removed++;
                 }
             }
@@ -64,44 +78,14 @@ public class InMemoryTopicStore : ITopicStore
         }
     }
 
-    public Task<IReadOnlyList<StoredTopic>> GetTopicsAsync(int count, CancellationToken cancellationToken = default)
+    public Task UpdateSelectionAsync(IReadOnlyList<string> keys, CancellationToken cancellationToken = default)
     {
+        var selected = TagNormalizer.Normalize(keys).ToHashSet(StringComparer.Ordinal);
         lock (_gate)
         {
-            IReadOnlyList<StoredTopic> result = _byTag.Values
-                // 選択済みは話題度が 0 でも押し出されないよう先頭に固定する
-                .OrderByDescending(topic => topic.IsSelected)
-                .ThenByDescending(topic => topic.SubtreeTrendScore)
-                .ThenBy(topic => topic.Tag, StringComparer.Ordinal)
-                .Take(count)
-                .ToList();
-
-            return Task.FromResult(result);
-        }
-    }
-
-    public Task<IReadOnlyList<StoredTopic>> GetAllAsync(CancellationToken cancellationToken = default)
-    {
-        lock (_gate)
-        {
-            IReadOnlyList<StoredTopic> result = _byTag.Values
-                .OrderByDescending(topic => topic.IsSelected)
-                .ThenByDescending(topic => topic.SubtreeTrendScore)
-                .ThenBy(topic => topic.Tag, StringComparer.Ordinal)
-                .ToList();
-
-            return Task.FromResult(result);
-        }
-    }
-
-    public Task UpdateSelectionAsync(IReadOnlyList<string> tags, CancellationToken cancellationToken = default)
-    {
-        var selected = TagNormalizer.Normalize(tags).ToHashSet(StringComparer.Ordinal);
-        lock (_gate)
-        {
-            foreach (var topic in _byTag.Values)
+            foreach (var topic in _byKey.Values)
             {
-                topic.IsSelected = selected.Contains(topic.Tag);
+                topic.IsSelected = selected.Contains(topic.Key);
             }
         }
 
@@ -112,28 +96,39 @@ public class InMemoryTopicStore : ITopicStore
     {
         lock (_gate)
         {
-            IReadOnlyList<SelectedTopic> result = _byTag.Values
+            return Task.FromResult<IReadOnlyList<SelectedTopic>>(_byKey.Values
                 .Where(topic => topic.IsSelected)
-                .OrderBy(topic => topic.Tag, StringComparer.Ordinal)
+                .OrderBy(topic => topic.Key, StringComparer.Ordinal)
                 .Select(topic => new SelectedTopic(
-                    topic.Tag, topic.Display is { Length: > 0 } display ? display : topic.Tag))
-                .ToList();
-
-            return Task.FromResult(result);
+                    topic.Key,
+                    topic.Display is { Length: > 0 } display ? display : topic.Key,
+                    topic.English))
+                .ToList());
         }
     }
 
-    /// <summary>更新内容を1行に写す(EF 版と同じ規則にするため共有する)。</summary>
-    internal static void Apply(StoredTopic stored, TopicUpdate topic, DateTimeOffset collectedAt)
+    internal static void Reset(Topic topic)
+    {
+        topic.TrendScore = 0;
+        topic.SubtreeTrendScore = 0;
+        topic.ArticleCount = 0;
+        topic.EventCount = 0;
+        topic.BookCount = 0;
+    }
+
+    /// <summary>更新内容を1行に写す(EF 版と同じ規則にするため共有する)。**選択は触らない**。</summary>
+    internal static void Apply(Topic stored, Topic topic, DateTimeOffset updatedAt)
     {
         stored.Display = topic.Display;
         stored.Parent = topic.Parent;
+        stored.English = topic.English;
+        stored.Description = topic.Description;
+        stored.DecidedBy = topic.DecidedBy;
         stored.TrendScore = topic.TrendScore;
         stored.SubtreeTrendScore = topic.SubtreeTrendScore;
-        stored.SourceCount = topic.SourceCount;
         stored.ArticleCount = topic.ArticleCount;
         stored.EventCount = topic.EventCount;
         stored.BookCount = topic.BookCount;
-        stored.CollectedAt = collectedAt;
+        stored.UpdatedAt = updatedAt;
     }
 }

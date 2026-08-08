@@ -50,10 +50,12 @@ builder.Services.AddSingleton<ITrendTopicSource, QiitaTrendTopicSource>();
 // はてブの人気エントリー RSS からも話題度を作る(その場で1リクエスト。収集済み記事に依存しない)
 builder.Services.AddSingleton<ITrendTopicSource, HatenaHotentryTrendSource>();
 
-// トピックの語彙と別名の対応表。**コードではなくデータ**として持ち、人が直せるようにしている。
-// 読めなくても起動は止めない(別名がまとまらないだけで、収集も表示も成立する)。
-var topicCatalog = JsonTopicCatalogLoader.Load(
-    Path.Combine(builder.Environment.ContentRootPath, "topic-catalog.json"));
+// トピックの語彙(読み取り用のスナップショット)。**権威は DB** で、起動時に組み立てる。
+// `topic-catalog.json` は **DB が空のときに流し込む初期値** —— 語彙がまったく無いと
+// LLM が寄せ先も親も選べず、同義の親が二重にできるため。読めなくても起動は止めない
+var seedEntries = JsonTopicCatalogLoader.Load(
+    Path.Combine(builder.Environment.ContentRootPath, "topic-catalog.json")).Entries;
+var topicCatalog = TopicCatalog.Empty;
 builder.Services.AddSingleton(topicCatalog);
 
 // antiforgery と Blazor が使う Data Protection の鍵。既定ではコンテナ内の一時領域に
@@ -81,9 +83,8 @@ if (string.IsNullOrWhiteSpace(connectionString))
     builder.Services.AddSingleton<IArticleStore, InMemoryArticleStore>();
     builder.Services.AddSingleton<IEventStore, InMemoryEventStore>();
     builder.Services.AddSingleton<IBookStore, InMemoryBookStore>();
+    builder.Services.AddSingleton<ITagStore, InMemoryTagStore>();
     builder.Services.AddSingleton<ITopicStore, InMemoryTopicStore>();
-    builder.Services.AddSingleton<ITopicClassificationStore, InMemoryTopicClassificationStore>();
-    builder.Services.AddSingleton<ITopicDescriptionStore, InMemoryTopicDescriptionStore>();
 }
 else
 {
@@ -91,9 +92,8 @@ else
     builder.Services.AddSingleton<IArticleStore, EfArticleStore>();
     builder.Services.AddSingleton<IEventStore, EfEventStore>();
     builder.Services.AddSingleton<IBookStore, EfBookStore>();
+    builder.Services.AddSingleton<ITagStore, EfTagStore>();
     builder.Services.AddSingleton<ITopicStore, EfTopicStore>();
-    builder.Services.AddSingleton<ITopicClassificationStore, EfTopicClassificationStore>();
-    builder.Services.AddSingleton<ITopicDescriptionStore, EfTopicDescriptionStore>();
 }
 
 var collection = builder.Configuration
@@ -289,8 +289,10 @@ if (qiita.Enabled && qiita.Queries.Count > 0)
 }
 
 builder.Services.AddSingleton<BookCollectionRunner>();
-// 新規トピックの候補(集めたデータから導出)。設定画面の表示と再編成の入力で共用する
-builder.Services.AddSingleton<TopicCandidateFinder>();
+// 語彙のスナップショット(TopicCatalog)を DB から組み直す。起動時と再編成のあとに呼ぶ
+builder.Services.AddSingleton<TopicCatalogRefresher>();
+// 語彙の初期投入(DB が空のときだけ topic-catalog.json を流し込む)
+builder.Services.AddSingleton<TopicSeeder>();
 builder.Services.AddSingleton<TopicReorganizationRunner>();
 // タグの正規化規則を変えたときに保存済みデータを追従させる(外部へは出ないので常に登録する)
 builder.Services.AddSingleton<TagRenormalizationRunner>();
@@ -381,23 +383,12 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     await db.Database.MigrateAsync();
 }
 
-// 保存済みの LLM 分類をカタログへ合成する(topic-catalog.json は「人が確定させた語彙」、
-// DB の分類は「LLM の自動分類」。再起動やコンテナの作り直しで分類が消えないようにする)
+// **語彙の権威は DB。** DB が空なら topic-catalog.json を初期値として流し込み、
+// そのうえで DB からカタログ(読み取り用のスナップショット)を組み立てる。
+// 起動のたびに組み直すので、コンテナを作り直しても語彙は DB から復元される
 {
-    var storedClassifications = await app.Services
-        .GetRequiredService<ITopicClassificationStore>()
-        .GetAllAsync();
-    if (storedClassifications.Count > 0)
-    {
-        topicCatalog.Extend(storedClassifications);
-    }
-
-    // 一言説明も同じ扱い(JSON に書いた説明が優先される)
-    var storedDescriptions = await app.Services
-        .GetRequiredService<ITopicDescriptionStore>()
-        .GetAllAsync();
-    topicCatalog.ApplyDescriptions(
-        storedDescriptions.ToDictionary(d => d.Key, d => d.Text, StringComparer.Ordinal));
+    await app.Services.GetRequiredService<TopicSeeder>().SeedAsync(seedEntries);
+    await app.Services.GetRequiredService<TopicCatalogRefresher>().RefreshAsync();
 }
 
 if (!app.Environment.IsDevelopment())

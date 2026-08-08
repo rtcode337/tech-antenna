@@ -40,10 +40,14 @@ public class ArxivPaperSource(
         var topics = catalog ?? TopicCatalog.Empty;
 
         // **検索は英語表記、タグは正式表記。** arXiv は英語の索引なので `生成AI` をそのまま
-        // 投げると 0 件になる(実測)。カタログの英語別名(`generative ai`)で引いて、
+        // 投げると 0 件になる(実測)。トピックの英語表記(`generative ai`)で引いて、
         // 付けるタグは他の収集元と揃うよう正式表記のままにする
         var keywords = (await topicStore.GetSelectedAsync(cancellationToken))
-            .Select(topic => (Query: topics.EnglishTermOf(topic.Tag), Tag: topic.Display))
+            .Select(topic => (
+                Query: topic.English is { Length: > 0 } english
+                    ? english
+                    : topics.EnglishTermOf(topic.Key),
+                Tag: topic.Display))
             .ToList();
 
         if (keywords.Count == 0)

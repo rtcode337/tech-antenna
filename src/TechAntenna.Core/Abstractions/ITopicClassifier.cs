@@ -10,8 +10,15 @@ namespace TechAntenna.Core.Abstractions;
 /// <c>Description</c> は new のときの一言説明(**分類の応答に相乗りさせている** ——
 /// 説明のために呼び出しを増やさないため。知らない語では空で返る)。
 /// </summary>
+/// <c>English</c> は new のときの英語表記(arXiv のような英語の収集元へ投げる検索語。
+/// 日本語のまま投げると 0 件になるため、分類の応答で一緒に受け取る)。
 public record TopicClassifierVerdict(
-    int Index, string Kind, string? Target, string? Display, string? Description = null);
+    int Index,
+    string Kind,
+    string? Target,
+    string? Display,
+    string? Description = null,
+    string? English = null);
 
 /// <summary>
 /// カタログに無いタグを、既存トピックの同義語・新トピック(親付き)・トピック外に

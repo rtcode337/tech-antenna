@@ -52,8 +52,8 @@
                 @foreach (var topic in _topics)
                 {
                     <li>
-                        <a href="@($"/topics/{Uri.EscapeDataString(topic.Tag)}")">
-                            <span>@(topic.Display is { Length: > 0 } display ? display : topic.Tag)</span>
+                        <a href="@($"/topics/{Uri.EscapeDataString(topic.Key)}")">
+                            <span>@(topic.Display is { Length: > 0 } display ? display : topic.Key)</span>
                             <small>話題度 @(topic.TrendScore.ToString("0.0"))</small>
                         </a>
                     </li>
@@ -64,9 +64,9 @@
 </div>
 
 @code {
-    IReadOnlyList<StoredTopic>? _topics;
+    IReadOnlyList<Topic>? _topics;
     protected override async Task OnInitializedAsync()
     {
-        _topics = await TopicStore.GetTopicsAsync(10);
+        _topics = (await TopicStore.GetAllAsync()).Take(10).ToList();
     }
 }

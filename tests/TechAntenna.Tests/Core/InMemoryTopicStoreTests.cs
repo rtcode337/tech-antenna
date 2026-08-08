@@ -5,22 +5,27 @@ namespace TechAntenna.Tests.Core;
 
 public class InMemoryTopicStoreTests
 {
-    static readonly DateTimeOffset CollectedAt = new(2026, 8, 3, 0, 0, 0, TimeSpan.Zero);
+    static readonly DateTimeOffset UpdatedAt = new(2026, 8, 3, 0, 0, 0, TimeSpan.Zero);
 
-    static TopicUpdate Update(string tag, double score, string? display = null) =>
-        new(tag, display ?? tag, null, score, score, 1, 0, 0, 0);
+    static Topic NewTopic(string key, double score, string? display = null) => new()
+    {
+        Key = key,
+        Display = display ?? key,
+        TrendScore = score,
+        SubtreeTrendScore = score,
+    };
 
     [Fact]
     public async Task 話題度の高い順に返す()
     {
         var store = new InMemoryTopicStore();
 
-        await store.UpsertAsync([Update("記事だけ", 10), Update("3種", 30)], CollectedAt);
+        await store.UpsertAsync([NewTopic("記事だけ", 10), NewTopic("3種", 30)], UpdatedAt);
 
-        var topics = await store.GetTopicsAsync(10);
+        var topics = await store.GetAllAsync();
 
-        Assert.Equal(["3種", "記事だけ"], topics.Select(topic => topic.Tag));
-        Assert.Equal(CollectedAt, topics[0].CollectedAt);
+        Assert.Equal(["3種", "記事だけ"], topics.Select(topic => topic.Key));
+        Assert.Equal(UpdatedAt, topics[0].UpdatedAt);
     }
 
     [Fact]
@@ -28,56 +33,56 @@ public class InMemoryTopicStoreTests
     {
         // 消すと選択(IsSelected)ごと失われ、収集キーワードが空になって収集が止まる
         var store = new InMemoryTopicStore();
-        await store.UpsertAsync([Update("前回だけ", 30), Update("両方", 10)], CollectedAt);
+        await store.UpsertAsync([NewTopic("前回だけ", 30), NewTopic("両方", 10)], UpdatedAt);
         await store.UpdateSelectionAsync(["前回だけ"]);
 
-        await store.UpsertAsync([Update("両方", 20), Update("今回だけ", 5)], CollectedAt.AddHours(1));
+        await store.UpsertAsync([NewTopic("両方", 20), NewTopic("今回だけ", 5)], UpdatedAt.AddHours(1));
 
-        var topics = await store.GetTopicsAsync(10);
+        var topics = await store.GetAllAsync();
         // 選択済み(前回だけ)は話題度 0 でも先頭
-        Assert.Equal(["前回だけ", "両方", "今回だけ"], topics.Select(topic => topic.Tag));
-        Assert.Equal(0, topics.Single(topic => topic.Tag == "前回だけ").TrendScore);
-        Assert.Equal(["前回だけ"], (await store.GetSelectedAsync()).Select(topic => topic.Tag));
+        Assert.Equal(["前回だけ", "両方", "今回だけ"], topics.Select(topic => topic.Key));
+        Assert.Equal(0, topics.Single(topic => topic.Key == "前回だけ").TrendScore);
+        Assert.Equal(["前回だけ"], (await store.GetSelectedAsync()).Select(topic => topic.Key));
     }
 
     [Fact]
-    public async Task 選択したトピックは件数の上限に押し出されない()
+    public async Task 選択は正規化して突き合わせる()
     {
-        // 押し出されると画面から消え、選択の保存(渡された分で置き換える)で選択ごと外れる
+        // 画面から来る値は正式表記のこともある(`生成AI` → `生成ai`)
         var store = new InMemoryTopicStore();
-        await store.UpsertAsync([Update("選択", 1), Update("話題1", 30), Update("話題2", 20)], CollectedAt);
-        await store.UpdateSelectionAsync(["選択"]);
-
-        var topics = await store.GetTopicsAsync(2);
-
-        Assert.Equal(["選択", "話題1"], topics.Select(topic => topic.Tag));
-    }
-
-    [Fact]
-    public async Task 選択したトピックはキーと正式表記の両方を返す()
-    {
-        // 検索語には正式表記が要り、記事のタグとの突き合わせにはキーが要る
-        var store = new InMemoryTopicStore();
-        await store.UpsertAsync([Update("生成ai", 10, display: "生成AI")], CollectedAt);
+        await store.UpsertAsync([NewTopic("生成ai", 10, "生成AI")], UpdatedAt);
 
         await store.UpdateSelectionAsync(["生成AI"]);
 
         var selected = Assert.Single(await store.GetSelectedAsync());
-        Assert.Equal("生成ai", selected.Tag);
+        Assert.Equal("生成ai", selected.Key);
         Assert.Equal("生成AI", selected.Display);
     }
 
     [Fact]
-    public async Task 取り除くとき選択済みの行は残す()
+    public async Task 選択済みは消さない()
     {
+        // 消すと収集キーワードごと失われる
         var store = new InMemoryTopicStore();
-        await store.UpsertAsync([Update("ニュース", 10), Update("生成ai", 20)], CollectedAt);
-        await store.UpdateSelectionAsync(["生成ai"]);
+        await store.UpsertAsync([NewTopic("残す", 0), NewTopic("消す", 0)], UpdatedAt);
+        await store.UpdateSelectionAsync(["残す"]);
 
-        // 選択済み(生成ai)は消さない —— 消すと収集キーワードごと失われる
-        var removed = await store.RemoveAsync(["ニュース", "生成ai", "存在しない語"]);
+        var removed = await store.RemoveAsync(["残す", "消す"]);
 
         Assert.Equal(1, removed);
-        Assert.Equal(["生成ai"], (await store.GetTopicsAsync(10)).Select(t => t.Tag));
+        Assert.Equal(["残す"], (await store.GetAllAsync()).Select(topic => topic.Key));
+    }
+
+    [Fact]
+    public async Task 更新でも選択は触らない()
+    {
+        // 選択を変えるのは画面の操作だけ。再編成が上書きすると収集対象が勝手に変わる
+        var store = new InMemoryTopicStore();
+        await store.UpsertAsync([NewTopic("生成ai", 10)], UpdatedAt);
+        await store.UpdateSelectionAsync(["生成ai"]);
+
+        await store.UpsertAsync([NewTopic("生成ai", 20)], UpdatedAt.AddHours(1));
+
+        Assert.True((await store.GetAsync("生成ai"))!.IsSelected);
     }
 }

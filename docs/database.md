@@ -1,6 +1,6 @@
 # データベース定義
 
-PostgreSQL のテーブル定義と、テーブル間の関係をまとめた文書。**マイグレーションを 16 個
+PostgreSQL のテーブル定義と、テーブル間の関係をまとめた文書。**マイグレーションを
 たどらなくても最終形が分かるようにするため**に置いている。
 
 定義の**権威は3か所**にあり、この文書はそれを読める形に写したもの:
@@ -63,38 +63,42 @@ erDiagram
         text SourceName
         timestamptz CollectedAt
     }
-    Topics {
-        text Tag PK "正規化済みキー"
-        text Display "画面に出す正式表記"
-        text Parent "1つ上の粒度のキー"
-        boolean IsSelected "収集対象に選んだか"
-        double TrendScore "単体の話題度"
-        double SubtreeTrendScore "配下込みの話題度"
-        integer SourceCount "話題度の集計元サービス数"
+    Tags {
+        text Key PK "正規化済みタグ"
+        text Status "Pending / Promoted / Alias / NotTopic / Unresolved"
+        text TopicKey "Promoted なら自分、Alias なら寄せ先"
+        text DecidedBy "None / Rule / Seed / Llm / Human"
+        timestamptz DecidedAt
+        timestamptz RetryAfter "Unresolved の再挑戦時刻"
         integer ArticleCount
         integer EventCount
         integer BookCount
-        timestamptz CollectedAt
+        double TrendScore "外部トレンド由来"
+        integer SourceCount
+        timestamptz FirstSeenAt
+        timestamptz LastSeenAt
     }
-    TopicClassifications {
-        text Tag PK "分類対象のタグ"
-        text Kind "NewTopic / Alias / Skip / Unknown"
-        text TargetKey "Alias のとき寄せ先"
-        text Display "NewTopic のとき正式表記"
-        text ParentKey "NewTopic のとき親"
-        timestamptz ClassifiedAt "同じ実行の分は同じ値"
-    }
-    TopicDescriptions {
-        text Key PK "トピックのキー"
-        text Text "一言説明（120 文字以内）"
-        timestamptz DescribedAt
+    Topics {
+        text Key PK "正規化済みキー"
+        text Display "画面に出す正式表記"
+        text Parent "1つ上の粒度のキー"
+        text English "英語圏の収集元へ投げる検索語"
+        text Description "一言説明（120 文字以内）"
+        text DecidedBy "Seed / Llm / Human"
+        boolean IsSelected "収集対象に選んだか"
+        double TrendScore "単体の話題度"
+        double SubtreeTrendScore "配下込みの話題度"
+        integer ArticleCount "自分 + 別名のタグから合算"
+        integer EventCount
+        integer BookCount
+        timestamptz UpdatedAt
     }
 
-    Topics }o..o{ Articles : "Tags に Tag が含まれる"
-    Topics }o..o{ Events : "Tags に Tag が含まれる"
-    Topics }o..o{ Books : "Tags に Tag が含まれる"
-    Topics |o..o| TopicClassifications : "Tag = Tag"
-    Topics |o..o| TopicDescriptions : "Tag = Key"
+    Tags }o..o{ Articles : "Articles.Tags に Key が含まれる"
+    Tags }o..o{ Events : "Events.Tags に Key が含まれる"
+    Tags }o..o{ Books : "Books.Tags に Key が含まれる"
+    Topics |o--o{ Tags : "TopicKey"
+    Topics |o--o{ Topics : "Parent"
 ```
 
 **外部キーは1つも張っていない**(点線はそのため)。タグは `text[]` の中の文字列と突き合わせる
@@ -109,7 +113,7 @@ erDiagram
   タグごとの件数集計だけ生 SQL**(PostgreSQL の `unnest`)で書いてある
 - **`Tags` は正規化済み、`RawTags` は収集元のまま。** 規則を変えたときに過去データを作り直せる
   ように両方持つ(`RawTags` から `Tags` を再生成する)
-- **列挙は数値ではなく名前で保存**(`Articles.Kind`・`TopicClassifications.Kind`)。
+- **列挙は数値ではなく名前で保存**(`Articles.Kind`・`Tags.Status`・`Tags.DecidedBy`)。
   `psql` で覗いたときに読めるほうを優先した
 - **`null` と `0` は別物**。`BookmarkCount` / `ReviewCount` の `null` は「取得していない」、
   `0` は「ブックマーク・レビューが無い」。混ぜると未取得の行が最下位に沈む
@@ -126,29 +130,106 @@ erDiagram
 | Events | `StartsAt` | 開催日順の一覧 |
 | Books | `DedupKey`(ユニーク) | 重複取り込みの防止 |
 | Topics | `IsSelected` | 収集キーワードの取得 |
-| Topics | `CollectedAt` | 更新日時での並び |
+| Topics | `Parent` | ツリーの組み立て |
+| Tags | `Status` + `RetryAfter` | 「次に聞く語」の抽出 |
+| Tags | `TopicKey` | 語彙への合算 |
 
-## トピックまわりの3テーブルの関係
+## タグ層(Tags)と語彙(Topics)
 
-**トピックに「状態」の列は無い。** 画面に出る区分は、3つの保存先の組み合わせから導出している
-(語彙の権威は `src/TechAntenna.Web/topic-catalog.json` + `TopicClassifications`)。
+**「見かけたタグ」と「語彙」は別物なので、テーブルを分けている。** 以前は `Topics` 一枚に
+同居していて(語彙 355 行 + タグ 1400 行)、状態を列にできず、画面の区分を
+「行の有無 × カタログに載っているか × 分類記録の種別」から導出していた。
+分けたことで **3 テーブル(`Topics` / `TopicClassifications` / `TopicDescriptions`)が
+2 テーブル**になった。
 
-| 画面の区分 | 導出 |
-|---|---|
-| ツリーに入っている | カタログに**正式表記として**載っている、または `IsSelected` |
-| 次の再編成で LLM に聞く語 | 上に入っていない語のうち、タグ 3 回以上 または 話題度あり |
-| まだ分類していない | `Topics` に行はあるが、カタログにも `TopicClassifications` にも無い |
-| LLM が判断できなかった | `Kind = Unknown`(`ClassifiedAt` から 7 日で未分類に戻る) |
-| 技術用語でないと判定された | `Kind = Skip`。**`Topics` の行は削除される**ので分類記録から拾う |
-| 別名に吸収された | `Kind = Alias`(行は残るが正式表記ではない) |
+```mermaid
+erDiagram
+    Tags {
+        text Key PK "正規化済みタグ"
+        text Status "Pending / Promoted / Alias / NotTopic / Unresolved"
+        text TopicKey FK "Promoted なら自分、Alias なら寄せ先"
+        text DecidedBy "Rule / Seed / Llm / Human"
+        timestamptz DecidedAt
+        timestamptz RetryAfter "Unresolved の再挑戦時刻"
+        integer ArticleCount
+        integer EventCount
+        integer BookCount
+        double TrendScore "外部トレンド由来"
+        integer SourceCount
+        timestamptz FirstSeenAt
+        timestamptz LastSeenAt
+    }
+    Topics {
+        text Key PK "正規化済みキー"
+        text Display "画面に出す正式表記"
+        text Parent FK "1つ上の粒度"
+        text English "英語圏の収集元へ投げる検索語"
+        text Description "一言説明"
+        text DecidedBy "Seed / Llm / Human"
+        boolean IsSelected
+        double TrendScore
+        double SubtreeTrendScore
+        integer ArticleCount
+        integer EventCount
+        integer BookCount
+        timestamptz UpdatedAt
+    }
+    Topics |o--o{ Tags : "TopicKey"
+    Topics |o--o{ Topics : "Parent"
+```
 
-- `TopicDescriptions` は**LLM が付けた説明だけ**。人が書いた説明は `topic-catalog.json` にあり、
-  同じキーなら JSON を優先する
-- `TopicClassifications.ClassifiedAt` は**同じ実行の分が同じ値**になる。これを使って
-  「前回の再編成で聞いた語」を復元している(アプリを再起動しても分かるように)
-- `Topics` の行は**再編成が消す**ことがある: `Skip` と確定した語、いまの正規化では作られない
-  キー(`#生成ai` や `生成ai,`)、表示名が空の古い行。**`IsSelected` の行は消さない**
-  —— 消すと収集キーワードごと失われる
+**役割:** `Tags` は「見かけた語とその処理状況」、`Topics` は「語彙」。
+収集データ(`Articles` / `Events` / `Books`)のタグは<b>まず `Tags` に入る</b>。
+
+### 状態(`Tags.Status`)
+
+| Status | 意味 | 次にどうなるか |
+|---|---|---|
+| `Pending` | まだ仕分けていない | 件数 3 以上か話題度ありなら、次の再編成で LLM に聞く |
+| `Promoted` | トピックとして精査済み | `Topics` に行があり、`TopicKey` は自分 |
+| `Alias` | 別名として既存トピックに吸収 | 件数は `TopicKey` のトピックへ合算 |
+| `NotTopic` | 技術用語でないと判定 | 一覧に出さない(用語集に残す) |
+| `Unresolved` | LLM が判断できなかった | `RetryAfter` を過ぎたら `Pending` に戻す |
+
+- **`RetryAfter` を列に持つ**のが要点。「7 日」の計算が読む側から消え、
+  「次に聞く語」が `Status = Pending or RetryAfter <= now` の一発の条件になる
+- **`DecidedBy`** は出どころ(規則で寄せた / シード / LLM / 人が直した)。
+  画面で「この別名は LLM が付けた」を出しているので、これを列で持つ
+- **状態を書き換えるのは再編成と手直しの操作だけ。** 観測(件数・話題度の書き込み)は
+  状態に触らない —— 収集のたびに仕分けが巻き戻ると、同じ語を何度も LLM に聞くことになる
+- **仕分けは「前回までに観測したタグ」を対象にする。** 再編成は観測より先に仕分けるので、
+  その回に取得したトレンドの語は次の回に回る —— 押すまで何語 LLM に流れるか
+  分からない状態を避けるため(画面の「次の再編成で LLM に聞く語」と一致する)
+
+### 語彙の権威は DB に置く(`topic-catalog.json` はシード)
+
+`topic-catalog.json` は**人が確定させた語彙ではなく、AI に作らせた初期値**なので、
+**DB が空のときに一度流し込むシード**として扱う(`DecidedBy = Seed`)。以後の権威は DB 側で、
+JSON との衝突ルールは持たない。手直しは画面から状態を書き換える(`DecidedBy = Human`)。
+
+シードを完全に無くすには、次の 2 つが要る(入れば JSON は削除できる):
+
+- ~~英語表記を LLM に出させる~~ —— **済み**。`Topics.English` に持ち、分類の応答に
+  相乗りさせている(呼び出しは増えない)。arXiv には英語の検索語が要る
+- **同義の親を寄せる統合パス**(未着手)。シード無しで始めると、あるバッチが `AI` を、
+  別のバッチが `人工知能` を新トピックとして作りうる(検証はキーの重複しか見ない)
+
+### 何が単純になるか
+
+- 画面の 4 バケツが `GROUP BY Status`(いまは 3 テーブルの突き合わせ)
+- 「次に聞く語」が 1 つの条件式(いまは候補の導出 + 期限の計算)
+- **別名の件数が寄せ先に合算されるのが構造で保証される**(いまは再正規化の副作用)
+- `IsSelected` がトピック側だけに付く(いまは生タグも選択できてしまい、掃除から守る必要がある)
+- 呼び方が決まる: `Tags.Key` / `Topics.Key`、跨ぐ参照は `TopicKey`
+  (いまは `Topics.Tag` と `TopicDescriptions.Key` が同じ意味で名前が違う)
+
+### マイグレーションの履歴について
+
+**本格稼働の前に履歴を 1 本(`InitialCreate`)にまとめてある。** タグ層を入れるまでに
+16 個積み上がっていて、最終形を読むのに全部たどる必要があったため。既存の DB は捨てて
+作り直した(まだ本番運用に入っていない時点だったので、移行は書き捨てた)。
+
+以後は積み上げる。**列を足したら、この文書も同じコミットで更新する。**
 
 ## 変更手順
 

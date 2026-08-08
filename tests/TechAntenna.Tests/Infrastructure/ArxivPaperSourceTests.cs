@@ -32,7 +32,13 @@ public class ArxivPaperSourceTests
     {
         var store = new InMemoryTopicStore();
         await store.UpsertAsync(
-            displays.Select(d => new TopicUpdate(TagNormalizer.ToKey(d), d, null, 1, 1, 1, 0, 0, 0)).ToList(),
+            displays.Select(d => new Topic
+            {
+                Key = TagNormalizer.ToKey(d),
+                Display = d,
+                // 英語圏の収集元には英語表記を投げる(無ければ正式表記のまま)
+                English = d.All(char.IsAscii) ? d : null,
+            }).ToList(),
             new DateTimeOffset(2026, 8, 4, 0, 0, 0, TimeSpan.Zero));
         await store.UpdateSelectionAsync(displays);
         return store;

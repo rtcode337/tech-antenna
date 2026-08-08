@@ -6,49 +6,64 @@ using TechAntenna.Infrastructure.Storage;
 
 namespace TechAntenna.Infrastructure.Persistence;
 
-/// <summary>PostgreSQL に保存するトピックストア。</summary>
+/// <summary>語彙(トピック)の PostgreSQL 実装。</summary>
 public class EfTopicStore(IDbContextFactory<TechAntennaDbContext> contextFactory) : ITopicStore
 {
     public async Task UpsertAsync(
-        IReadOnlyList<TopicUpdate> topics,
-        DateTimeOffset collectedAt,
+        IReadOnlyList<Topic> topics,
+        DateTimeOffset updatedAt,
         CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var stored = await db.Topics.ToDictionaryAsync(topic => topic.Tag, cancellationToken);
+        var stored = await db.Topics.ToDictionaryAsync(topic => topic.Key, cancellationToken);
 
-        // 今回現れなかったトピックは話題度だけ 0 にする。**行は消さない** ——
+        // 今回現れなかったトピックは件数と話題度だけ 0 にする。**行は消さない** ——
         // 消すと選択(IsSelected)ごと失われ、収集キーワードが空になって収集が止まる
-        var seen = topics.Select(topic => topic.Tag).ToHashSet(StringComparer.Ordinal);
-        foreach (var missing in stored.Values.Where(topic => !seen.Contains(topic.Tag)))
+        var seen = topics.Select(topic => topic.Key).ToHashSet(StringComparer.Ordinal);
+        foreach (var missing in stored.Values.Where(topic => !seen.Contains(topic.Key)))
         {
-            missing.TrendScore = 0;
-            missing.SubtreeTrendScore = 0;
-            missing.SourceCount = 0;
-            // 収集済みの件数も落とす —— 別名がまとまってタグが消えたときに古い件数が残るため
-            missing.ArticleCount = 0;
-            missing.EventCount = 0;
-            missing.BookCount = 0;
+            InMemoryTopicStore.Reset(missing);
         }
 
         foreach (var topic in topics)
         {
-            if (!stored.TryGetValue(topic.Tag, out var row))
+            if (!stored.TryGetValue(topic.Key, out var row))
             {
-                row = new StoredTopic { Tag = topic.Tag };
+                row = new Topic { Key = topic.Key };
                 db.Topics.Add(row);
             }
 
-            InMemoryTopicStore.Apply(row, topic, collectedAt);
+            InMemoryTopicStore.Apply(row, topic, updatedAt);
         }
 
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<int> RemoveAsync(IReadOnlyList<string> tags, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Topic>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        if (tags.Count == 0)
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await db.Topics
+            // 選択済みは話題度が 0 でも先頭に固定する。並びは配下込みの話題度 ——
+            // 単体だと構造の語(親)が沈み、ツリーが読みにくい
+            .OrderByDescending(topic => topic.IsSelected)
+            .ThenByDescending(topic => topic.SubtreeTrendScore)
+            .ThenBy(topic => topic.Key)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<Topic?> GetAsync(string key, CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await db.Topics.FirstOrDefaultAsync(topic => topic.Key == key, cancellationToken);
+    }
+
+    public async Task<int> RemoveAsync(
+        IReadOnlyList<string> keys, CancellationToken cancellationToken = default)
+    {
+        if (keys.Count == 0)
         {
             return 0;
         }
@@ -57,38 +72,14 @@ public class EfTopicStore(IDbContextFactory<TechAntennaDbContext> contextFactory
 
         // 選択済みは消さない(収集キーワードごと失われるため)
         return await db.Topics
-            .Where(topic => tags.Contains(topic.Tag) && !topic.IsSelected)
+            .Where(topic => keys.Contains(topic.Key) && !topic.IsSelected)
             .ExecuteDeleteAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<StoredTopic>> GetTopicsAsync(int count, CancellationToken cancellationToken = default)
+    public async Task UpdateSelectionAsync(
+        IReadOnlyList<string> keys, CancellationToken cancellationToken = default)
     {
-        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
-
-        return await db.Topics
-            // 選択済みは話題度が 0 でも押し出されないよう先頭に固定する。
-            // 並びは配下込みの話題度 —— 単体だと構造の語(親)が足切りされ、子が孤立する
-            .OrderByDescending(topic => topic.IsSelected)
-            .ThenByDescending(topic => topic.SubtreeTrendScore)
-            .ThenBy(topic => topic.Tag)
-            .Take(count)
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<IReadOnlyList<StoredTopic>> GetAllAsync(CancellationToken cancellationToken = default)
-    {
-        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
-
-        return await db.Topics
-            .OrderByDescending(topic => topic.IsSelected)
-            .ThenByDescending(topic => topic.SubtreeTrendScore)
-            .ThenBy(topic => topic.Tag)
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task UpdateSelectionAsync(IReadOnlyList<string> tags, CancellationToken cancellationToken = default)
-    {
-        var selected = TagNormalizer.Normalize(tags);
+        var selected = TagNormalizer.Normalize(keys);
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         await db.Topics.ExecuteUpdateAsync(
@@ -96,19 +87,22 @@ public class EfTopicStore(IDbContextFactory<TechAntennaDbContext> contextFactory
 
         if (selected.Count > 0)
         {
-            await db.Topics.Where(topic => selected.Contains(topic.Tag))
-                .ExecuteUpdateAsync(set => set.SetProperty(topic => topic.IsSelected, true), cancellationToken);
+            await db.Topics.Where(topic => selected.Contains(topic.Key))
+                .ExecuteUpdateAsync(
+                    set => set.SetProperty(topic => topic.IsSelected, true), cancellationToken);
         }
     }
 
-    public async Task<IReadOnlyList<SelectedTopic>> GetSelectedAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<SelectedTopic>> GetSelectedAsync(
+        CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await db.Topics
             .Where(topic => topic.IsSelected)
-            .OrderBy(topic => topic.Tag)
-            .Select(topic => new SelectedTopic(topic.Tag, topic.Display == "" ? topic.Tag : topic.Display))
+            .OrderBy(topic => topic.Key)
+            .Select(topic => new SelectedTopic(
+                topic.Key, topic.Display == "" ? topic.Key : topic.Display, topic.English))
             .ToListAsync(cancellationToken);
     }
 }

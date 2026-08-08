@@ -2,21 +2,28 @@ using TechAntenna.Core.Abstractions;
 
 namespace TechAntenna.Core.Topics;
 
+/// <summary>検証を通った分類の結果。タグの仕分けと、新しく作るトピックに分かれる。</summary>
+public record TopicClassification(
+    IReadOnlyList<TagDecision> Decisions,
+    IReadOnlyList<Topic> NewTopics);
+
 /// <summary>
 /// LLM が返した分類(<see cref="TopicClassifierVerdict"/>)を検証して、
-/// カタログに反映してよい <see cref="TopicClassification"/> に直す。
+/// タグの仕分け(<see cref="TagDecision"/>)と新トピックに直す。
 ///
 /// **LLM の応答は信じすぎない**のがここの仕事:
 /// 存在しないトピックへの寄せ・自分自身への寄せ・実在しない親は捨てる。
-/// 捨てた語は保存もしない(次の収集でもう一度 LLM に聞く)。
+/// 捨てた語は <see cref="TagStatus.Unresolved"/> として期限付きで保留する ——
+/// 捨てて何も残さないと毎回同じ語を聞き直して LLM の枠を無駄にする。
 /// </summary>
 public static class TopicClassificationValidator
 {
-    public static IReadOnlyList<TopicClassification> Validate(
+    public static TopicClassification Validate(
         IReadOnlyList<string> tags,
         IReadOnlyList<TopicClassifierVerdict> verdicts,
         TopicCatalog catalog,
-        DateTimeOffset classifiedAt)
+        DateTimeOffset decidedAt,
+        int unknownRetryDays)
     {
         // 同じ番号が複数来たら最初のものを採る
         var byIndex = new Dictionary<int, TopicClassifierVerdict>();
@@ -38,79 +45,65 @@ public static class TopicClassificationValidator
             }
         }
 
-        var results = new List<TopicClassification>();
+        var decisions = new List<TagDecision>();
+        var newTopics = new Dictionary<string, Topic>(StringComparer.Ordinal);
+
         for (var i = 1; i <= tags.Count; i++)
         {
-            // 応答に無い番号も期限付きの Unknown(毎回聞き直さない)
+            var tag = tags[i - 1];
+
+            // 応答に無い番号も期限付きの保留(毎回聞き直さない)
             if (!byIndex.TryGetValue(i, out var verdict))
             {
-                results.Add(Unknown(tags[i - 1], classifiedAt));
+                decisions.Add(Unresolved(tag, decidedAt, unknownRetryDays));
                 continue;
             }
 
-            var tag = tags[i - 1];
-            var classification = ToClassification(tag, verdict, catalog, newTopicKeys, classifiedAt);
-            if (classification is not null)
-            {
-                results.Add(classification);
-            }
+            decisions.Add(Decide(
+                tag, verdict, catalog, newTopicKeys, newTopics, decidedAt, unknownRetryDays));
         }
 
-        return results;
+        return new TopicClassification(decisions, newTopics.Values.ToList());
     }
 
-    static TopicClassification Unknown(string tag, DateTimeOffset classifiedAt) => new()
-    {
-        Tag = tag,
-        Kind = TopicClassificationKind.Unknown,
-        ClassifiedAt = classifiedAt,
-    };
+    static TagDecision Unresolved(string tag, DateTimeOffset decidedAt, int retryDays) =>
+        new(tag, TagStatus.Unresolved, RetryAfter: decidedAt.AddDays(retryDays));
 
-    static TopicClassification? ToClassification(
+    static TagDecision Decide(
         string tag,
         TopicClassifierVerdict verdict,
         TopicCatalog catalog,
         HashSet<string> newTopicKeys,
-        DateTimeOffset classifiedAt)
+        Dictionary<string, Topic> newTopics,
+        DateTimeOffset decidedAt,
+        int retryDays)
     {
         switch (verdict.Kind)
         {
             case "alias" when verdict.Target is { Length: > 0 } target:
             {
                 var targetKey = catalog.Resolve(target);
-                // 寄せ先が実在し、自分自身でないときだけ通す(通らなければ期限付きの Unknown)
-                if (!catalog.Contains(targetKey) || targetKey == tag)
-                {
-                    return Unknown(tag, classifiedAt);
-                }
 
-                return new TopicClassification
-                {
-                    Tag = tag,
-                    Kind = TopicClassificationKind.Alias,
-                    TargetKey = targetKey,
-                    ClassifiedAt = classifiedAt,
-                };
+                // 寄せ先が実在し、自分自身でないときだけ通す
+                return !catalog.Contains(targetKey) || targetKey == tag
+                    ? Unresolved(tag, decidedAt, retryDays)
+                    : new TagDecision(tag, TagStatus.Alias, targetKey);
             }
 
             case "new" when verdict.Display is { Length: > 0 } display:
             {
-                var displayKey = TagNormalizer.ToKey(display);
-
-                // 「新トピック」と言いながら実在する表記なら、同義語として扱い直す
-                // (表記のキーがタグ自身なら、既に載っているので何も足すことが無い)
-                if (catalog.Contains(displayKey))
+                var key = TagNormalizer.ToKey(display);
+                if (key.Length == 0)
                 {
-                    var resolved = catalog.Resolve(display);
-                    return resolved == tag
-                        ? null
-                        : new TopicClassification
-                        {
-                            Tag = tag,
-                            Kind = TopicClassificationKind.Alias,
-                            TargetKey = resolved,
-                            ClassifiedAt = classifiedAt,
-                        };
+                    return Unresolved(tag, decidedAt, retryDays);
+                }
+
+                // 既にあるトピックの表記を「新トピック」と言ってきたら、寄せ先として扱い直す
+                if (catalog.IsTopic(key))
+                {
+                    return key == tag
+                        ? new TagDecision(tag, TagStatus.Promoted, key)
+                        : new TagDecision(tag, TagStatus.Alias, key);
                 }
 
                 // 親は「実在するトピック」か「同じバッチで通る新トピック」だけ。自分自身は不可
@@ -118,37 +111,37 @@ public static class TopicClassificationValidator
                 if (verdict.Target is { Length: > 0 } parent)
                 {
                     var candidate = catalog.Resolve(parent);
-                    if (candidate != displayKey
-                        && (catalog.Contains(candidate) || newTopicKeys.Contains(candidate)))
+                    if (candidate != key
+                        && (catalog.IsTopic(candidate) || newTopicKeys.Contains(candidate)))
                     {
                         parentKey = candidate;
                     }
                 }
 
-                return new TopicClassification
+                newTopics[key] = new Topic
                 {
-                    Tag = tag,
-                    Kind = TopicClassificationKind.NewTopic,
+                    Key = key,
                     Display = display.Trim(),
-                    ParentKey = parentKey,
-                    ClassifiedAt = classifiedAt,
+                    Parent = parentKey,
+                    English = verdict.English,
+                    Description = verdict.Description,
+                    DecidedBy = DecidedBy.Llm,
                 };
+
+                // タグと正式表記のキーが違うなら、タグの側は別名として寄せる
+                return key == tag
+                    ? new TagDecision(tag, TagStatus.Promoted, key)
+                    : new TagDecision(tag, TagStatus.Alias, key);
             }
 
             case "skip":
-                return new TopicClassification
-                {
-                    Tag = tag,
-                    Kind = TopicClassificationKind.Skip,
-                    ClassifiedAt = classifiedAt,
-                };
+                return new TagDecision(tag, TagStatus.NotTopic);
 
             default:
                 // unknown(語を知らない・新しすぎる)・未知の kind・必須値の欠けは、
-                // **期限付きの Unknown として保存する**。保存しないと毎回同じ語を聞き直して
-                // 枠を無駄にし、永久に確定させると、まさにツリーに入れたい新語を取り逃す
-                // (期限が切れたら未分類に戻す判定は収集側)
-                return Unknown(tag, classifiedAt);
+                // **期限付きの保留にする**。保存しないと毎回同じ語を聞き直して枠を無駄にし、
+                // 無期限に確定させると、まさにツリーに入れたい新語を取り逃す
+                return Unresolved(tag, decidedAt, retryDays);
         }
     }
 }

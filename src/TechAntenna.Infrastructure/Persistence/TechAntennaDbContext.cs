@@ -18,11 +18,9 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
 
     public DbSet<Book> Books => Set<Book>();
 
-    public DbSet<StoredTopic> Topics => Set<StoredTopic>();
+    public DbSet<Tag> Tags => Set<Tag>();
 
-    public DbSet<TopicClassification> TopicClassifications => Set<TopicClassification>();
-
-    public DbSet<TopicDescription> TopicDescriptions => Set<TopicDescription>();
+    public DbSet<Topic> Topics => Set<Topic>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -105,27 +103,26 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
             ConfigureTags(book.Property(b => b.RecommendedBy));
         });
 
-        modelBuilder.Entity<StoredTopic>(topic =>
+        modelBuilder.Entity<Tag>(tag =>
         {
-            topic.HasKey(t => t.Tag);
-            topic.Property(t => t.Tag).IsRequired();
-            topic.HasIndex(t => t.CollectedAt);
+            tag.HasKey(t => t.Key);
+            tag.Property(t => t.Key).IsRequired();
+            // 状態と出どころは数値ではなく名前で持つ(SQL で覗いたときに読めるほうを優先)
+            tag.Property(t => t.Status).HasConversion<string>().IsRequired();
+            tag.Property(t => t.DecidedBy).HasConversion<string>().IsRequired();
+            // 「次に聞く語」を引くための索引(状態 + 再挑戦の期限)
+            tag.HasIndex(t => new { t.Status, t.RetryAfter });
+            tag.HasIndex(t => t.TopicKey);
+        });
+
+        modelBuilder.Entity<Topic>(topic =>
+        {
+            topic.HasKey(t => t.Key);
+            topic.Property(t => t.Key).IsRequired();
+            topic.Property(t => t.Display).IsRequired();
+            topic.Property(t => t.DecidedBy).HasConversion<string>().IsRequired();
             topic.HasIndex(t => t.IsSelected);
-        });
-
-        modelBuilder.Entity<TopicClassification>(classification =>
-        {
-            classification.HasKey(c => c.Tag);
-            classification.Property(c => c.Tag).IsRequired();
-            // 種別は数値ではなく名前で持つ(SQL で覗いたときに読めるほうを優先)
-            classification.Property(c => c.Kind).HasConversion<string>().IsRequired();
-        });
-
-        modelBuilder.Entity<TopicDescription>(description =>
-        {
-            description.HasKey(d => d.Key);
-            description.Property(d => d.Key).IsRequired();
-            description.Property(d => d.Text).IsRequired();
+            topic.HasIndex(t => t.Parent);
         });
     }
 

@@ -88,7 +88,7 @@ else
     {
         _articles = await ArticleStore.GetRecentAsync(Limit, _kind);
         _selected = (await TopicStore.GetSelectedAsync())
-            .Select(topic => topic.Tag)
+            .Select(topic => topic.Key)
             .ToHashSet(StringComparer.Ordinal);
     }
 

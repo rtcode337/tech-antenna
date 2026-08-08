@@ -197,9 +197,9 @@ namespace TechAntenna.Infrastructure.Migrations
                     b.ToTable("Events");
                 });
 
-            modelBuilder.Entity("TechAntenna.Core.Topics.StoredTopic", b =>
+            modelBuilder.Entity("TechAntenna.Core.Topics.Tag", b =>
                 {
-                    b.Property<string>("Tag")
+                    b.Property<string>("Key")
                         .HasColumnType("text");
 
                     b.Property<int>("ArticleCount")
@@ -208,11 +208,70 @@ namespace TechAntenna.Infrastructure.Migrations
                     b.Property<int>("BookCount")
                         .HasColumnType("integer");
 
-                    b.Property<DateTimeOffset>("CollectedAt")
+                    b.Property<DateTimeOffset?>("DecidedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecidedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("EventCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("FirstSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("RetryAfter")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SourceCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TopicKey")
+                        .HasColumnType("text");
+
+                    b.Property<double>("TrendScore")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Key");
+
+                    b.HasIndex("TopicKey");
+
+                    b.HasIndex("Status", "RetryAfter");
+
+                    b.ToTable("Tags");
+                });
+
+            modelBuilder.Entity("TechAntenna.Core.Topics.Topic", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ArticleCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BookCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DecidedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
 
                     b.Property<string>("Display")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("English")
                         .HasColumnType("text");
 
                     b.Property<int>("EventCount")
@@ -224,65 +283,22 @@ namespace TechAntenna.Infrastructure.Migrations
                     b.Property<string>("Parent")
                         .HasColumnType("text");
 
-                    b.Property<int>("SourceCount")
-                        .HasColumnType("integer");
-
                     b.Property<double>("SubtreeTrendScore")
                         .HasColumnType("double precision");
 
                     b.Property<double>("TrendScore")
                         .HasColumnType("double precision");
 
-                    b.HasKey("Tag");
-
-                    b.HasIndex("CollectedAt");
-
-                    b.HasIndex("IsSelected");
-
-                    b.ToTable("Topics");
-                });
-
-            modelBuilder.Entity("TechAntenna.Core.Topics.TopicClassification", b =>
-                {
-                    b.Property<string>("Tag")
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("ClassifiedAt")
+                    b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Display")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ParentKey")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TargetKey")
-                        .HasColumnType("text");
-
-                    b.HasKey("Tag");
-
-                    b.ToTable("TopicClassifications");
-                });
-
-            modelBuilder.Entity("TechAntenna.Core.Topics.TopicDescription", b =>
-                {
-                    b.Property<string>("Key")
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("DescribedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Text")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.HasKey("Key");
 
-                    b.ToTable("TopicDescriptions");
+                    b.HasIndex("IsSelected");
+
+                    b.HasIndex("Parent");
+
+                    b.ToTable("Topics");
                 });
 #pragma warning restore 612, 618
         }

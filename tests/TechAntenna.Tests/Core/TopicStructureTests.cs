@@ -126,25 +126,17 @@ public class TopicStructureTests
     }
 
     [Fact]
-    public void 説明はJSONに書いたものを優先する()
+    public void 説明はエントリから読む()
     {
-        // JSON は「人が書いた説明」、DB は「LLM が埋めた説明」。役割が分かれている
         var catalog = new TopicCatalog(
         [
-            new TopicCatalogEntry("AI", [], null, "人が書いた説明"),
+            new TopicCatalogEntry("AI", [], null, "人間の知的な作業をさせる技術の総称"),
             new TopicCatalogEntry("RAG", [], null),
         ]);
 
-        catalog.ApplyDescriptions(new Dictionary<string, string>
-        {
-            ["ai"] = "LLM が付けた説明",
-            ["rag"] = "検索で引いた文書を添えて答えさせる手法",
-            ["いない語"] = "無視される",
-        });
-
-        Assert.Equal("人が書いた説明", catalog.DescriptionOf("ai"));
-        Assert.Equal("検索で引いた文書を添えて答えさせる手法", catalog.DescriptionOf("rag"));
-        Assert.Equal("検索で引いた文書を添えて答えさせる手法", catalog.StructureOf("rag").Description);
+        Assert.Equal("人間の知的な作業をさせる技術の総称", catalog.DescriptionOf("ai"));
+        Assert.Equal("人間の知的な作業をさせる技術の総称", catalog.StructureOf("ai").Description);
+        Assert.Null(catalog.DescriptionOf("rag"));
         Assert.Null(catalog.DescriptionOf("わからない語"));
     }
 

@@ -5,8 +5,7 @@
 @using TechAntenna.Web.Services
 @inject ITopicStore TopicStore
 @inject TopicCatalog Catalog
-@inject TopicCandidateFinder CandidateFinder
-@inject ITopicClassificationStore ClassificationStore
+@inject ITagStore TagStore
 @inject TopicReorganizationRunner ReorganizationRunner
 
 <PageTitle>トピック - tech-antenna</PageTitle>
@@ -104,10 +103,10 @@
             その場で足すと、押すまで何語 LLM に流れるか分からなくなるため</li>
         <li><strong>一度聞いた語は聞き直しません</strong>(判断できなかった語だけ 1 週間後に再挑戦)</li>
     </ul>
-    @if (_candidates is { Count: > 0 })
+    @if (_pending is { Count: > 0 })
     {
         <p class="candidate-list">
-            @foreach (var candidate in _candidates.Take(TopicReorganizationRunner.MaxTagsPerClassification))
+            @foreach (var candidate in _pending.Take(TopicReorganizationRunner.MaxTagsPerClassification))
             {
                 <span class="badge bg-secondary">@CandidateLabel(candidate)</span>
             }
@@ -116,7 +115,7 @@
         {
             <p class="text-muted">次回以降に回る語(@NextOverflow 語):</p>
             <p class="candidate-list">
-                @foreach (var candidate in _candidates.Skip(TopicReorganizationRunner.MaxTagsPerClassification))
+                @foreach (var candidate in _pending.Skip(TopicReorganizationRunner.MaxTagsPerClassification))
                 {
                     <span class="badge bg-light">@CandidateLabel(candidate)</span>
                 }
@@ -223,13 +222,13 @@ else
                 <tbody>
                     @foreach (var topic in _topics
                         .OrderByDescending(t => t.TrendScore)
-                        .ThenBy(t => t.Tag, StringComparer.Ordinal))
+                        .ThenBy(t => t.Key, StringComparer.Ordinal))
                     {
-                        <tr class="@(_matches.Contains(topic.Tag) ? "match" : "")">
+                        <tr class="@(_matches.Contains(topic.Key) ? "match" : "")">
                             <td>@Checkbox(topic)</td>
                             <td>@TopicLink(topic)</td>
                             <td class="text-end">@topic.TrendScore.ToString("0.0")</td>
-                            <td>@topic.CollectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@topic.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
                         </tr>
                     }
                 </tbody>
@@ -271,23 +270,23 @@ else
 <section class="glossary" aria-labelledby="glossary-heading">
     <h2 id="glossary-heading" class="h5">一覧に出していない語</h2>
     <p class="page-note text-muted">
-        トピックのタグとしては生きていますが、<strong>語彙(トピックのツリー)には入っていない</strong>語です。
-        「トピックを再編成」を押すと、ここの語を LLM が分類してツリーへ組み込みます
-        (タグとして 3 回以上付いた語が対象。1〜2 回の語は誤記や一過性のタグが多いので平置きのまま残ります)。
+        記事・イベント・書籍で見つかったタグは<strong>まずタグとして記録され</strong>、
+        再編成のときに LLM が仕分けます。<strong>語彙(トピックのツリー)に入っていないタグ</strong>を
+        状態ごとに出しています(状態は列で持っているので、ここの区分がそのまま実体です)。
     </p>
 
     @GlossaryGroup(
-        "まだ分類していない", _unclassified,
-        "LLM にまだ聞いていない語。「トピックを再編成」で順に分類します（1 回に 300 語まで）。")
+        "仕分けまち", _waiting,
+        "まだ LLM に聞いていないタグ。集めたデータに 3 回以上付いた語か、外部トレンドに現れた語から順に聞きます（1 回に 300 語まで）。")
     @GlossaryGroup(
-        "LLM が判断できなかった", _undecided,
-        "知らない語・新しすぎる語として保留された語。1 週間おいて自動で聞き直します。")
+        "LLM が判断できなかった", _unresolved,
+        "知らない語・新しすぎる語として保留したタグ。1 週間おいて自動で聞き直します。")
     @GlossaryGroup(
         "技術用語でないと判定された", _notTopics,
-        "メディア名・一般語などとして LLM が除いた語。誤判定なら topic-catalog.json に書けばツリーへ戻ります。")
+        "メディア名・一般語などとして LLM が除いたタグ。記事などのタグとしては残ります。")
     @GlossaryGroup(
         "別名に吸収された", _absorbed,
-        "既存トピックの別表記として寄せた語。件数は寄せ先のトピックに合算されています。")
+        "既存トピックの別表記として寄せたタグ（→ の右が寄せ先）。件数は寄せ先のトピックに合算されます。")
 </section>
 
 @* 用語集の 1 グループ。件数が 0 のときは節ごと出さない *@
@@ -330,7 +329,7 @@ else
                topic-tree.js が data-tag をキーに復元する(既定との差分だけを持つ) *@
             @* 検索で当たった枝は開く。**localStorage の復元に勝たせる**ため印を付ける
                (印が無いと、以前に畳んだ枝が復元されて検索結果が隠れる) *@
-            <details class="topic-node" data-tag="@node.Topic.Tag"
+            <details class="topic-node" data-tag="@node.Topic.Key"
                      open="@(node.ContainsMatch || depth > 0)"
                      data-force-open="@(node.ContainsMatch ? "1" : null)">
                 <summary class="topic-row">@RowContent(node, depth)</summary>
@@ -343,7 +342,7 @@ else
     </text>;
 
     RenderFragment RowContent(TopicNode node, int depth) =>
-    @<span class="topic-grid @(_matches.Contains(node.Topic.Tag) ? "match" : "")">
+    @<span class="topic-grid @(_matches.Contains(node.Topic.Key) ? "match" : "")">
         <span>@Checkbox(node.Topic)</span>
         <span class="name-cell" style="--depth: @depth">
             @if (node.Children.Count > 0)
@@ -362,22 +361,22 @@ else
             @TopicLink(node.Topic)
         </span>
         <span class="score-cell" title="配下込みの話題度">@node.Topic.SubtreeTrendScore.ToString("0.0")</span>
-        <span class="date-cell">@node.Topic.CollectedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+        <span class="date-cell">@node.Topic.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
     </span>;
 
     @* トピックへのリンク。**説明はツールチップに出す** —— 一覧の行に入れると
        話題度・日時の列が押し出され、ツリーの字下げも読めなくなる *@
-    RenderFragment TopicLink(StoredTopic topic) =>
+    RenderFragment TopicLink(Topic topic) =>
     @<span class="topic-name">
         @* 検索の先頭一致に autofocus を置く。**JS を使わずに「開いてフォーカス」を成立させる**
            —— ブラウザが読み込み時に焦点を移し、画面内までスクロールしてくれる *@
-        <a href="@TopicHref(topic)" autofocus="@(topic.Tag == _firstMatch)">@Label(topic)</a>
+        <a href="@TopicHref(topic)" autofocus="@(topic.Key == _firstMatch)">@Label(topic)</a>
         @* 集めた記事の件数。**0 のときは出さない**(ほとんどの行に「記事 0」が並ぶと、
            件数が付いている行を見つけられなくなる)。配下は含めない単体の件数 *@
         @if (topic.ArticleCount > 0)
         {
             <span class="article-count"
-                  title="@($"この語がタグに付いた記事の件数（{topic.CollectedAt.ToLocalTime():yyyy-MM-dd HH:mm} 時点）")">
+                  title="@($"この語がタグに付いた記事の件数（{topic.UpdatedAt.ToLocalTime():yyyy-MM-dd HH:mm} 時点）")">
                 記事 @topic.ArticleCount
             </span>
         }
@@ -401,18 +400,18 @@ else
         }
     </span>;
 
-    RenderFragment Checkbox(StoredTopic topic) =>
+    RenderFragment Checkbox(Topic topic) =>
     @<input class="form-check-input" type="checkbox" name="SelectedTopics"
-            value="@topic.Tag" checked="@topic.IsSelected"
+            value="@topic.Key" checked="@topic.IsSelected"
             aria-label="@($"{Label(topic)} を収集対象にする")" />;
 }
 
 @code {
-    IReadOnlyList<StoredTopic>? _topics;
+    IReadOnlyList<Topic>? _topics;
     List<TopicNode>? _roots;
-    IReadOnlyList<TopicCandidate>? _candidates;
-    IReadOnlyList<string> _unclassified = [];
-    IReadOnlyList<string> _undecided = [];
+    IReadOnlyList<Tag>? _pending;
+    IReadOnlyList<string> _waiting = [];
+    IReadOnlyList<string> _unresolved = [];
     IReadOnlyList<string> _absorbed = [];
     IReadOnlyList<string> _notTopics = [];
     HashSet<string> _matches = new(StringComparer.Ordinal);
@@ -440,7 +439,7 @@ else
     /// </summary>
     class TopicNode
     {
-        public required StoredTopic Topic { get; init; }
+        public required Topic Topic { get; init; }
         public List<TopicNode> Children { get; } = [];
         public bool ContainsSelected { get; set; }
         public bool ContainsMatch { get; set; }
@@ -460,64 +459,57 @@ else
             + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : ""));
 
     // 画面に出すのはキー(生成ai)ではなくカタログの正式表記(生成AI)
-    static string Label(StoredTopic topic) => topic.Display is { Length: > 0 } display ? display : topic.Tag;
+    static string Label(Topic topic) => topic.Display is { Length: > 0 } display ? display : topic.Key;
 
-    static string TopicHref(StoredTopic topic) => $"/topics/{Uri.EscapeDataString(topic.Tag)}";
+    static string TopicHref(Topic topic) => $"/topics/{Uri.EscapeDataString(topic.Key)}";
 
     /// <summary>次の再編成で 1 回に聞く語数(枠に収まる分)。</summary>
     int NextCount => Math.Min(
-        _candidates?.Count ?? 0, TopicReorganizationRunner.MaxTagsPerClassification);
+        _pending?.Count ?? 0, TopicReorganizationRunner.MaxTagsPerClassification);
 
     /// <summary>枠に収まらず次回以降に回る語数。</summary>
     int NextOverflow => Math.Max(
-        0, (_candidates?.Count ?? 0) - TopicReorganizationRunner.MaxTagsPerClassification);
+        0, (_pending?.Count ?? 0) - TopicReorganizationRunner.MaxTagsPerClassification);
 
     /// <summary>
     /// 候補のバッジ。**どちらの材料で選ばれたのかが分かるように**、件数(集めたデータ)と
     /// 話題度(トレンド由来)を持っている分だけ添える(両方あることもある)。
     /// </summary>
-    static string CandidateLabel(TopicCandidate candidate)
+    static string CandidateLabel(Tag tag)
     {
         var reasons = new List<string>(2);
-        if (candidate.Count > 0)
+        if (tag.TotalCount > 0)
         {
-            reasons.Add($"{candidate.Count}件");
+            reasons.Add($"{tag.TotalCount}件");
         }
 
-        if (candidate.TrendScore > 0)
+        if (tag.TrendScore > 0)
         {
-            reasons.Add($"話題度 {candidate.TrendScore:0.0}");
+            reasons.Add($"話題度 {tag.TrendScore:0.0}");
         }
 
-        return reasons.Count > 0 ? $"{candidate.Tag}({string.Join(" / ", reasons)})" : candidate.Tag;
+        return reasons.Count > 0 ? $"{tag.Key}({string.Join(" / ", reasons)})" : tag.Key;
     }
 
     /// <summary>用語の一言説明(カタログ。JSON に書いた分と LLM が埋めた分の合成)。</summary>
-    string? Description(StoredTopic topic) => Catalog.DescriptionOf(topic.Tag);
+    string? Description(Topic topic) => Catalog.DescriptionOf(topic.Key);
 
     /// <summary>
     /// 説明チップ(popover)の id。タグをそのまま使わずエスケープするのは、
     /// `c#` のような記号を含むキーでも一意で妥当な id にするため。
     /// </summary>
-    static string NoteId(StoredTopic topic) => $"note-{Uri.EscapeDataString(topic.Tag)}";
+    static string NoteId(Topic topic) => $"note-{Uri.EscapeDataString(topic.Key)}";
 
     /// <summary>
-    /// トピックを読み込み、**一覧に出す語と出さない語に分ける**。
+    /// 語彙とタグを読み込む。**一覧は語彙(トピック)そのまま**で、タグは状態ごとに
+    /// 用語集へ回す —— タグは 1000 語を超え、混ぜるとツリーの構造が埋まる。
     ///
-    /// 一覧に出すのは<b>語彙(カタログ)に載っている正式表記</b>と<b>収集対象に選んだ語</b>だけ。
-    /// 残り(まだ分類していない語・LLM が判断できなかった語・別名に吸収された語)は
-    /// 一覧では 800 行を超える平置きの列になって構造を埋めてしまうので、下の用語集に回す。
-    ///
-    /// **選択済みは必ず一覧に残す。** 保存は「一覧に出ている分で置き換える」ので、
-    /// 隠した行の選択は保存のときに外れてしまう。
-    ///
-    /// 話題度で足切りはしない —— 話題度 0 の子が消えるとツリーが欠け、
-    /// 親を選んだときに何が収集対象になるのか分からなくなる。
+    /// 話題度で足切りはしない(話題度 0 の子が消えるとツリーが欠け、親を選んだときに
+    /// 何が収集対象になるのか分からなくなる)。
     /// </summary>
     async Task LoadAsync()
     {
-        var all = await TopicStore.GetAllAsync();
-        _topics = all.Where(topic => topic.IsSelected || Catalog.IsTopic(topic.Tag)).ToList();
+        _topics = await TopicStore.GetAllAsync();
         _matches = FindMatches(_topics);
         _roots = BuildTree(_topics, _matches);
 
@@ -527,55 +519,52 @@ else
         _firstMatch = resolved is not null && _matches.Contains(resolved)
             ? resolved
             : FirstMatchInOrder(_roots, _matches);
-        _candidates = await CandidateFinder.FindAsync();
 
-        // 一覧から外した語を、なぜ外れているのか(分類の状態)で分ける
-        var classifications = await ClassificationStore.GetAllAsync();
-        var kinds = classifications.ToDictionary(c => c.Tag, c => c.Kind, StringComparer.Ordinal);
+        // タグを状態ごとに分ける。**状態は列にある**ので、テーブルの突き合わせも期限の計算も要らない
+        var tags = await TagStore.GetAllAsync();
+        _pending = await TagStore.GetPendingAsync(
+            DateTimeOffset.UtcNow, TopicReorganizationRunner.MinTagCount);
+        _waiting = Keys(tags.Where(tag => tag.Status == TagStatus.Pending));
+        _unresolved = Keys(tags.Where(tag => tag.Status == TagStatus.Unresolved));
+        _notTopics = Keys(tags.Where(tag => tag.Status == TagStatus.NotTopic));
+        _absorbed = tags
+            .Where(tag => tag.Status == TagStatus.Alias && tag.TopicKey is { Length: > 0 })
+            .OrderBy(tag => tag.Key, StringComparer.Ordinal)
+            .Select(tag => $"{tag.Key} → {Catalog.DisplayOf(tag.TopicKey!)}")
+            .ToList();
 
         // 前回 LLM に聞いた語。**プロセス内の記録を優先し、無ければ DB から復元する** ——
-        // 記録はアプリを再起動すると消えるが、分類は「同じ実行の分は ClassifiedAt が揃う」
+        // 記録はアプリを再起動すると消えるが、仕分けは「同じ実行の分は DecidedAt が揃う」
         // ので、いちばん新しい日時の束がそのまま前回の結果になる
         if (ReorganizationRunner.LastClassificationTargets is { Count: > 0 } asked)
         {
             _lastAsked = asked;
             _lastAskedAt = null;
         }
-        else if (classifications.Count > 0)
+        else if (tags.Any(tag => tag.DecidedBy == DecidedBy.Llm))
         {
-            _lastAskedAt = classifications.Max(c => c.ClassifiedAt);
-            _lastAsked = classifications
-                .Where(c => c.ClassifiedAt == _lastAskedAt)
-                .Select(c => c.Tag)
-                .OrderBy(tag => tag, StringComparer.Ordinal)
+            _lastAskedAt = tags.Where(tag => tag.DecidedBy == DecidedBy.Llm).Max(tag => tag.DecidedAt);
+            _lastAsked = tags
+                .Where(tag => tag.DecidedBy == DecidedBy.Llm && tag.DecidedAt == _lastAskedAt)
+                .Select(tag => tag.Key)
+                .OrderBy(key => key, StringComparer.Ordinal)
                 .ToList();
         }
-        var outside = all.Where(topic => !topic.IsSelected && !Catalog.IsTopic(topic.Tag)).ToList();
-
-        _unclassified = Names(outside.Where(t => !kinds.ContainsKey(t.Tag)));
-        _undecided = Names(outside.Where(t =>
-            kinds.GetValueOrDefault(t.Tag) == TopicClassificationKind.Unknown));
-        _absorbed = Names(outside.Where(t =>
-            kinds.GetValueOrDefault(t.Tag) == TopicClassificationKind.Alias));
-
-        // Skip(トピックでないと確定した語)はトピック一覧の行ごと消しているので、
-        // 分類の記録から拾う —— 画面から見えないと、誤判定に気づけない
-        _notTopics = kinds
-            .Where(pair => pair.Value == TopicClassificationKind.Skip)
-            .Select(pair => pair.Key)
-            .OrderBy(tag => tag, StringComparer.Ordinal)
-            .ToList();
 
         // 一覧に無くても、用語集の側に当たっていれば案内できる(「なぜ出てこないのか」が分かる)
         _glossaryHits = HasQuery
-            ? _unclassified.Concat(_undecided).Concat(_notTopics).Concat(_absorbed)
+            ? _waiting.Concat(_unresolved).Concat(_notTopics)
                 .Where(Matches)
                 .Take(20)
                 .ToList()
             : [];
     }
 
-    /// <summary>
+    static IReadOnlyList<string> Keys(IEnumerable<Tag> tags) => tags
+        .Select(tag => tag.Key)
+        .OrderBy(key => key, StringComparer.Ordinal)
+        .ToList();
+
     /// 検索語に当たるトピックのキー。**別名でも当たる**のがこの検索の要点
     /// (`人工知能` で引いて `AI` に当てたい)。
     ///
@@ -583,7 +572,7 @@ else
     /// 区切り)を吸収したいので、生の文字列では比べない。`Resolve` を先に通すのは、
     /// 入力が別名そのものだったときに正式表記の行へ確実に当てるため。
     /// </summary>
-    HashSet<string> FindMatches(IReadOnlyList<StoredTopic> topics)
+    HashSet<string> FindMatches(IReadOnlyList<Topic> topics)
     {
         if (!HasQuery)
         {
@@ -593,9 +582,9 @@ else
         var resolved = Catalog.Resolve(Query!);
 
         return topics
-            .Where(topic => topic.Tag == resolved || Matches(topic.Tag)
-                || Catalog.AliasesOf(topic.Tag).Any(Matches))
-            .Select(topic => topic.Tag)
+            .Where(topic => topic.Key == resolved || Matches(topic.Key)
+                || Catalog.AliasesOf(topic.Key).Any(Matches))
+            .Select(topic => topic.Key)
             .ToHashSet(StringComparer.Ordinal);
     }
 
@@ -617,9 +606,9 @@ else
     {
         foreach (var node in nodes.Where(node => node.ContainsMatch))
         {
-            if (matches.Contains(node.Topic.Tag))
+            if (matches.Contains(node.Topic.Key))
             {
-                return node.Topic.Tag;
+                return node.Topic.Key;
             }
 
             if (FirstMatchInOrder(node.Children, matches) is { } inner)
@@ -631,7 +620,7 @@ else
         return null;
     }
 
-    static IReadOnlyList<string> Names(IEnumerable<StoredTopic> topics) => topics
+    static IReadOnlyList<string> Names(IEnumerable<Topic> topics) => topics
         .Select(topic => Label(topic))
         .OrderBy(name => name, StringComparer.Ordinal)
         .ToList();
@@ -644,28 +633,28 @@ else
     /// - 親が取得範囲の外にあるトピックは根として出す(孤児にして消さない)
     /// - LLM 分類の親子が万一循環していても止まるよう、訪問済みを見て打ち切る
     /// </summary>
-    static List<TopicNode> BuildTree(IReadOnlyList<StoredTopic> topics, HashSet<string> matches)
+    static List<TopicNode> BuildTree(IReadOnlyList<Topic> topics, HashSet<string> matches)
     {
-        var byTag = topics.ToDictionary(t => t.Tag, StringComparer.Ordinal);
+        var byTag = topics.ToDictionary(t => t.Key, StringComparer.Ordinal);
         var childrenOf = topics
-            .Where(t => t.Parent is { Length: > 0 } parent && parent != t.Tag && byTag.ContainsKey(parent))
+            .Where(t => t.Parent is { Length: > 0 } parent && parent != t.Key && byTag.ContainsKey(parent))
             .ToLookup(t => t.Parent!, StringComparer.Ordinal);
 
         var visited = new HashSet<string>(StringComparer.Ordinal);
 
-        TopicNode Build(StoredTopic topic)
+        TopicNode Build(Topic topic)
         {
             var node = new TopicNode
             {
                 Topic = topic,
                 ContainsSelected = topic.IsSelected,
-                ContainsMatch = matches.Contains(topic.Tag),
+                ContainsMatch = matches.Contains(topic.Key),
             };
-            foreach (var child in childrenOf[topic.Tag]
-                .Where(child => visited.Add(child.Tag))
+            foreach (var child in childrenOf[topic.Key]
+                .Where(child => visited.Add(child.Key))
                 .OrderByDescending(c => c.IsSelected)
                 .ThenByDescending(c => c.SubtreeTrendScore)
-                .ThenBy(c => c.Tag, StringComparer.Ordinal))
+                .ThenBy(c => c.Key, StringComparer.Ordinal))
             {
                 var built = Build(child);
                 node.Children.Add(built);
@@ -677,12 +666,12 @@ else
         }
 
         return topics
-            .Where(t => t.Parent is not { Length: > 0 } parent || parent == t.Tag || !byTag.ContainsKey(parent))
-            .Where(root => visited.Add(root.Tag))
+            .Where(t => t.Parent is not { Length: > 0 } parent || parent == t.Key || !byTag.ContainsKey(parent))
+            .Where(root => visited.Add(root.Key))
             .Select(Build)
             .OrderByDescending(node => node.ContainsSelected)
             .ThenByDescending(node => node.Topic.SubtreeTrendScore)
-            .ThenBy(node => node.Topic.Tag, StringComparer.Ordinal)
+            .ThenBy(node => node.Topic.Key, StringComparer.Ordinal)
             .ToList();
     }
 

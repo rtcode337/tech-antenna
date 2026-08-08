@@ -167,7 +167,9 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 `http://<ホスト>:7020` で開く(`.env` の `PORT` で変更可)。データはリポジトリ直下の
 `data/`(Postgres は `data/postgres`、Data Protection の鍵は `data/keys`)に入る ——
-**バックアップはこのディレクトリを丸ごとコピーするだけでよい**。未適用のマイグレーションは
+**バックアップはこのディレクトリを丸ごとコピーするだけでよい**。逆に**まっさらに戻したいときは
+`docker compose down` してから `data/` の中身を消す**(次の起動で DB が初期化され、
+語彙の初期値も入り直す。鍵も再生成されるので発行済みトークンが無効になるだけ)。未適用のマイグレーションは
 起動時に自動で当たるため、更新は `git pull` して同じコマンドを打つだけでよい。
 
 - イメージは main への push で GitHub Actions がビルドし、GHCR へ公開する

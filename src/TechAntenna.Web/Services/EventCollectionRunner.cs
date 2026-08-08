@@ -28,7 +28,7 @@ public class EventCollectionRunner(
         // connpass と Doorkeeper は選択トピックを検索語として自分で引くが、TECH PLAY の RSS は
         // 検索できないため、ここで絞る。比べる相手はイベントの正規化済みタグなのでキーを使う
         var selectedTags = (await topicStore.GetSelectedAsync(cancellationToken))
-            .Select(topic => topic.Tag).ToList();
+            .Select(topic => topic.Key).ToList();
         if (selectedTags.Count == 0)
         {
             return CollectionRunResult.Nothing;
