@@ -17,206 +17,66 @@
 
 <p><a href="/settings">← 設定</a></p>
 
-<p class="page-note text-muted">
-    あらかじめ用意した語彙・外部トレンドで見つかった語・集めた記事などのタグを
-    まとめてトピック一覧にします。<strong>収集対象に選んだトピックは消えない</strong>ので、
-    選択が勝手に外れることはありません。
-    トピック名を押すと、その語の<strong>同義語と親子ツリー</strong>、紐づいた記事・イベント・書籍が見られます。
-    トピック名の横の「記事 N」は<strong>その語がタグに付いた記事の件数</strong>(配下は含みません)、
-    後ろのかっこ書きが<strong>用語の一言説明</strong>です
-    (幅に収まらない分はカーソルを当てると全文が出ます。スマホでは <code>?</code> を押すと出ます)。
-    一覧に出るのは<strong>語彙(ツリー)に入っている語</strong>です
-    (<strong>話題度 0 でも消えません</strong>)。まだ語彙に入っていない語は
-    <a href="/tags">タグ</a>の画面にあり、そこで<strong>仕分けを手で直せます</strong>。
-</p>
-
-<p class="page-note text-muted">
-    <strong>親を選ぶと、その配下のトピックもまとめて収集対象になります</strong>
-    (保存のときに広げるので、チェックが外れていた子も選択されます)。
-    イベントと書籍は<strong>トピック 1 つごとに外部へ問い合わせる</strong>ので、
-    大きな親を選ぶとリクエスト数もその配下のぶんだけ増えます。
-    子だけを外したいときは、親のチェックを外してから選び直してください。
-</p>
-
-@* 挙動が画面から分かるようにしておく(説明は TopicMaintenanceRunner の実装と揃えること) *@
-<details class="score-help">
-    <summary>2つのボタンは何をしている?</summary>
-    <p class="text-muted">
-        <strong>整備は2つに分かれています。</strong>「話題度を取り直す」は外部トレンドを引くので
-        <strong>新しい未知の語を連れてきます</strong>が LLM は使いません。
-        「タグを仕分けなおす」は<strong>外部トレンドを引かない</strong>ので、
-        <strong>押しても未知の語は増えません</strong> ——
-        だから押すぶんだけ仕分けまちが減り、いつか空になります
-        (1 本のジョブだった頃は、押すたびに新しい語が入って終わりませんでした)。
-        どちらも最後に一覧を組み立て直します。同時には走りません。
-    </p>
-    <p class="text-muted"><strong>話題度を取り直す</strong>(LLM を使わない)</p>
-    <ol class="text-muted">
-        <li><strong>話題度を取得</strong> —— Qiita の新着記事と、はてなブックマークの
-            人気エントリーを<strong>押した時点でその場から</strong>取得します
-            (記事の収集をいつ回したかには依存しません)</li>
-        <li><strong>タグを観測</strong> —— 保存済みの記事・イベント・書籍に付いたタグの件数と、
-            取ってきた話題度を書き込みます。<strong>ここで次の仕分けの対象が決まります</strong>
-            (下の「次の仕分けで LLM に聞く語」がその一覧です)</li>
-        <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
-            トピック一覧を書き込みます。話題度は親へも合算します</li>
-    </ol>
-    <p class="text-muted"><strong>タグを仕分けなおす</strong>(LLM を使う)</p>
-    <ol class="text-muted">
-        <li><strong>タグを作り直す(1 回目)</strong> —— 保存済みの記事・イベント・書籍のタグを
-            生タグとカタログから組み直します。<strong>仕分けの前に走らせるのが要点</strong> ——
-            正規化の規則やカタログを変えると、そこで初めて現れる語があり、
-            後段だけで回すとその語は次に押すまで仕分けられません</li>
-        <li><strong>仕分けまちの語を LLM が分類</strong> —— 下の「次の仕分けで LLM に聞く語」に
-            出ている語をそのまま渡します。
-            既存トピックと同じ意味なら<strong>別名として吸収</strong>、
-            粒度が違う語なら<strong>親付きの新トピック</strong>としてツリーへ、
-            トピックでない語(メディア名・一般語)は<strong>一覧から取り除きます</strong>。
-            判断できなかった語は 1 週間おいて再挑戦します。
-            1 回に渡すのは 300 語までで、残りは次回に続きから。
-            LLM が未設定ならこの手順は飛ばします(語は候補のまま残る)</li>
-        <li><strong>同義のトピックを寄せる</strong> —— <code>AI</code> と <code>人工知能</code> が
-            別々にできてしまった場合に、片方へ寄せます(収集対象に選んだトピックは寄せません)</li>
-        <li><strong>用語の説明を埋める</strong> —— 説明がまだ無い用語に LLM が一言説明を付けます
-            (トピック名の後ろのかっこ書きと、詳細ページに出ます)。<strong>新しく見つかった語の説明は
-            手順 2(分類)の応答に相乗り</strong>していて追加の呼び出しはありません。ここで聞くのは
-            以前から一覧にあって説明だけ無い語で、1 回に 300 語まで・<strong>1 語につき 1 回だけ</strong>
-            (結果は保存され、次回は聞き直しません)。収集対象に選んだトピックから先に埋めます</li>
-        <li><strong>タグを作り直す(2 回目)</strong> —— 今回の分類で増えた別名を、
-            保存済みの記事・イベント・書籍のタグへ反映します</li>
-        <li><strong>タグを観測して一覧を組み立てる</strong> —— 件数を数え直します。
-            <strong>話題度はいまの値をそのまま保ちます</strong>(取り直しはしません)</li>
-    </ol>
-</details>
-
-@* 数字の意味が画面から分かるようにしておく(算出はトピック収集の実装と揃えること) *@
-<details class="score-help">
-    <summary>話題度はどう算出している?</summary>
-    <ul class="text-muted">
-        <li>算出は<strong>「話題度を取り直す」</strong>を押したときだけです
-            (別のタイミングで集めているわけではありません。「タグを仕分けなおす」では変わりません)</li>
-        <li>材料は2つ、どちらも<strong>押した時点でその場から取得</strong>します。
-            <strong>Qiita の新着記事(直近 7 日)</strong>は「いいね数」を、
-            <strong>はてなブックマークの人気エントリー</strong>は「ブックマーク数」を
-            重み(どちらも最低 1)として、記事に付いているタグとタイトルに出てくる
-            トピックへ加算します</li>
-        <li>別名(<code>人工知能</code> など)は正式表記(<code>AI</code>)へ寄せてから数えます</li>
-        <li>材料ごとに<strong>合計を 100 とした割合</strong>に直してから足し合わせます
-            (数値の桁が違う材料どうしを混ぜられるように。1 材料あたり最大 100)</li>
-        <li><strong>ツリー表示の値は配下のトピックも合算</strong>した話題度、
-            <strong>ランキング表示はその用語単体</strong>の話題度です</li>
-        <li>「話題度を取り直す」を押した時点の値で、自動では更新されません</li>
-    </ul>
-</details>
-
-@* **2つの入口は同じ Runner。** 別々のクラスにすると直列化の関門も別になり、
-   同時に走って互いの結果を上書きする(どちらも最後に語彙を組み立てるため) *@
-<JobButton Runner="MaintenanceRunner" FormName="refresh-trends"
-           Label="話題度を取り直す" OnRun="RefreshTrends" />
-<JobButton Runner="MaintenanceRunner" FormName="reclassify-tags"
-           Label="タグを仕分けなおす" OnRun="ReclassifyTags" />
-
-@* **次の仕分けで LLM に聞く語**。対象は2つの束からできていて、片方(トレンド)は
-   押すまで確定しない。候補の数だけを出していると「候補 1 語のはずが 30 語聞いている」と
-   見えて挙動が読めないので、**前回実際に聞いた語も並べて出す** *@
-<details class="score-help">
-    <summary>次の仕分けで LLM に聞く語(@NextCount 語@(NextOverflow > 0 ? $" / 次回以降に {NextOverflow} 語" : ""))</summary>
-    <ul class="text-muted">
-        <li>ここに出ている語が<strong>そのまま次の対象</strong>です。多いときは先頭
-            <strong>@TopicMaintenanceRunner.MaxTagsPerClassification 語</strong>までを 1 回で聞き、
-            残りは次の回に回します(並びは「件数 + 話題度」の大きい順)</li>
-        <li><strong>仕分けまちのタグは全部が対象です</strong>(件数での足切りはしません)——
-            <a href="/tags">タグ</a>の画面の「仕分けまち」がそのまま流れます。
-            バッジの括弧内は件数と話題度で、<strong>並び順</strong>にだけ効きます</li>
-        <li><strong>話題度を取り直すと増えます</strong> —— Qiita・はてブに現れた未分類の語が
-            仕分けまちに入ります(そのときは LLM に聞きません)。
-            <strong>このボタンは外部トレンドを引かない</strong>ので、押しても増えません</li>
-        <li>明らかにゴミな語が並んでいるときは、<a href="/tags">タグ</a>の画面で
-            <strong>まとめて除外</strong>できます(LLM に聞かせずに片付けられます)</li>
-        <li><strong>一度聞いた語は聞き直しません</strong>(判断できなかった語だけ 1 週間後に再挑戦)</li>
-    </ul>
-    @if (_pending is { Count: > 0 })
-    {
-        <p class="candidate-list">
-            @foreach (var candidate in _pending.Take(TopicMaintenanceRunner.MaxTagsPerClassification))
-            {
-                <span class="badge bg-secondary">@CandidateLabel(candidate)</span>
-            }
-        </p>
-        @if (NextOverflow > 0)
-        {
-            <p class="text-muted">次回以降に回る語(@NextOverflow 語):</p>
-            <p class="candidate-list">
-                @foreach (var candidate in _pending.Skip(TopicMaintenanceRunner.MaxTagsPerClassification))
-                {
-                    <span class="badge bg-light">@CandidateLabel(candidate)</span>
-                }
-            </p>
-        }
-    }
-    else
-    {
-        <p class="text-muted">聞く語はありません(語彙に入っていない新しい語が現れると、ここに出ます)。</p>
-    }
-
-    @if (_lastAsked.Count > 0)
-    {
-        <p class="text-muted">
-            前回の実行で実際に聞いた語(@_lastAsked.Count 語@(_lastAskedAt is { } at
-                ? $"。{at.ToLocalTime():yyyy-MM-dd HH:mm} 時点" : "")):
-        </p>
-        <p class="candidate-list">
-            @foreach (var tag in _lastAsked)
-            {
-                <span class="badge bg-secondary">@tag</span>
-            }
-        </p>
-    }
-</details>
-
-@* **語彙と仕分けをファイルで運ぶ。** LLM の仕分けは呼ぶたびに枠を使うので、本番で仕分けた
-   結果を開発サーバーへ持って行けるようにしてある(逆向き・バックアップにも使える)。
-   畳んであるのは、日々の操作ではないため *@
-<details class="score-help transfer">
-    <summary>ファイルで持ち出す / 取り込む</summary>
-    <p>
-        <strong>語彙(トピック)とタグの仕分けだけ</strong>を JSON で運びます。
-        <strong>件数・話題度は入りません</strong> —— それは各環境が集めたデータの話なので、
-        取り込んだ先では次の「話題度を取り直す」が集め直します。
-        取り込みは<strong>足し込みで、この環境にしか無い語彙や仕分けは消しません</strong>。
-        <strong>画面から手で直した仕分けは守ります</strong>(ファイル側で上書きしません)。
-    </p>
-
-    <p><a class="btn btn-outline-primary btn-sm" href="/export/topics.json" download>JSON で書き出す</a></p>
-
-    @* ファイルの受け取りは HttpContext から読む(静的 SSR のフォームはファイルを束縛しない) *@
-    <form method="post" enctype="multipart/form-data" @formname="import-topics" @onsubmit="ImportAsync">
-        <AntiforgeryToken />
+@* ボタンの行: ボタン / 説明チップの ? / 副作用の注意。
+   説明は details ではなく **? を押して出すチップ(HTML 標準の popover)** —— 一覧の
+   説明チップと同じ流儀で、JS を使わずに「押して出す・外を押して閉じる」が成り立つ。
+   手順と話題度の算出方法をチップ1つにまとめてある(実装は TopicMaintenanceRunner と
+   FetchTrendsAsync。説明を変えるときはそちらと揃えること)。
+   仕分け(LLM)側のボタンと説明はタグの画面 —— Runner は同じ1つなので、あちらで
+   仕分けが走っていればこのボタンも実行中になって二重には走らない *@
+<div class="job-row">
+    <JobButton Runner="MaintenanceRunner" FormName="refresh-trends"
+               Label="話題度を取り直す" OnRun="RefreshTrends" />
+    <button class="help-toggle" type="button" popovertarget="trend-help"
+            aria-label="「話題度を取り直す」の説明">?</button>
+    @* 副作用(仕分けまちが増える)はチップの中に隠さない —— 押す前に知っておくべき話 *@
+    <span class="job-note text-muted">
+        外部トレンドで見つかった新しい語が、仕分けまち(<a href="/tags">タグ</a>)に増えることがあります。
+    </span>
+    <div class="help-popover" id="trend-help" popover>
+        <strong>「話題度を取り直す」は何をしている?</strong>
         <p>
-            <input type="file" name="file" accept=".json,application/json" required
-                   aria-label="取り込むトピックのファイル" />
+            外部トレンドを引いて鮮度を更新します。<strong>LLM は使いません</strong>。
+            新しく現れた語は<strong>仕分けまち</strong>として
+            <a href="/tags">タグ</a>の画面に溜まり、そこの「タグを仕分けなおす」で語彙に入ります。
         </p>
-        <p>
-            <label>
-                <input type="checkbox" name="import-selection" value="true" />
-                収集対象の選択も取り込む
-            </label>
-            <span class="text-muted">
-                （既定では取り込みません。イベントと書籍の検索語が黙って変わらないようにするためです）
-            </span>
-        </p>
-        <button type="submit" class="btn btn-outline-primary btn-sm">ファイルを取り込む</button>
-    </form>
+        <ol>
+            <li><strong>話題度を取得</strong> —— Qiita の新着記事と、はてなブックマークの
+                人気エントリーを<strong>押した時点でその場から</strong>取得します
+                (記事の収集をいつ回したかには依存しません)</li>
+            <li><strong>タグを観測</strong> —— 保存済みの記事・イベント・書籍に付いたタグの件数と、
+                取ってきた話題度を書き込みます。<strong>ここで次の仕分けの対象が決まります</strong>
+                (<a href="/tags">タグ</a>の画面の「仕分けまち」がその一覧です)</li>
+            <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
+                トピック一覧を書き込みます。話題度は親へも合算します</li>
+        </ol>
+        <strong>話題度はどう算出している?</strong>
+        <ul>
+            <li>材料は2つ、どちらも<strong>押した時点でその場から取得</strong>します。
+                <strong>Qiita の新着記事(直近 7 日)</strong>は「いいね数」を、
+                <strong>はてなブックマークの人気エントリー</strong>は「ブックマーク数」を
+                重み(どちらも最低 1)として、記事に付いているタグとタイトルに出てくる
+                トピックへ加算します</li>
+            <li>別名(<code>人工知能</code> など)は正式表記(<code>AI</code>)へ寄せてから数えます</li>
+            <li>材料ごとに<strong>合計を 100 とした割合</strong>に直してから足し合わせます
+                (数値の桁が違う材料どうしを混ぜられるように。1 材料あたり最大 100)</li>
+            <li><strong>ツリー表示の値は配下のトピックも合算</strong>した話題度、
+                <strong>ランキング表示はその用語単体</strong>の話題度です</li>
+            <li>このボタンを押した時点の値で、自動では更新されません
+                (「タグを仕分けなおす」でも変わりません)</li>
+        </ul>
+    </div>
+</div>
 
-    @if (_importMessage is { Length: > 0 })
-    {
-        <p class="import-result">@_importMessage</p>
-    }
-    @if (_importError is { Length: > 0 })
-    {
-        <p class="import-error">@_importError</p>
-    }
-</details>
+@* 仕分けまちの中身と仕分けのボタンはタグの画面。ここは「溜まっている」ことだけ知らせる ——
+   語彙の画面に居ながら、まだ語彙に入っていない語があると気づけるように *@
+@if (_pendingCount > 0)
+{
+    <p class="pending-notice">
+        未仕分けのタグが <strong>@_pendingCount 語</strong>あります。
+        <a href="/tags">タグの画面</a>で内容の確認・除外・LLM での仕分けができます。
+    </p>
+}
 
 @if (_topics is null)
 {
@@ -228,22 +88,40 @@ else if (_topics.Count == 0)
 }
 else
 {
-    @* トピックの検索。**GET のフォーム**なので静的 SSR のまま動く(JS も回線も使わない)。
-       選択の form とは入れ子にできないので、外に置いてある *@
-    <form class="topic-search" method="get" action="/topics">
-        @if (IsRanking)
-        {
-            <input type="hidden" name="view" value="ranking" />
-        }
-        <label for="topic-search">トピックを検索</label>
-        <input id="topic-search" type="search" name="q" value="@Query"
-               placeholder="生成AI / 人工知能 / rag …" />
-        <button type="submit" class="btn btn-outline-primary btn-sm">検索</button>
-        @if (HasQuery)
-        {
-            <a href="@(IsRanking ? "/topics?view=ranking" : "/topics")">クリア</a>
-        }
-    </form>
+    @* 2つの見方を切り替える。ツリーは「どの領域が熱いか」(配下込みの話題度)、
+       ランキングは「どの用語単体が熱いか」。切り替えはリンク(クエリ)で、JS は使わない *@
+    <nav class="view-switch" aria-label="トピック一覧の表示切り替え">
+        <a class="@(IsRanking ? "" : "active")" href="/topics">ツリー</a>
+        <a class="@(IsRanking ? "active" : "")" href="/topics?view=ranking">ランキング(単体の話題度)</a>
+    </nav>
+
+    @* タブの下の1行: 左が選択の説明、右が検索。**検索は GET のフォーム**なので
+       静的 SSR のまま動き、選択の form(POST)とは入れ子にできないため外に置く ——
+       説明の文も form の中に置く必要は無いので、同じ行にまとめられる *@
+    @* 選択の説明はこの1か所にまとめる(かつてページ冒頭に段落で置いていたが、
+       チェックボックスから遠くて読まれなかった)。イベント・書籍がトピックごとに
+       問い合わせる作りは改善したい —— 直したらこの文言も直すこと *@
+    <div class="list-toolbar">
+        <p>
+            チェックボックスで収集したいトピックを選び、「選択を保存」を押してください。
+            <strong>親を選ぶと配下もまとめて収集対象になります</strong>
+            （子だけを外すことはできません。イベント・書籍はトピック 1 つごとに
+            外部へ問い合わせるため、大きな親を選ぶとリクエスト数も増えます）。
+        </p>
+        <form class="topic-search" method="get" action="/topics">
+            @if (IsRanking)
+            {
+                <input type="hidden" name="view" value="ranking" />
+            }
+            <input id="topic-search" type="search" name="q" value="@Query"
+                   placeholder="生成AI / 人工知能 / rag …" aria-label="トピックを検索" />
+            <button type="submit" class="btn btn-outline-primary btn-sm">検索</button>
+            @if (HasQuery)
+            {
+                <a href="@(IsRanking ? "/topics?view=ranking" : "/topics")">クリア</a>
+            }
+        </form>
+    </div>
 
     @if (HasQuery)
     {
@@ -270,16 +148,53 @@ else
         </p>
     }
 
-    @* 2つの見方を切り替える。ツリーは「どの領域が熱いか」(配下込みの話題度)、
-       ランキングは「どの用語単体が熱いか」。切り替えはリンク(クエリ)で、JS は使わない *@
-    <nav class="view-switch" aria-label="トピック一覧の表示切り替え">
-        <a class="@(IsRanking ? "" : "active")" href="/topics">ツリー</a>
-        <a class="@(IsRanking ? "active" : "")" href="/topics?view=ranking">ランキング(単体の話題度)</a>
-    </nav>
+    @* **語彙と仕分けをファイルで運ぶ。** LLM の仕分けは呼ぶたびに枠を使うので、本番で仕分けた
+       結果を開発サーバーへ持って行けるようにしてある(逆向き・バックアップにも使える)。
+       畳んであるのは日々の操作ではないため。**一覧(テーブル)の直上に置く** ——
+       運ぶ中身がこの一覧そのものなので、対象のそばにあるほうが結びついて見える *@
+    <details class="score-help transfer">
+        <summary>ファイルで持ち出す / 取り込む</summary>
+        <p>
+            <strong>語彙(トピック)とタグの仕分けだけ</strong>を JSON で運びます。
+            <strong>件数・話題度は入りません</strong> —— それは各環境が集めたデータの話なので、
+            取り込んだ先では次の「話題度を取り直す」が集め直します。
+            取り込みは<strong>足し込みで、この環境にしか無い語彙や仕分けは消しません</strong>。
+            <strong>画面から手で直した仕分けは守ります</strong>(ファイル側で上書きしません)。
+        </p>
+
+        <p><a class="btn btn-outline-primary btn-sm" href="/export/topics.json" download>JSON で書き出す</a></p>
+
+        @* ファイルの受け取りは HttpContext から読む(静的 SSR のフォームはファイルを束縛しない) *@
+        <form method="post" enctype="multipart/form-data" @formname="import-topics" @onsubmit="ImportAsync">
+            <AntiforgeryToken />
+            <p>
+                <input type="file" name="file" accept=".json,application/json" required
+                       aria-label="取り込むトピックのファイル" />
+            </p>
+            <p>
+                <label>
+                    <input type="checkbox" name="import-selection" value="true" />
+                    収集対象の選択も取り込む
+                </label>
+                <span class="text-muted">
+                    （既定では取り込みません。イベントと書籍の検索語が黙って変わらないようにするためです）
+                </span>
+            </p>
+            <button type="submit" class="btn btn-outline-primary btn-sm">ファイルを取り込む</button>
+        </form>
+
+        @if (_importMessage is { Length: > 0 })
+        {
+            <p class="import-result">@_importMessage</p>
+        }
+        @if (_importError is { Length: > 0 })
+        {
+            <p class="import-error">@_importError</p>
+        }
+    </details>
 
     <form method="post" @formname="save-topic-selection" @onsubmit="SaveSelectionAsync" class="mb-3">
         <AntiforgeryToken />
-        <p>チェックボックスで収集したいトピックを選び、「選択を保存」を押してください。</p>
 
         @if (IsRanking)
         {
@@ -288,7 +203,7 @@ else
                 <thead>
                     <tr>
                         <th scope="col">収集</th>
-                        <th scope="col">タグ</th>
+                        <th scope="col">トピック</th>
                         <th scope="col" class="text-end">話題度(単体)</th>
                         <th scope="col">更新日時</th>
                     </tr>
@@ -319,7 +234,7 @@ else
             <div class="topic-tree">
                 <div class="topic-grid topic-header" aria-hidden="true">
                     <span>収集</span>
-                    <span>タグ</span>
+                    <span>トピック</span>
                     <span class="score-cell">話題度</span>
                     <span class="date-cell">更新日時</span>
                 </div>
@@ -438,12 +353,10 @@ else
 @code {
     IReadOnlyList<Topic>? _topics;
     List<TopicNode>? _roots;
-    IReadOnlyList<Tag>? _pending;
+    int _pendingCount;
     HashSet<string> _matches = new(StringComparer.Ordinal);
     string? _firstMatch;
     IReadOnlyList<string> _glossaryHits = [];
-    IReadOnlyList<string> _lastAsked = [];
-    DateTimeOffset? _lastAskedAt;
     string? _selectionMessage;
 
     /// <summary>表示の切り替え(既定はツリー、?view=ranking で単体の話題度順)。</summary>
@@ -493,9 +406,6 @@ else
     void RefreshTrends() => MaintenanceRunner.StartInBackground(
         ct => MaintenanceRunner.RefreshTrendsAsync(ct), JobMessage.Describe);
 
-    void ReclassifyTags() => MaintenanceRunner.StartInBackground(
-        ct => MaintenanceRunner.ReclassifyTagsAsync(ct), JobMessage.Describe);
-
     /// <summary>
     /// ファイルから語彙と仕分けを取り込む。**ジョブ(バックグラウンド)にしない** ——
     /// 外部へは出ず DB の数回の書き込みで終わるので、押した人がその場で結果を読めるほうがよい。
@@ -542,34 +452,6 @@ else
 
     static string TopicHref(Topic topic) => $"/topics/{Uri.EscapeDataString(topic.Key)}";
 
-    /// <summary>次の仕分けで 1 回に聞く語数(枠に収まる分)。</summary>
-    int NextCount => Math.Min(
-        _pending?.Count ?? 0, TopicMaintenanceRunner.MaxTagsPerClassification);
-
-    /// <summary>枠に収まらず次回以降に回る語数。</summary>
-    int NextOverflow => Math.Max(
-        0, (_pending?.Count ?? 0) - TopicMaintenanceRunner.MaxTagsPerClassification);
-
-    /// <summary>
-    /// 候補のバッジ。**どちらの材料で選ばれたのかが分かるように**、件数(集めたデータ)と
-    /// 話題度(トレンド由来)を持っている分だけ添える(両方あることもある)。
-    /// </summary>
-    static string CandidateLabel(Tag tag)
-    {
-        var reasons = new List<string>(2);
-        if (tag.TotalCount > 0)
-        {
-            reasons.Add($"{tag.TotalCount}件");
-        }
-
-        if (tag.TrendScore > 0)
-        {
-            reasons.Add($"話題度 {tag.TrendScore:0.0}");
-        }
-
-        return reasons.Count > 0 ? $"{tag.Key}({string.Join(" / ", reasons)})" : tag.Key;
-    }
-
     /// <summary>用語の一言説明(カタログ。JSON に書いた分と LLM が埋めた分の合成)。</summary>
     string? Description(Topic topic) => Catalog.DescriptionOf(topic.Key);
 
@@ -599,28 +481,9 @@ else
             ? resolved
             : FirstMatchInOrder(_roots, _matches);
 
-        // 次に聞く語(語彙に加えようとしている語)だけをこの画面に出す。
-        // 状態ごとの一覧は**タグの画面**の担当 —— あれはタグの話で、ここは語彙の話
+        // タグの中身はタグの画面の担当 —— ここは「未仕分けが溜まっている」ことだけ知らせる
         var tags = await TagStore.GetAllAsync();
-        _pending = await TagStore.GetPendingAsync(DateTimeOffset.UtcNow);
-
-        // 前回 LLM に聞いた語。**プロセス内の記録を優先し、無ければ DB から復元する** ——
-        // 記録はアプリを再起動すると消えるが、仕分けは「同じ実行の分は DecidedAt が揃う」
-        // ので、いちばん新しい日時の束がそのまま前回の結果になる
-        if (MaintenanceRunner.LastClassificationTargets is { Count: > 0 } asked)
-        {
-            _lastAsked = asked;
-            _lastAskedAt = null;
-        }
-        else if (tags.Any(tag => tag.DecidedBy == DecidedBy.Llm))
-        {
-            _lastAskedAt = tags.Where(tag => tag.DecidedBy == DecidedBy.Llm).Max(tag => tag.DecidedAt);
-            _lastAsked = tags
-                .Where(tag => tag.DecidedBy == DecidedBy.Llm && tag.DecidedAt == _lastAskedAt)
-                .Select(tag => tag.Key)
-                .OrderBy(key => key, StringComparer.Ordinal)
-                .ToList();
-        }
+        _pendingCount = (await TagStore.GetPendingAsync(DateTimeOffset.UtcNow)).Count;
 
         // 語彙に無くても、タグの側に当たっていれば案内できる(「なぜ出てこないのか」が分かる)
         _glossaryHits = HasQuery
