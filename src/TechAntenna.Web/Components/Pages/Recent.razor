@@ -10,8 +10,9 @@
 
 @* 「直近動向」— このページだけは、**興味があるとマークしたトピックの外も含めて**
    直近の話題を一望する場所(そもそも記事の収集は選択で絞っていない)。
-   並びは新着順のまま、話題度(はてなブックマーク数)をカードの強調で重ねる。
-   種別ごとの全量は子ページ(/news・/articles・/papers)が受け持つ *@
+   **並びは3セクションとも話題度の高い順**(ニュース・記事ははてブ数、論文は upvote)——
+   ここは「何が話題か」に答えるページで、新着順は子ページ(/news・/articles・
+   /trending-papers)の担当。役割を分けたので、どちらのページも並びが1つで読める *@
 
 <PageTitle>直近動向 - tech-antenna</PageTitle>
 
@@ -30,8 +31,9 @@ else if (_sections.Count == 0)
 else
 {
     <p class="text-muted">
-        直近 @WindowDays 日の話題を、興味のあるトピックに限らず新着順で並べています。
-        カードの濃さは話題度(はてなブックマーク数)、
+        直近 @WindowDays 日の話題を、興味のあるトピックに限らず<strong>話題度の高い順</strong>
+        (ニュース・記事ははてなブックマーク数、論文は upvote)で並べています。
+        新着順で全部見るには各セクションの「すべて見る」へ。
         <span class="star" aria-hidden="true">★</span> は興味のあるトピックに当たる記事です。
         <strong>話題の論文</strong>も Hugging Face Daily Papers から
         トピックに関係なく拾っています。
@@ -78,15 +80,13 @@ else
         var sections = new List<Section>();
         foreach (var (kind, title, allHref) in Kinds)
         {
-            // 新着順のまま直近の窓で切る(話題度は並びではなくカードの強調に出す)。
-            // **話題の論文だけは upvote 順** —— 選別された 50 件から「どれが話題か」を
-            // 出す枠なので、新着順だと軸が消える
-            var recent = (await ArticleStore.GetRecentAsync(PerSection * 5, kind))
-                .Where(a => (a.PublishedAt ?? a.CollectedAt) >= threshold);
-            var articles = (kind == ArticleKind.TrendingPaper
-                    ? recent.OrderByDescending(a => a.UpvoteCount ?? 0)
-                        .ThenByDescending(a => a.PublishedAt)
-                    : recent)
+            // **話題度の高い順**(ニュース・記事ははてブ数、論文は upvote ——
+            // 大きいほうで測るのはカードの強調と同じ規則)。直近の窓で切ってから並べるので、
+            // 昔の高スコアの記事が居座ることはない。同点(未取得の 0 同士など)は新着順
+            var articles = (await ArticleStore.GetRecentAsync(PerSection * 5, kind))
+                .Where(a => (a.PublishedAt ?? a.CollectedAt) >= threshold)
+                .OrderByDescending(a => Math.Max(a.BookmarkCount ?? 0, a.UpvoteCount ?? 0))
+                .ThenByDescending(a => a.PublishedAt ?? a.CollectedAt)
                 .Take(PerSection)
                 .ToList();
             if (articles.Count > 0)

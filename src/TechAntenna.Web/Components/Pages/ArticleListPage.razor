@@ -47,8 +47,10 @@ else if (_kind == ArticleKind.TrendingPaper)
     <JobButton Runner="TranslationRunner" FormName="translate-titles" OnRun="Translate" />
     <p class="page-note text-muted">
         Hugging Face Daily Papers から<strong>トピックの選択に関係なく</strong>拾います
-        (投稿と upvote で選ばれた論文)。収集は<a href="/recent">直近動向</a>の「記事の収集」に
-        含まれます。<strong>中身は arXiv への投稿で、事実上すべて英語</strong>です ——
+        (投稿と upvote で選ばれた論文)。収集は<a href="/settings">設定</a>の「記事の収集」に
+        含まれます。並びは<strong>新着順</strong>で、upvote の多いものはカードの濃さで
+        目立ちます(話題度の高い順は<a href="/recent">直近動向</a>)。
+        <strong>中身は arXiv への投稿で、事実上すべて英語</strong>です ——
         日本語の論文は<a href="/papers">論文(興味トピック)</a>の担当です。
     </p>
 }
@@ -130,18 +132,10 @@ else
 
     async Task LoadAsync()
     {
+        // **種別ページは全部**新着順**で統一**(話題度は並びではなくカードの強調に出す)。
+        // 「話題度の高い順」は直近動向(/recent)の担当 —— 同じ一覧が2つの並びを持つと、
+        // どちらを見ているのか分からなくなる
         _articles = await ArticleStore.GetRecentAsync(Limit, _kind);
-
-        // **話題の論文だけ upvote 順**。ほかは新着順のまま —— 「今日なにが出たか」を
-        // 追える並びを崩さないため。並べ替えるのは取ってきた直近 @Limit 件の中だけで、
-        // 昔の高 upvote の論文がいつまでも先頭に居座らないのは意図どおり
-        if (_kind == ArticleKind.TrendingPaper)
-        {
-            _articles = _articles
-                .OrderByDescending(article => article.UpvoteCount ?? 0)
-                .ThenByDescending(article => article.PublishedAt)
-                .ToList();
-        }
         _selected = (await TopicStore.GetSelectedAsync())
             .Select(topic => topic.Key)
             .ToHashSet(StringComparer.Ordinal);
