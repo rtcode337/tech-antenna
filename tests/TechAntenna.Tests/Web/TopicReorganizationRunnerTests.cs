@@ -17,7 +17,30 @@ public class TopicReorganizationRunnerTests
             CancellationToken cancellationToken = default) => Task.FromResult(candidates);
     }
 
-    static TopicReorganizationRunner NewRunner(TopicCatalog catalog, ITrendTopicSource source, ITopicStore topicStore)
+    /// <summary>聞かれた語を記録するだけの分類器。分類は何も返さない(検証は Unknown になる)。</summary>
+    class RecordingClassifier : ITopicClassifier
+    {
+        public string Name => "記録用";
+
+        public List<IReadOnlyList<string>> Asked { get; } = [];
+
+        public Task<IReadOnlyList<TopicClassifierVerdict>> ClassifyAsync(
+            IReadOnlyList<string> tags,
+            IReadOnlyList<TopicCatalogEntry> existingTopics,
+            Action<string>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            Asked.Add(tags);
+
+            return Task.FromResult<IReadOnlyList<TopicClassifierVerdict>>([]);
+        }
+    }
+
+    static TopicReorganizationRunner NewRunner(
+        TopicCatalog catalog,
+        ITrendTopicSource source,
+        ITopicStore topicStore,
+        ITopicClassifier? classifier = null)
     {
         var articles = new InMemoryArticleStore();
         var events = new InMemoryEventStore();
@@ -34,10 +57,11 @@ public class TopicReorganizationRunnerTests
             classifications,
             new InMemoryTopicDescriptionStore(),
             new TopicCandidateFinder(
-                catalog, articles, events, books, classifications, TimeProvider.System),
+                catalog, topicStore, articles, events, books, classifications, TimeProvider.System),
             new TagRenormalizationRunner(catalog, articles, events, books),
             NullLogger<TopicReorganizationRunner>.Instance,
-            TimeProvider.System);
+            TimeProvider.System,
+            classifier);
     }
 
     [Fact]
@@ -70,5 +94,67 @@ public class TopicReorganizationRunnerTests
         Assert.Equal(100, topics["プログラミング言語"].SubtreeTrendScore, precision: 5);
         Assert.Equal(100, topics["プログラミング"].SubtreeTrendScore, precision: 5);
         Assert.Equal(75, topics["python"].SubtreeTrendScore, precision: 5);
+    }
+
+    [Fact]
+    public async Task いまの正規化で作られないキーの行は掃除される()
+    {
+        // 正規化の規則を変えると、以前のキーの行が幽霊として一覧に残る
+        // (中身は正しい行に合流済みなのに、Upsert は行を消さないため)
+        var catalog = new TopicCatalog([new TopicCatalogEntry("生成AI", [], null)]);
+        var store = new InMemoryTopicStore();
+        var at = new DateTimeOffset(2026, 8, 7, 0, 0, 0, TimeSpan.Zero);
+        await store.UpsertAsync(
+        [
+            // ハッシュタグの印・末尾カンマ・区切りだけ —— いまの正規化では作られない
+            new TopicUpdate("#生成ai", "#生成ai", null, 0, 0, 0, 0, 0, 0),
+            new TopicUpdate("生成ai,", "生成ai,", null, 0, 0, 0, 0, 0, 0),
+            new TopicUpdate(",", ",", null, 0, 0, 0, 0, 0, 0),
+            new TopicUpdate("生成ai", "生成AI", null, 0, 0, 0, 0, 0, 0),
+        ], at);
+
+        await NewRunner(catalog, new StubTrendSource([]), store).RunOnceAsync();
+
+        var tags = (await store.GetAllAsync()).Select(topic => topic.Tag).ToList();
+        Assert.Equal(["生成ai"], tags);
+    }
+
+    [Fact]
+    public async Task 選択済みなら残骸の行でも消さない()
+    {
+        // 消すと収集キーワードごと失われる(RemoveAsync の約束)。
+        // 表示名が空の行(Display 列より前に書かれた古い行)で確かめる ——
+        // 正規化で別のキーになる語は、そもそも選択できない(選択も正規化を通る)
+        var store = new InMemoryTopicStore();
+        await store.UpsertAsync(
+            [new TopicUpdate("ajax", "", null, 0, 0, 0, 0, 0, 0)],
+            new DateTimeOffset(2026, 8, 7, 0, 0, 0, TimeSpan.Zero));
+        await store.UpdateSelectionAsync(["ajax"]);
+
+        await NewRunner(TopicCatalog.Empty, new StubTrendSource([]), store).RunOnceAsync();
+
+        Assert.Contains("ajax", (await store.GetAllAsync()).Select(topic => topic.Tag));
+    }
+
+    [Fact]
+    public async Task トレンドで見つかった新語はその回では聞かず次の回に聞く()
+    {
+        // **押すまで何語 LLM に流れるか分からない**のを避けるため、その場で取得した語は足さない。
+        // 今回のトレンドで見つかった語はトピックの行として残り、次の回の候補になる
+        var store = new InMemoryTopicStore();
+        var classifier = new RecordingClassifier();
+        var trend = new StubTrendSource([new TrendTopicCandidate("Kiro", 10, "スタブ")]);
+
+        var runner = NewRunner(TopicCatalog.Empty, trend, store, classifier);
+        await runner.RunOnceAsync();
+
+        // 1 回目: 聞く語は無い(kiro は行として残るだけ)
+        Assert.Empty(classifier.Asked.SelectMany(asked => asked));
+        Assert.Contains("kiro", (await store.GetAllAsync()).Select(topic => topic.Tag));
+
+        // 2 回目: 前回のトレンドで現れた語を聞く
+        await NewRunner(TopicCatalog.Empty, trend, store, classifier).RunOnceAsync();
+
+        Assert.Equal(["kiro"], classifier.Asked.SelectMany(asked => asked));
     }
 }

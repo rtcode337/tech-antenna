@@ -50,7 +50,7 @@ public class TopicReorganizationRunner(
     /// ジョブはバックグラウンドで走り進捗も見えるので、時間よりも
     /// 「1回の実行で LLM を何回呼ぶか」(60 語 × 5 バッチ)で決めている。
     /// </summary>
-    const int MaxTagsPerClassification = 300;
+    public const int MaxTagsPerClassification = 300;
 
     /// <summary>
     /// 1回の実行で一言説明を埋める語の上限。分類と同じ考え方(60 語 × 5 バッチ)。
@@ -61,6 +61,14 @@ public class TopicReorganizationRunner(
     readonly IReadOnlyList<ITrendTopicSource> _sources = sources.ToList();
 
     int _failedSources;
+
+    /// <summary>
+    /// **直前の実行で実際に LLM へ聞いた語。** 画面で「何が対象になったのか」を見せるために持つ ——
+    /// 対象は「保存済みデータの候補」+「実行時に取得した外部トレンドの語」で、
+    /// 後者は押すまで確定しない。候補の数だけを出していると、実行して初めて
+    /// 「候補 1 語のはずが 30 語聞いている」と見えて挙動が読めなくなる。
+    /// </summary>
+    public IReadOnlyList<string> LastClassificationTargets { get; private set; } = [];
 
     public override string Name => "トピックを再編成";
 
@@ -74,19 +82,25 @@ public class TopicReorganizationRunner(
     {
         Progress = "外部トレンドを取得中…";
         var trends = await FetchTrendsAsync(cancellationToken);
+
+        // **分類の前にもタグを作り直す。** 正規化の規則やカタログを変えると、そこで初めて
+        // 現れる語がある(`aiと機械学習、データエンジニアリング` を 2 語に分けた等)。
+        // 後段だけで回すと、その語は次に押すまで分類されず「押しても処理されない」に見える。
+        // DB だけの処理で数秒・冪等なので、前後 2 回回してよい
+        Progress = "タグを作り直し中…";
+        await renormalizationRunner.RunOnceAsync(cancellationToken);
         Progress = "集めたデータの件数を集計中…";
         var counts = await FetchCountsAsync(cancellationToken);
 
         // 未知の語を LLM で分類し、通ったぶんでカタログとデータを追従させる
-        var classified = await ClassifyUnknownAsync(trends, counts, cancellationToken);
+        var classified = await ClassifyUnknownAsync(cancellationToken);
 
         // 説明がまだ無い用語を埋める(分類で新しく入った語の説明は上で保存済み)
         var described = await DescribeMissingAsync(trends, cancellationToken);
 
-        // 保存済みデータのタグを常に作り直してから集計する。LLM 分類だけでなく、
-        // 手で編集したカタログ(topic-catalog.json)の別名もここで過去データに効く ——
-        // かつては別ボタン(タグを再正規化)だったが、収集のたびに走らせても数秒で
-        // 冪等なので、ボタンを覚えて押してもらうより毎回やるほうが確実。
+        // **2 回目のタグの作り直し。** ここでは今回の分類で増えた別名を過去データへ反映する
+        // (1 回目は分類の前に走らせて、分割で生まれた語をその回の対象に含めるため)。
+        // 手で編集したカタログ(topic-catalog.json)の別名もここで効く。
         // トレンドの語も同じカタログで寄せ直す(`ai駆動開発` が別名になったら合算する)
         Progress = "タグを再正規化中…";
         await renormalizationRunner.RunOnceAsync(cancellationToken);
@@ -103,6 +117,21 @@ public class TopicReorganizationRunner(
             .Select(c => c.Tag)
             .ToHashSet(StringComparer.Ordinal);
         await topicStore.RemoveAsync(skips.ToList(), cancellationToken);
+
+        // **もう作られない残骸の行も掃除する**(選択済みは RemoveAsync が守る):
+        //   - いまの正規化では作られないキーの行 —— 規則を変えると出る。`#生成ai`
+        //     (ハッシュタグの印を落とすようになった)・`生成ai,`(カンマで分けるようになった)・
+        //     `,`(区切りだけ)が該当し、中身は正しい行に合流済みなので、残すと一覧に幽霊が並ぶ
+        //   - 表示名が空の行 —— Display 列より前に書かれた古い行。以後の更新では必ず入る
+        var stale = (await topicStore.GetAllAsync(cancellationToken))
+            .Where(topic => topic.Display.Length == 0 || !IsCurrentKey(topic.Tag))
+            .Select(topic => topic.Tag)
+            .ToList();
+        var removedStale = await topicStore.RemoveAsync(stale, cancellationToken);
+        if (removedStale > 0)
+        {
+            logger.LogInformation("正規化で作られなくなった残骸のトピック {Count} 件を削除", removedStale);
+        }
 
         // カタログの語彙 + トレンドで見つかった語 + 集めたデータにタグとして付いている語
         var tags = catalog.Entries.Select(entry => entry.Key)
@@ -144,14 +173,11 @@ public class TopicReorganizationRunner(
     }
 
     /// <summary>
-    /// カタログに無く、まだ分類していない語を LLM に渡し、検証を通った分類の件数を返す。
+    /// 次の対象(<see cref="TopicCandidateFinder"/>)を LLM に渡し、検証を通った分類の件数を返す。
     /// **失敗しても収集は続ける**(分類は次の実行でやり直せるが、トピック一覧が
     /// 作られないと選択まで狂う)。
     /// </summary>
-    async Task<int> ClassifyUnknownAsync(
-        Dictionary<string, (double Score, int Sources)> trends,
-        Dictionary<string, (int Articles, int Events, int Books)> counts,
-        CancellationToken cancellationToken)
+    async Task<int> ClassifyUnknownAsync(CancellationToken cancellationToken)
     {
         if (classifier is null)
         {
@@ -160,20 +186,17 @@ public class TopicReorganizationRunner(
 
         try
         {
-            // 候補は「集めたデータから溜まった語」(TopicCandidateFinder。設定画面の
-            // 「新規トピック候補」と同じもの)+「今回のトレンドに現れた語」。
+            // **対象は候補ファインダーが決めた分だけ。今回のトレンドはここに足さない** ——
+            // その場で取得した語を足すと、押すまで何語 LLM に流れるか分からない。
+            // 今回のトレンドで見つかった語はトピックの行として残り、次の回の候補になる
+            // (画面の「次の再編成で LLM に聞く語」と同じ 1 か所から出す)。
             // 上限で切れる分は、目立つ語(件数 + 話題度)から先に分類する
-            var excluded = await candidateFinder.GetExcludedAsync(cancellationToken);
             var unknown = (await candidateFinder.FindAsync(cancellationToken))
                 .Select(candidate => candidate.Tag)
-                .Concat(trends.Keys.Where(tag => !catalog.Contains(tag) && !excluded.Contains(tag)))
-                .Distinct(StringComparer.Ordinal)
-                .OrderByDescending(tag => Total(counts.GetValueOrDefault(tag))
-                    + trends.GetValueOrDefault(tag).Score)
-                .ThenBy(tag => tag, StringComparer.Ordinal)
                 .Take(MaxTagsPerClassification)
                 .ToList();
 
+            LastClassificationTargets = unknown;
             if (unknown.Count == 0)
             {
                 return 0;
@@ -359,8 +382,13 @@ public class TopicReorganizationRunner(
         }
     }
 
-    static int Total((int Articles, int Events, int Books) count) =>
-        count.Articles + count.Events + count.Books;
+    /// <summary>
+    /// いまの正規化を通しても<b>そのままの1語になる</b>キーか。
+    /// **`ToKey` の比較では足りない** —— カンマは `Normalize` の側で語を分けているので、
+    /// `生成ai,` は `ToKey` を通しても変わらず「作られないキー」だと分からない。
+    /// </summary>
+    static bool IsCurrentKey(string tag) =>
+        TagNormalizer.Normalize([tag]) is [var only] && only == tag;
 
     /// <summary>
     /// タグごとの話題度を「自身 + 配下のトピックの合計」に畳み込む。

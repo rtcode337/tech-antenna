@@ -4,21 +4,31 @@ using TechAntenna.Core.Topics;
 
 namespace TechAntenna.Web.Services;
 
-/// <summary>新規トピックの候補1語。Count は集めた記事・イベント・書籍に付いている回数。</summary>
-public record TopicCandidate(string Tag, int Count);
+/// <summary>
+/// 次の再編成で LLM に聞く候補1語。
+/// </summary>
+/// <param name="Tag">正規化済みのタグ。</param>
+/// <param name="Count">集めた記事・イベント・書籍に付いている回数。</param>
+/// <param name="TrendScore">前回までの再編成で外部トレンドから付いた話題度(トレンド由来の語はこちらだけ入る)。</param>
+public record TopicCandidate(string Tag, int Count, double TrendScore = 0);
 
 /// <summary>
-/// 新規トピックの候補を、**保存済みデータから導出する**。
+/// 次の再編成で LLM に聞く語を、**保存済みのデータだけから導出する**。
+/// 画面の表示(「次の再編成で LLM に聞く語」)と再編成の入力が<b>同じ 1 か所</b>から出るように
+/// してあるのが要点 —— 別々に組むと、画面に 1 語しか出ていないのに実行すると 30 語聞く、
+/// という食い違いが起きる(実際に起きた)。
 ///
-/// 候補は「集めた記事などのタグのうち、カタログに無く、まだ分類も確定していない語」。
-/// 記事・イベント・書籍を収集するたびにタグとして自然に溜まるので、
-/// 専用の収集や保存は要らない —— 見つける行為(語彙)と、話題度(鮮度が要る)は性質が別で、
-/// 候補集めのために外部へ聞きに行く必要はない。
+/// 材料は 2 つで、どちらも DB を読むだけで決まる:
 ///
-/// 設定画面の「新規トピック候補」の表示と、トピックの再編成(LLM 分類の入力)の両方で使う。
+/// 1. **集めたデータのタグ** —— カタログに無く、まだ分類も確定していない語のうち
+///    <see cref="MinCount"/> 回以上付いたもの。記事などを収集するたびに自然に溜まる
+/// 2. **前回までのトレンドで現れた語** —— トピック一覧に行はあるが語彙に入っていない語。
+///    **その回のトレンドをその場で足さない**のが肝 —— 足すと「押すまで何語 LLM に流れるか
+///    分からない」状態になる。今回のトレンドで見つかった語は行として残り、次の回の候補になる
 /// </summary>
 public class TopicCandidateFinder(
     TopicCatalog catalog,
+    ITopicStore topicStore,
     IArticleStore articleStore,
     IEventStore eventStore,
     IBookStore bookStore,
@@ -33,7 +43,11 @@ public class TopicCandidateFinder(
     /// 短いと毎回同じ語で枠を使い、無期限だと新語が永久に平置きのまま残る。</summary>
     public const int UnknownRetryDays = 7;
 
-    /// <summary>候補を件数の多い順に返す。</summary>
+    /// <summary>
+    /// 候補を「目立つ順」(件数 + 話題度)に返す。**上限は掛けない** ——
+    /// 1 回に何語聞くかは再編成側の枠(<c>MaxTagsPerClassification</c>)で決め、
+    /// 画面では枠に収まらない分も「次回に回る語」として見せたいため。
+    /// </summary>
     public async Task<IReadOnlyList<TopicCandidate>> FindAsync(CancellationToken cancellationToken = default)
     {
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -46,20 +60,37 @@ public class TopicCandidateFinder(
             }
         }
 
-        // 分類済みの語(Skip 含む)は候補にしない —— 同じ語を毎回聞き直すと LLM の枠を無駄にする。
-        // Unknown だけは期限付き: 期限内は除き、過ぎたら候補に戻してもう一度聞く
-        var retryBefore = clock.GetUtcNow().AddDays(-UnknownRetryDays);
-        var classified = (await classificationStore.GetAllAsync(cancellationToken))
-            .Where(c => c.Kind != TopicClassificationKind.Unknown || c.ClassifiedAt >= retryBefore)
-            .Select(c => c.Tag)
-            .ToHashSet(StringComparer.Ordinal);
+        var excluded = await GetExcludedAsync(cancellationToken);
+        bool Wanted(string tag) => !catalog.Contains(tag) && !excluded.Contains(tag);
 
-        return counts
-            .Where(pair => pair.Value >= MinCount
-                && !catalog.Contains(pair.Key)
-                && !classified.Contains(pair.Key))
-            .Select(pair => new TopicCandidate(pair.Key, pair.Value))
-            .OrderByDescending(candidate => candidate.Count)
+        // 1. 集めたデータのタグ(下限あり)
+        var candidates = counts
+            .Where(pair => pair.Value >= MinCount && Wanted(pair.Key))
+            .ToDictionary(pair => pair.Key, pair => new TopicCandidate(pair.Key, pair.Value),
+                StringComparer.Ordinal);
+
+        // 2. 前回までのトレンドで現れた語(話題度が付いている = 外部で見つかった語)。
+        //    件数の下限は掛けない —— 手元のデータには 1 件も無いのが普通で、
+        //    「外で話題になっている新語」こそツリーへ入れたい
+        foreach (var topic in await topicStore.GetAllAsync(cancellationToken))
+        {
+            if (topic.TrendScore <= 0 && topic.SourceCount <= 0)
+            {
+                continue;
+            }
+
+            if (!Wanted(topic.Tag))
+            {
+                continue;
+            }
+
+            candidates[topic.Tag] = candidates.TryGetValue(topic.Tag, out var found)
+                ? found with { TrendScore = topic.TrendScore }
+                : new TopicCandidate(topic.Tag, counts.GetValueOrDefault(topic.Tag), topic.TrendScore);
+        }
+
+        return candidates.Values
+            .OrderByDescending(candidate => candidate.Count + candidate.TrendScore)
             .ThenBy(candidate => candidate.Tag, StringComparer.Ordinal)
             .ToList();
     }

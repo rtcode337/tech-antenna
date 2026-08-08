@@ -51,10 +51,12 @@ public class QiitaTrendTopicSource(
                     continue;
                 }
 
-                var normalized = TagNormalizer.Normalize([name.GetString() ?? ""]);
-                if (normalized.Count == 1)
+                // **1つのタグ名が複数の語に割れることがある**(`AI活用,` のようにカンマ入りの
+                // タグ名が実在する)。正規化が返した分だけ数える —— 以前は 1 個のときだけ
+                // 数えていたので、割れた語がまるごと落ちていた
+                foreach (var normalized in TagNormalizer.Normalize([name.GetString() ?? ""]))
                 {
-                    scores[normalized[0]] = scores.GetValueOrDefault(normalized[0]) + weight;
+                    scores[normalized] = scores.GetValueOrDefault(normalized) + weight;
                 }
             }
         }

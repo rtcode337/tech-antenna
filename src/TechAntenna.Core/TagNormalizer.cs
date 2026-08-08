@@ -29,12 +29,33 @@ public static class TagNormalizer
         "ポエム", "個人メモ", "学習記録",
     };
 
+    /// <summary>
+    /// **1つのタグの中に複数の語が入っているときの区切り。**
+    /// 収集元のタグ名にカンマが入っていることが実際にある(実測: Qiita の直近 100 記事の
+    /// タグ 346 個のうち `SEOツール,`・`AI活用,`・`コスト重視,` の 3 個)。
+    /// 落とすだけだと `a,b` が `ab` という別の語になってしまうので、**ここで分ける**。
+    /// </summary>
+    static readonly char[] TagSeparators = [',', '、'];
+
     /// <summary>タグの一覧を正規化する。空の値・ストップワード・重複は落とし、出現順は保つ。</summary>
     public static IReadOnlyList<string> Normalize(IEnumerable<string> tags) =>
-        tags.Select(ToKey)
+        tags.SelectMany(tag => tag.Split(TagSeparators))
+            .Select(ToKey)
             .Where(tag => tag.Length > 0 && !Stopwords.Contains(tag))
             .Distinct(StringComparer.Ordinal)
             .ToList();
+
+    /// <summary>
+    /// 語の飾りとして先頭・末尾に付くだけの記号。**位置で扱いを変える**のが要点:
+    /// 先頭の `#` はハッシュタグの印(実測: Qiita のタグに `#生成AI`・`#プログラミング` がある)で、
+    /// 落とさないと `生成ai` と別のトピックに割れる。一方**語の中の `#` は残す**(`c#`)。
+    /// `*` は Markdown の強調が漏れたもの(実測: `**Video` というタグ名があった)。
+    ///
+    /// **`.` は先頭でも落とさない** —— `.net` が `net` になってしまう。
+    /// </summary>
+    static readonly char[] LeadingNoise = ['#', '*'];
+
+    static readonly char[] TrailingNoise = ['*', '。', '.'];
 
     /// <summary>1つのタグを突き合わせキーに直す。</summary>
     public static string ToKey(string tag)
@@ -57,6 +78,6 @@ public static class TagNormalizer
             key.Append(c);
         }
 
-        return key.ToString();
+        return key.ToString().TrimStart(LeadingNoise).TrimEnd(TrailingNoise);
     }
 }
