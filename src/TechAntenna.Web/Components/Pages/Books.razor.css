@@ -38,67 +38,8 @@
     padding: 0.5rem 1rem 0.9rem;
 }
 
-/* 1冊ぶん。書影と書誌情報を横に並べる。
-   非強調でも同じ幅の帯(透明)を置いて、強調の有無でタイトルの位置がずれないようにする */
-.topic-group > ul > li {
-    padding: 0.6rem 0 0.6rem 0.6rem;
-    border-left: 3px solid transparent;
-}
-
-/* 記事で薦められている本。記事一覧の「選んだトピック」と同じ文法(左帯 + 薄い面) */
-.topic-group li.recommended-book {
-    border-left-color: var(--accent);
-    background: var(--accent-soft);
-}
-
-.topic-group > ul > li + li {
-    border-top: 1px solid var(--border);
-}
-
-.topic-group img {
-    flex: none;
-    border-radius: var(--radius-sm);
-    background: var(--surface-sunken);
-}
-
-.topic-group li > div > a,
-.topic-group li > div > span {
-    color: var(--text);
-    font-weight: 600;
-    line-height: 1.55;
-}
-
-.topic-group li > div > a:hover {
-    color: var(--accent);
-}
-
-.topic-group li small {
-    display: block;
-    margin-top: 0.2rem;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    line-height: 1.6;
-}
-
 .topic-name {
     margin-left: 0.25rem;
-}
-
-/* 記事で薦められた回数。レビューとは別軸なので色を分ける */
-.recommended {
-    color: var(--accent);
-    font-weight: 650;
-    text-decoration: none;
-    white-space: nowrap;
-}
-
-.recommended:hover {
-    text-decoration: underline;
-}
-
-.review {
-    color: var(--warning-text);
-    white-space: nowrap;
 }
 
 .credit {

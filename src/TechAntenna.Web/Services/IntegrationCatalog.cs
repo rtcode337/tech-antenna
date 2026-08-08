@@ -29,7 +29,10 @@ public enum IntegrationAxis
     /// <summary>興味トピック(選んだトピックを検索語にして集める)。</summary>
     Interests = 2,
 
-    /// <summary>どちらでも使う。</summary>
+    /// <summary>定番(時間が経っても薦められ続けるもの。固定クエリで定評を掘る)。</summary>
+    Classics = 4,
+
+    /// <summary>トレンドと興味トピックの両方で使う(話題度の材料・LLM)。</summary>
     Both = Trending | Interests,
 }
 
@@ -116,16 +119,20 @@ public class IntegrationCatalog(
             IntegrationAxis.Interests, "書籍", "Google Books", CredentialNeed.Required, "Books__GoogleBooksApiKey",
             !string.IsNullOrWhiteSpace(books.Value.GoogleBooksApiKey),
             "未設定だと検索が毎回 429 になる(キー無しは共有の匿名プロジェクト扱いで上限 0 件)"));
+        // 補完(openBD・楽天)は興味トピックの検索でも定番の推薦本でも使う
         integrations.Add(new Integration(
-            IntegrationAxis.Interests, "書籍", "openBD", CredentialNeed.NotNeeded, null, true,
+            IntegrationAxis.Interests | IntegrationAxis.Classics,
+            "書籍", "openBD", CredentialNeed.NotNeeded, null, true,
             "ISBN から書誌情報を補う。日本の書誌が無料で引ける", books.Value.UseOpenBd));
         // 書籍そのものは集まるので「必須」ではない(レビューが取れないだけ)
         integrations.Add(new Integration(
-            IntegrationAxis.Interests, "書籍", "楽天ブックス", CredentialNeed.Optional, "Rakuten__ApplicationId",
+            IntegrationAxis.Interests | IntegrationAxis.Classics,
+            "書籍", "楽天ブックス", CredentialNeed.Optional, "Rakuten__ApplicationId",
             !string.IsNullOrWhiteSpace(rakuten.Value.ApplicationId),
             "未設定でも書籍は集まるが、レビュー(読まれている度合い)が取れず並べ替えができない"));
+        // 推薦本は定番の軸。**トピックの選択とは無関係**(固定クエリで「読むべき本」記事を掘る)
         integrations.Add(new Integration(
-            IntegrationAxis.Interests, "書籍", "Qiita(推薦本)", CredentialNeed.Optional, "Qiita__AccessToken",
+            IntegrationAxis.Classics, "書籍", "Qiita(推薦本)", CredentialNeed.Optional, "Qiita__AccessToken",
             !string.IsNullOrWhiteSpace(qiita.AccessToken),
             "未設定でも動く。トークンを入れると API の上限が 60 → 1000 リクエスト/時になる",
             qiita.Enabled));

@@ -1,0 +1,69 @@
+@using TechAntenna.Core.Models
+@using TechAntenna.Core.Topics
+@inject TopicCatalog Catalog
+
+@* 1冊分の表示。/books(トピックの折りたたみと「薦められている本」の枠)と
+   /classics(定番)で同じものを使う —— 別々に書くと本の見た目がページごとにずれる。
+   CurrentTag はその見出しのトピック(同じ名前をタグとして繰り返さないため)。
+   EmphasizeRecommended はトピックの中で推薦本を目立たせるか ——
+   推薦本だけを並べる枠では全冊が該当して意味を成さないので切る *@
+<li class="mb-3 d-flex gap-2 @(EmphasizeRecommended && Book.RecommendationCount > 0 ? "recommended-book" : "")">
+    @if (Book.CoverUrl is { } coverUrl)
+    {
+        <img src="@coverUrl" alt="" width="48" loading="lazy" />
+    }
+    <div>
+        @if (Book.Url is { } url)
+        {
+            <a href="@url" target="_blank" rel="noopener">@Book.Title</a>
+        }
+        else
+        {
+            <span>@Book.Title</span>
+        }
+        <br />
+        <small class="text-muted">
+            @if (Book.Authors.Count > 0)
+            {
+                <text>@string.Join("、", Book.Authors) — </text>
+            }
+            @(Book.Publisher ?? "出版社不明")
+            @if (Book.PublishedOn is { } publishedOn)
+            {
+                <text> — @publishedOn.ToString("yyyy-MM")</text>
+            }
+            @if (Book.RecommendationCount > 0)
+            {
+                @* レビュー(読まれた量)とは別軸なので、並べて別々に出す *@
+                <a class="recommended ms-1" href="@Book.RecommendedBy[0]"
+                   target="_blank" rel="noopener" title="この本を薦めている記事へ">
+                    推薦 @Book.RecommendationCount 件
+                </a>
+            }
+            @if (Book.ReviewCount is { } reviewCount and > 0)
+            {
+                <span class="review ms-1">
+                    ★ @(Book.ReviewAverage?.ToString("0.0") ?? "—")
+                    <span class="text-muted">(@reviewCount 件)</span>
+                </span>
+            }
+            @foreach (var tag in Book.Tags.Where(tag => tag != CurrentTag))
+            {
+                <span class="badge bg-light text-dark ms-1">@Catalog.DisplayOf(tag)</span>
+            }
+        </small>
+    </div>
+</li>
+
+@code {
+    [Parameter, EditorRequired]
+    public Book Book { get; set; } = default!;
+
+    /// <summary>その見出しのトピック(タグの帯から除く)。枠がトピックでなければ空。</summary>
+    [Parameter]
+    public string CurrentTag { get; set; } = "";
+
+    /// <summary>推薦本を左帯 + 薄い面で目立たせるか。</summary>
+    [Parameter]
+    public bool EmphasizeRecommended { get; set; }
+}

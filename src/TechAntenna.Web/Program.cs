@@ -303,6 +303,8 @@ if (qiita.Enabled && qiita.Queries.Count > 0)
 }
 
 builder.Services.AddSingleton<BookCollectionRunner>();
+// 定番(推薦本)の収集。書籍の収集と分けてある —— トピックの選択に依存しない第三の軸
+builder.Services.AddSingleton<ClassicsCollectionRunner>();
 // 論文は記事と別のボタン(検索なので収集対象のトピックが要る)
 builder.Services.AddSingleton<PaperCollectionRunner>();
 // 語彙のスナップショット(TopicCatalog)を DB から組み直す。起動時と整備のあとに呼ぶ

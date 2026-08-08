@@ -30,28 +30,12 @@ else
         並びは<strong>薦められている順</strong>(記事で名指しされた回数)、次に
         <strong>読まれている順</strong>(レビュー件数と平均評価から算出)です。
         どちらも取れていない本は後ろに置いています。
-        記事で薦められている本は、トピックの中でも<strong>強調</strong>しています。
+        記事で薦められている本は、トピックの中でも<strong>強調</strong>しています
+        (トピックに関係なく薦められている定番は<a href="/classics">定番</a>のページへ)。
     </p>
 
-    @* 記事で薦められた本はトピックの検索で拾ったわけではないのでタグを持たない。
-       トピックの折りたたみに混ぜず、独立した枠で先に出す *@
-    @if (_recommended is { Count: > 0 })
-    {
-        <details class="topic-group" open>
-            <summary>
-                <span class="topic-name">記事で薦められている本</span>
-                <span class="badge bg-secondary ms-1">@_recommended.Count</span>
-                <small class="text-muted">@MinRecommendations 本以上の記事で名指しされた本</small>
-            </summary>
-            <ul class="list-unstyled">
-                @foreach (var book in _recommended)
-                {
-                    @RenderBook(book, "", emphasizeRecommended: false)
-                }
-            </ul>
-        </details>
-    }
-
+    @* 記事で薦められた本の枠はここには無い —— 第三の軸として /classics(定番)へ移した。
+       トピックの中の強調(左帯)は残す(トピックで絞った上でなら 1 本の推薦でも意味がある) *@
     @foreach (var group in _groups)
     {
         @* 折りたたみは details/summary。静的 SSR のまま、JS も対話回線も無しで開閉できる *@
@@ -63,7 +47,7 @@ else
             <ul class="list-unstyled">
                 @foreach (var book in group.Books)
                 {
-                    @RenderBook(book, group.Tag, emphasizeRecommended: true)
+                    <BookItem Book="book" CurrentTag="@group.Tag" EmphasizeRecommended="true" />
                 }
             </ul>
         </details>
@@ -79,73 +63,10 @@ else
     }
 }
 
-@* 1冊分の表示。トピックの折りたたみと「薦められている本」の枠で同じものを使う。
-   currentTag はその見出しのトピック(同じ名前をタグとして繰り返さないため)。
-   emphasizeRecommended はトピックの中で推薦本を目立たせるか ——
-   「薦められている本」の枠では全冊が該当して意味を成さないので切る *@
-@{
-    RenderFragment RenderBook(Book book, string currentTag, bool emphasizeRecommended) =>
-    @<li class="mb-3 d-flex gap-2 @(emphasizeRecommended && book.RecommendationCount > 0 ? "recommended-book" : "")">
-        @if (book.CoverUrl is { } coverUrl)
-        {
-            <img src="@coverUrl" alt="" width="48" loading="lazy" />
-        }
-        <div>
-            @if (book.Url is { } url)
-            {
-                <a href="@url" target="_blank" rel="noopener">@book.Title</a>
-            }
-            else
-            {
-                <span>@book.Title</span>
-            }
-            <br />
-            <small class="text-muted">
-                @if (book.Authors.Count > 0)
-                {
-                    <text>@string.Join("、", book.Authors) — </text>
-                }
-                @(book.Publisher ?? "出版社不明")
-                @if (book.PublishedOn is { } publishedOn)
-                {
-                    <text> — @publishedOn.ToString("yyyy-MM")</text>
-                }
-                @if (book.RecommendationCount > 0)
-                {
-                    @* レビュー(読まれた量)とは別軸なので、並べて別々に出す *@
-                    <a class="recommended ms-1" href="@book.RecommendedBy[0]"
-                       target="_blank" rel="noopener" title="この本を薦めている記事へ">
-                        推薦 @book.RecommendationCount 件
-                    </a>
-                }
-                @if (book.ReviewCount is { } reviewCount and > 0)
-                {
-                    <span class="review ms-1">
-                        ★ @(book.ReviewAverage?.ToString("0.0") ?? "—")
-                        <span class="text-muted">(@reviewCount 件)</span>
-                    </span>
-                }
-                @foreach (var tag in book.Tags.Where(tag => tag != currentTag))
-                {
-                    <span class="badge bg-light text-dark ms-1">@Catalog.DisplayOf(tag)</span>
-                }
-            </small>
-        </div>
-    </li>;
-}
-
 @code {
     /// <summary>読み込む冊数。トピックごとに振り分けるので一覧表示より多めに取る。</summary>
     const int Limit = 400;
 
-    /// <summary>
-    /// 「薦められている本」の枠に出す推薦記事数の下限。1本だけの推薦は、まとめ記事が
-    /// 網羅的に貼ったリンクも含まれて薄い —— 複数の書き手が独立に名指しした本だけを出す。
-    /// (トピックの中の強調は 1 本からで、こちらは絞らない)
-    /// </summary>
-    const int MinRecommendations = 2;
-
-    IReadOnlyList<Book>? _recommended;
     IReadOnlyList<TopicGroup>? _groups;
     bool _hasReviews;
 
@@ -158,10 +79,6 @@ else
     async Task LoadAsync()
     {
         var books = await BookStore.GetRecentAsync(Limit);
-        _recommended = books
-            .Where(book => book.RecommendationCount >= MinRecommendations)
-            .ByPopularity()
-            .ToList();
         _groups = Group(books);
         // クレジット表記は楽天のデータを実際に出しているときだけ置く
         _hasReviews = books.Any(book => book.ReviewCount is > 0);
@@ -184,7 +101,7 @@ else
             .ThenBy(group => group.Display, StringComparer.Ordinal)
             .ToList();
 
-        // 推薦で拾った本はタグを持たないが、上の枠で出しているのでここには入れない
+        // 推薦で拾った本はタグを持たないことが多いが、あれは /classics(定番)の担当
         var untagged = books
             .Where(book => book.Tags.Count == 0 && book.RecommendationCount == 0)
             .ByPopularity()

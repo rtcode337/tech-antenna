@@ -8,7 +8,6 @@ namespace TechAntenna.Web.Services;
 public class BookCollectionRunner(
     IEnumerable<IBookCatalog> catalogs,
     IEnumerable<IBookEnricher> enrichers,
-    IEnumerable<IBookRecommendationSource> recommendationSources,
     IBookStore store,
     ITopicStore topicStore,
     TagObserver tagObserver,
@@ -17,7 +16,6 @@ public class BookCollectionRunner(
     ILogger<BookCollectionRunner> logger) : JobRunner
 {
     readonly IBookCatalog? _catalog = catalogs.FirstOrDefault();
-    readonly IReadOnlyList<IBookRecommendationSource> _recommendationSources = recommendationSources.ToList();
 
     public override string Name => "書籍の収集";
 
@@ -75,75 +73,11 @@ public class BookCollectionRunner(
             }
         }
 
-        var recommended = await CollectRecommendationsAsync(cancellationToken);
-
-        // 見つけたタグをタグの一覧へ反映する(状態は触らない)
-
+        // 見つけたタグをタグの一覧へ反映する(状態は触らない)。
+        // 推薦本(定番)の収集はここには無い —— 第三の軸なので ClassicsCollectionRunner が持つ
         await tagObserver.ObserveAsync(cancellationToken: cancellationToken);
 
-
-        return new CollectionRunResult(found + recommended.Found, added + recommended.Added, failed + recommended.Failed);
-    }
-
-    /// <summary>
-    /// 「読むべき本」を挙げた記事から薦められている本を拾う。**検索とは独立した経路**で、
-    /// トピックの選択とも関係しない —— 定番書はトピックの流行り廃りとは別に薦められ続けるため。
-    ///
-    /// 拾えるのは ISBN だけなので、書誌情報は後段の補完(openBD)に任せる。
-    /// **補完できずタイトルが空のままの本は保存しない**(画面に空行が並ぶだけになる)。
-    /// </summary>
-    async Task<(int Found, int Added, int Failed)> CollectRecommendationsAsync(
-        CancellationToken cancellationToken)
-    {
-        int found = 0, added = 0, failed = 0;
-
-        foreach (var source in _recommendationSources)
-        {
-            try
-            {
-                var recommendations = await source.FetchAsync(cancellationToken);
-                if (recommendations.Count == 0)
-                {
-                    continue;
-                }
-
-                var collectedAt = clock.GetUtcNow();
-                var books = recommendations
-                    .Select(recommendation => new Book
-                    {
-                        // タイトルは openBD が埋める(この時点では ISBN しか分かっていない)
-                        Title = "",
-                        Isbn13 = recommendation.Isbn13,
-                        SourceName = source.Name,
-                        CollectedAt = collectedAt,
-                        RecommendedBy = recommendation.ArticleUrls,
-                    })
-                    .ToList();
-
-                var enriched = (await EnrichAsync(books, cancellationToken))
-                    .Where(book => book.Title.Length > 0)
-                    .ToList();
-
-                var newlyAdded = await store.AddRangeAsync(enriched, cancellationToken);
-                found += enriched.Count;
-                added += newlyAdded;
-                logger.LogInformation(
-                    "{Source}: {Found} 冊が薦められていて、うち {Added} 冊を新規追加",
-                    source.Name, enriched.Count, newlyAdded);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                // 1つの収集元の失敗で全体を止めない
-                failed++;
-                logger.LogError(ex, "{Source} からの推薦本の収集に失敗", source.Name);
-            }
-        }
-
-        return (found, added, failed);
+        return new CollectionRunResult(found, added, failed);
     }
 
     /// <summary>

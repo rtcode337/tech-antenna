@@ -83,6 +83,16 @@
             </div>
         </details>
 
+        @* 定番 — 第三の軸(時間が経っても薦められ続けるもの)。子がまだ無いので
+           ホームと同じプレーンな行(.caret-spacer で名前の位置だけそろえる)。
+           記事などに広がったら details のグループに変える *@
+        <div class="nav-item nav-plain px-3">
+            <span class="caret-spacer" aria-hidden="true"></span>
+            <NavLink class="nav-link" href="classics">
+                <span class="bi bi-award-fill-nav-menu" aria-hidden="true"></span> 定番
+            </NavLink>
+        </div>
+
         <details class="nav-group" open="@InSettings">
             <summary class="nav-item px-3">
                 <span class="caret" aria-hidden="true"></span>

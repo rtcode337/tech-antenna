@@ -84,7 +84,10 @@ public class InMemoryBookStore : IBookStore
             var updated = 0;
             foreach (var book in _byKey.Values)
             {
-                var tags = catalog.Normalize(book.RawTags);
+                // 記事と同じ規則(生タグ + タイトルから見つけたトピック)。**推薦(定番)で
+            // 拾った本は RawTags が空**(検索キーワードが無い)なので、タイトルの分が
+            // 無いとタグがずっと空のまま —— トピックの詳細にも /books の分類にも乗らない
+            var tags = catalog.Normalize(book.RawTags.Concat(catalog.FindIn(book.Title)));
                 if (book.Tags.SequenceEqual(tags, StringComparer.Ordinal))
                 {
                     continue;
