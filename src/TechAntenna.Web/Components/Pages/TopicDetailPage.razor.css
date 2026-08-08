@@ -148,3 +148,12 @@ li .text-body-secondary {
     margin-top: 0.3rem;
     font-size: 0.89rem;
 }
+
+/* 種別(記事 / ニュース / 論文)のバッジ。一覧は種別で絞っていないので、行ごとに見分ける */
+.kind-badge {
+    margin-right: 0.35rem;
+    background: var(--surface-sunken);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    font-weight: 500;
+}

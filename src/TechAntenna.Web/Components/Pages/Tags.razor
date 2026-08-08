@@ -28,7 +28,7 @@
    その収集のボタンは設定にある(この画面には無い) *@
 <p class="page-note text-muted">
     <strong>新しいタグは収集のときに登録されます。</strong>
-    <a href="/settings">設定</a>の「記事の収集」を実行すると、見つかった語が
+    <a href="/settings">設定</a>の「トレンドの収集」を実行すると、見つかった語が
     <strong>仕分けまち</strong>として増えます(イベント・書籍・論文の収集でも同じように増えます)。
     そのあと下の「タグを仕分けなおす」を押すと、LLM が仕分けてツリーへ組み込みます。
     <strong>このボタンは外部トレンドを引かないので、押しても仕分けまちは増えません</strong>
@@ -204,7 +204,8 @@ else
                                 <span></span>
                             }
                             <span class="tag-name">
-                                @tag.Key
+                                @* 名前はタグの詳細(仕分けの状態と紐づくデータ)へのリンク *@
+                                <a href="@($"/tags/{Uri.EscapeDataString(tag.Key)}")">@tag.Key</a>
                                 @if (tag.TopicKey is { Length: > 0 } topicKey && topicKey != tag.Key)
                                 {
                                     <span class="text-muted">→ @Catalog.DisplayOf(topicKey)</span>

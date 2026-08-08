@@ -1,0 +1,234 @@
+@page "/tags/{TagKey}"
+@using TechAntenna.Core
+@using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Models
+@using TechAntenna.Core.Topics
+@inject ITagStore TagStore
+@inject TopicCatalog Catalog
+@inject TopicService TopicService
+
+@* タグ1語の詳細。**トピックの詳細(/topics/<タグ>)と同じ作りで、ツリー構造だけ無い** ——
+   タグは語彙になる前の語なので、同義語も親子もまだ持たない。代わりに上段は
+   「この語はどう仕分けられているか」(状態・出どころ・件数)に答える。下段の
+   記事・イベント・書籍はトピックの詳細と同じ。 *@
+
+<PageTitle>@TagKey - tech-antenna</PageTitle>
+
+<h1>@TagKey</h1>
+
+<p><a href="/tags">← タグ一覧</a></p>
+
+@if (_loaded && _tag is null)
+{
+    <p class="text-muted">
+        このタグはまだ観測されていません(収集したデータに付いたことがない語です)。
+    </p>
+}
+else if (_tag is { } tag)
+{
+    @* 仕分けの状態。**なぜこの状態なのかが読めるように**、出どころと件数も並べる *@
+    <div class="tag-state">
+        <dl>
+            <dt>状態</dt>
+            <dd>
+                @StateLabel(tag)
+                @if (tag.Status == TagStatus.Promoted)
+                {
+                    <text> —— <a href="@TopicHref(tag.Key)">トピックの詳細(同義語・ツリー)を見る</a></text>
+                }
+                else if (tag.Status == TagStatus.Alias && tag.TopicKey is { Length: > 0 } target)
+                {
+                    <text> —— <a href="@TopicHref(target)">「@Catalog.DisplayOf(target)」の詳細を見る</a></text>
+                }
+            </dd>
+            <dt>出どころ</dt>
+            <dd>@DecidedByLabel(tag.DecidedBy)@(tag.DecidedAt is { } at ? $"（{at.ToLocalTime():yyyy-MM-dd HH:mm}）" : "")</dd>
+            <dt>付いている件数</dt>
+            <dd>記事 @tag.ArticleCount / イベント @tag.EventCount / 書籍 @tag.BookCount</dd>
+            @if (tag.TrendScore > 0)
+            {
+                <dt>話題度</dt>
+                <dd>@tag.TrendScore.ToString("0.0")（@tag.SourceCount ソース）</dd>
+            }
+            <dt>見かけた時期</dt>
+            <dd>@tag.FirstSeenAt.ToLocalTime().ToString("yyyy-MM-dd") 〜 @tag.LastSeenAt.ToLocalTime().ToString("yyyy-MM-dd")</dd>
+        </dl>
+
+        @if (tag.Status == TagStatus.Alias && tag.TopicKey is { Length: > 0 } aliasTarget)
+        {
+            @* 別名の紐づきは寄せ先に合算されるので、このページの一覧は空になる(理由を書いておく) *@
+            <p class="text-muted">
+                この語は「@Catalog.DisplayOf(aliasTarget)」の別名です。記事などのタグは寄せ先の表記で
+                持ち直されるため、<strong>紐づくデータは寄せ先の詳細に出ます</strong>。
+            </p>
+        }
+        else if (tag.Status == TagStatus.NotTopic)
+        {
+            <p class="text-muted">
+                トピックとしては扱いません(LLM にも聞き直しません)が、
+                <strong>記事などのタグとしては生きています</strong> —— 下の一覧から辿れます。
+            </p>
+        }
+        else if (tag.Status == TagStatus.Unresolved && tag.RetryAfter is { } retry)
+        {
+            <p class="text-muted">
+                LLM が判断できなかった語です。@retry.ToLocalTime().ToString("yyyy-MM-dd") 以降の仕分けで
+                もう一度聞きます。
+            </p>
+        }
+
+        <p class="text-muted">
+            仕分けを直したいときは<a href="/tags">タグ一覧</a>から
+            (トピックにする / 別名にする / 除外する)。
+        </p>
+    </div>
+}
+
+@if (_detail is null)
+{
+    <p>読み込み中…</p>
+}
+else
+{
+    @* 見出しを「記事」にしない —— この一覧は種別で絞っておらず、ニュースも論文も
+       混ざる(実測: `ai` は記事 28 / ニュース 27 / 論文 1)。行ごとの種別はバッジで見分ける *@
+    <h2 class="h4 mt-4">記事・ニュース・論文</h2>
+    @if (_detail.Articles.Count == 0)
+    {
+        <p class="text-muted">このタグの記事・ニュース・論文はまだありません。</p>
+    }
+    else
+    {
+        <ul class="list-unstyled">
+            @foreach (var article in _detail.Articles)
+            {
+                <li class="mb-2">
+                    <span class="badge kind-badge">@KindLabel(article.Kind)</span>
+                    <a href="@article.Url" target="_blank" rel="noopener">@article.Title</a>
+                    @if (!string.IsNullOrEmpty(article.Summary))
+                    {
+                        <div class="text-body-secondary">@article.Summary</div>
+                    }
+                    <small class="text-muted">@article.SourceName</small>
+                </li>
+            }
+        </ul>
+    }
+
+    <h2 class="h4 mt-4">これからのイベント</h2>
+    @if (_detail.Events.Count == 0)
+    {
+        <p class="text-muted">このタグのイベントはまだありません。</p>
+    }
+    else
+    {
+        <ul class="list-unstyled">
+            @foreach (var techEvent in _detail.Events)
+            {
+                <li class="mb-2">
+                    @* Doorkeeper の API Terms of Use により、イベントには必ず元のイベントページへの
+                       リンクを付け、nofollow 等を指定してはならない(Events.razor と同じ) *@
+                    <a href="@techEvent.Url" target="_blank" rel="noopener">@techEvent.Title</a>
+                    <br />
+                    <small class="text-muted">
+                        @techEvent.StartsAt.ToString("yyyy-MM-dd HH:mm zzz")
+                        — @(techEvent.IsOnline ? "オンライン" : techEvent.Venue ?? "会場未定")
+                    </small>
+                </li>
+            }
+        </ul>
+    }
+
+    <h2 class="h4 mt-4">書籍</h2>
+    @if (_detail.Books.Count == 0)
+    {
+        <p class="text-muted">このタグの書籍はまだありません。</p>
+    }
+    else
+    {
+        <ul class="list-unstyled">
+            @foreach (var book in _detail.Books)
+            {
+                @* 記事で薦められている本は強調する(/books のトピック一覧と同じ見せ方) *@
+                <li class="mb-2 @(book.RecommendationCount > 0 ? "recommended-book" : "")">
+                    @if (book.Url is { } url)
+                    {
+                        <a href="@url" target="_blank" rel="noopener">@book.Title</a>
+                    }
+                    else
+                    {
+                        <span>@book.Title</span>
+                    }
+                    <br />
+                    <small class="text-muted">
+                        @if (book.Authors.Count > 0)
+                        {
+                            <text>@string.Join("、", book.Authors) — </text>
+                        }
+                        @(book.Publisher ?? "出版社不明")
+                        @if (book.RecommendationCount > 0)
+                        {
+                            <a class="recommended ms-1" href="@book.RecommendedBy[0]"
+                               target="_blank" rel="noopener" title="この本を薦めている記事へ">
+                                推薦 @book.RecommendationCount 件
+                            </a>
+                        }
+                    </small>
+                </li>
+            }
+        </ul>
+    }
+}
+
+@code {
+    [Parameter]
+    public string TagKey { get; set; } = "";
+
+    Tag? _tag;
+    bool _loaded;
+    TopicDetail? _detail;
+
+    static string TopicHref(string key) => $"/topics/{Uri.EscapeDataString(key)}";
+
+    /// <summary>種別のバッジの文字。ナビ・一覧の呼び方と揃える。</summary>
+    static string KindLabel(ArticleKind kind) => kind switch
+    {
+        ArticleKind.News => "ニュース",
+        ArticleKind.Paper => "論文",
+        ArticleKind.TrendingPaper => "話題の論文",
+        _ => "記事",
+    };
+
+
+    static string StateLabel(Tag tag) => tag.Status switch
+    {
+        TagStatus.Pending => "仕分けまち（次の仕分けで LLM に聞きます）",
+        TagStatus.Promoted => "トピック（語彙に昇格済み）",
+        TagStatus.Alias => "別名",
+        TagStatus.NotTopic => "除外（トピックにしない）",
+        TagStatus.Unresolved => "保留（LLM が判断できなかった）",
+        _ => tag.Status.ToString(),
+    };
+
+    static string DecidedByLabel(DecidedBy decidedBy) => decidedBy switch
+    {
+        DecidedBy.Rule => "機械的な正規化の規則",
+        DecidedBy.Seed => "初期値（topic-seed.json）",
+        DecidedBy.Llm => "LLM の分類",
+        DecidedBy.Human => "画面からの手直し",
+        _ => "未判定",
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // URL は人が打つこともあるので、保存時と同じ正規化を通してから引く
+        var key = TagNormalizer.Normalize([TagKey]) is [var only] ? only : TagKey;
+
+        _tag = (await TagStore.GetAllAsync()).FirstOrDefault(tag => tag.Key == key);
+        _loaded = true;
+
+        // 紐づくデータの引き方はトピックの詳細と同じ。別名は空になる(データは寄せ先の
+        // 表記で持ち直されている)が、そのことは上の状態ブロックが説明する
+        _detail = await TopicService.GetTopicAsync(key, 20);
+    }
+}

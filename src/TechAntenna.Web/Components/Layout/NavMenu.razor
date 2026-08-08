@@ -33,7 +33,7 @@
    開閉の状態は遷移後も保つ(復元は wwwroot/nav-menu.js) *@
 <div class="nav-scrollable">
     <nav class="nav flex-column">
-        @* **メニューは4本。** ホームは入口、そのあとに「外で何が話題か」(直近動向)と
+        @* **メニューは4本。** ホームは入口、そのあとに「外で何が話題か」(トレンド)と
            「自分の興味を深掘る」(興味トピック)の2軸が並び、最後が設定 ——
            軸をホームの子に入れていたときは、2つの軸が対等だと見えなかった *@
         @* **三角の空白も実物の要素で置く**(.caret-spacer)—— ホームだけ div で、
@@ -50,7 +50,7 @@
             <summary class="nav-item px-3">
                 <span class="caret" aria-hidden="true"></span>
                 <NavLink class="nav-link" href="recent">
-                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> 直近動向
+                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> トレンド
                 </NavLink>
             </summary>
             @* ニュースが先 —— 動きの速いものから読む *@
@@ -106,7 +106,7 @@
 </div>
 
 @code {
-    /// <summary>直近動向の下にぶら下げるページ(トピックの選択に依存しないもの)。</summary>
+    /// <summary>トレンドの下にぶら下げるページ(トピックの選択に依存しないもの)。</summary>
     static readonly string[] TrendingChildren = ["news", "articles", "trending-papers"];
 
     /// <summary>興味トピックの下にぶら下げるページ(選んだトピックで検索して集めるもの)。</summary>

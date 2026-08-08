@@ -23,7 +23,9 @@ public class ArticleCollectionRunner(
 {
     readonly IReadOnlyList<IArticleSource> _sources = sources.ToList();
 
-    public override string Name => "記事の収集";
+    // かつては「記事の収集」。ニュース・話題の論文・ブックマーク数の補完まで含むので、
+    // 軸の名前(トレンド)で呼ぶ —— 「記事」だけだと集まる範囲が実態より狭く読める
+    public override string Name => "トレンドの収集";
 
     public override bool IsConfigured => _sources.Count > 0;
 

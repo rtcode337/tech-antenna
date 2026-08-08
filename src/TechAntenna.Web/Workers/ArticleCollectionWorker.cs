@@ -4,7 +4,7 @@ using TechAntenna.Web.Services;
 namespace TechAntenna.Web.Workers;
 
 /// <summary>
-/// 記事の収集を定期的に実行する。
+/// トレンドの収集を定期的に実行する。
 ///
 /// **登録されるのは <c>Collection:AutoRun</c> が true のときだけで、既定は false**
 /// —— 消し忘れたサーバーが気づかないうちに収集先を叩き続けたり、LLM の枠を

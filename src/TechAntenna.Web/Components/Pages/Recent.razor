@@ -8,15 +8,15 @@
 @inject TopicCatalog Catalog
 @inject TimeProvider Clock
 
-@* 「直近動向」— このページだけは、**興味があるとマークしたトピックの外も含めて**
-   直近の話題を一望する場所(そもそも記事の収集は選択で絞っていない)。
+@* 「トレンド」— このページだけは、**興味があるとマークしたトピックの外も含めて**
+   直近の話題を一望する場所(そもそもトレンドの収集は選択で絞っていない)。
    **並びは3セクションとも話題度の高い順**(ニュース・記事ははてブ数、論文は upvote)——
    ここは「何が話題か」に答えるページで、新着順は子ページ(/news・/articles・
    /trending-papers)の担当。役割を分けたので、どちらのページも並びが1つで読める *@
 
-<PageTitle>直近動向 - tech-antenna</PageTitle>
+<PageTitle>トレンド - tech-antenna</PageTitle>
 
-<h1>直近動向</h1>
+<h1>トレンド</h1>
 
 <CollectionHint />
 
@@ -26,7 +26,7 @@
 }
 else if (_sections.Count == 0)
 {
-    <p>まだ記事がありません。<a href="/settings">設定</a>の「記事の収集」を実行してください。</p>
+    <p>まだ記事がありません。<a href="/settings">設定</a>の「トレンドの収集」を実行してください。</p>
 }
 else
 {
@@ -104,7 +104,7 @@ else
     /// <summary>ニュースが先 —— 動きの速いものから読む。</summary>
     /// <summary>
     /// 出す種別と順番。**話題の論文もここに入れる** —— トピックの選択に依存せず
-    /// 「外で何が話題か」を映すものなので、直近動向の担当。
+    /// 「外で何が話題か」を映すものなので、トレンドの担当。
     /// 検索で取る論文(<see cref="ArticleKind.Paper"/>)は興味トピック側に置く。
     /// </summary>
     static readonly (ArticleKind Kind, string Title, string AllHref)[] Kinds =

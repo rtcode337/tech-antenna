@@ -2,6 +2,7 @@
 @using TechAntenna.Web.Services
 @inject ArticleCollectionRunner CollectionRunner
 @inject SummaryRunner SummaryRunner
+@inject TitleTranslationRunner TranslationRunner
 
 <PageTitle>設定 - tech-antenna</PageTitle>
 
@@ -11,7 +12,7 @@
    1ページに詰めると目的の操作へ辿り着けない)。ここは入口と、手動実行のボタンを持つ。
    サイドバーからも同じページへ直接行ける *@
 
-@* **直近動向側の収集はここに集める。** 一覧を見ている画面にジョブのボタンを置くと、
+@* **トレンド側の収集はここに集める。** 一覧を見ている画面にジョブのボタンを置くと、
    読みに来た人が押す場所と、集め直したい人が探す場所が混ざる。
    興味トピック側(論文・イベント・書籍)は<b>トピックの選択と地続き</b>なので各ページに残す *@
 <section class="jobs" aria-labelledby="jobs-heading">
@@ -24,10 +25,13 @@
 
     <JobButton Runner="CollectionRunner" FormName="collect-articles" OnRun="Collect" />
     <JobButton Runner="SummaryRunner" FormName="summarize" OnRun="Summarize" />
+    <JobButton Runner="TranslationRunner" FormName="translate-titles" OnRun="Translate" />
 
     <p class="page-note text-muted">
-        「記事の収集」で<strong>ニュース・記事・話題の論文</strong>(<a href="/recent">直近動向</a>の
-        下にあるもの)をまとめて 1 巡します。「記事の要約」は要約がまだ無いものに LLM で要約を付けます。
+        「トレンドの収集」で<strong>ニュース・記事・話題の論文</strong>(<a href="/recent">トレンド</a>の
+        下にあるもの)をまとめて 1 巡します(ブックマーク数の補完も含みます)。
+        「記事の要約」は要約がまだ無いものに LLM で要約を付け、
+        「論文タイトルの翻訳」は英語タイトルの論文(話題の論文・arXiv)に訳題を付けます。
         <strong>選んだトピックで検索して集めるもの</strong>は、それぞれのページにボタンがあります ——
         <a href="/papers">論文</a>・<a href="/events">イベント</a>・<a href="/books">書籍</a>、
         語彙の整理は<a href="/topics">トピック</a>の「話題度を取り直す」「タグを仕分けなおす」です。
@@ -59,6 +63,12 @@
 @code {
     void Collect() =>
         CollectionRunner.StartInBackground(ct => CollectionRunner.RunOnceAsync(ct), JobMessage.Describe);
+
+    void Translate() => TranslationRunner.StartInBackground(
+        ct => TranslationRunner.RunOnceAsync(ct),
+        result => result.Requested == 0
+            ? "訳題の付いていない論文はありません。"
+            : $"{result.Requested} 件中 {result.Translated} 件に訳題を付けました。");
 
     void Summarize() =>
         SummaryRunner.StartInBackground(ct => SummaryRunner.RunOnceAsync(ct), JobMessage.Describe);

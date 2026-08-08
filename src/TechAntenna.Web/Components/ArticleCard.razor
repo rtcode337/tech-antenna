@@ -1,12 +1,12 @@
 @using TechAntenna.Core.Models
 
-@* 記事1件ぶんのカード。直近動向(/recent)と種別ごとの一覧(記事・ニュース・論文)で
+@* 記事1件ぶんのカード。トレンド(/recent)と種別ごとの一覧(記事・ニュース・論文)で
    同じものを使う。
 
    - **興味のあるトピックに当たる記事は、タイトルの前に黄色い★**を付ける
      (かつてのカード全体の強調はやめた —— 話題度の強調と重なると意味が読めなくなる)
    - **話題度(はてなブックマーク数)は多いほど目立つ段階バッジ**。
-     EmphasizeByPopularity を立てるとカードの面にも段階が出る(直近動向で使う)
+     EmphasizeByPopularity を立てるとカードの面にも段階が出る(トレンドで使う)
    - 並び順は新着のまま変えない —— 並びまで人気順にすると「今日なにが出たか」を
      追う導線が壊れるため *@
 
@@ -65,7 +65,7 @@
     [Parameter]
     public IReadOnlySet<string> SelectedTags { get; set; } = new HashSet<string>();
 
-    /// <summary>話題度をカードの面にも出すか(直近動向で使う。一覧では出さない)。</summary>
+    /// <summary>話題度をカードの面にも出すか(トレンドで使う。一覧では出さない)。</summary>
     [Parameter]
     public bool EmphasizeByPopularity { get; set; }
 

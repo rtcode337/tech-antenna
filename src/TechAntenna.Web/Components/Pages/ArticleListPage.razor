@@ -10,12 +10,11 @@
 @inject ITopicStore TopicStore
 @inject TopicCatalog Catalog
 @inject NavigationManager Navigation
-@inject TitleTranslationRunner TranslationRunner
 @inject PaperCollectionRunner PaperRunner
 
 @* 記事・ニュース・論文の一覧ページ。種別ごとの違いは「どの Kind を出すか」と
    論文だけにある翻訳ボタンだけなので、3ルートを1コンポーネントにまとめている。
-   親(/recent「直近動向」)が一望のハブで、こちらは**新着順の全量**を受け持つ *@
+   親(/recent「トレンド」)が一望のハブで、こちらは**新着順の全量**を受け持つ *@
 
 <PageTitle>@_title - tech-antenna</PageTitle>
 
@@ -30,27 +29,25 @@
     @* 興味トピック側の論文。**収集を記事と分けてある**のは検索だから ——
        収集対象のトピックが無いと 1 件も集まらない(イベント・書籍と同じ性質) *@
     <JobButton Runner="PaperRunner" FormName="collect-papers" OnRun="Collect" />
-    <JobButton Runner="TranslationRunner" FormName="translate-titles" OnRun="Translate" />
     <p class="page-note text-muted">
         <strong>収集対象に選んだトピックを検索語</strong>にして arXiv(英語)と
         J-STAGE(日本語)へ問い合わせます —— <a href="/topics">トピック</a>を選んでいないと
         1 件も集まりません。arXiv には<strong>英語表記</strong>を投げます(日本語のままだと 0 件)。
+        英語タイトルの翻訳は<a href="/settings">設定</a>の「論文タイトルの翻訳」で付きます。
         トピックに関係なく話題のものを見たいときは<a href="/trending-papers">話題の論文</a>へ。
     </p>
 }
 else if (_kind == ArticleKind.TrendingPaper)
 {
-    @* 収集は「記事の収集」に含まれる(設定にある)。翻訳だけはここに置く *@
+    @* 話題の論文。**収集は「トレンドの収集」、翻訳は「論文タイトルの翻訳」でどちらも設定にある**
+       (トピックの選択に依存しない巡回なので、ニュース・記事と同じ扱い) *@
     <CollectionHint />
-    @* 話題の論文。**収集は「記事の収集」に含まれる**(トピックの選択に依存しない巡回なので、
-       ニュース・記事と同じ扱い)。翻訳だけはこちらにも置く —— タイトルは英語なので *@
-    <JobButton Runner="TranslationRunner" FormName="translate-titles" OnRun="Translate" />
     <p class="page-note text-muted">
         Hugging Face Daily Papers から<strong>トピックの選択に関係なく</strong>拾います
-        (投稿と upvote で選ばれた論文)。収集は<a href="/settings">設定</a>の「記事の収集」に
-        含まれます。並びは<strong>新着順</strong>で、upvote の多いものはカードの濃さで
-        目立ちます(話題度の高い順は<a href="/recent">直近動向</a>)。
-        <strong>中身は arXiv への投稿で、事実上すべて英語</strong>です ——
+        (投稿と upvote で選ばれた論文)。収集は<a href="/settings">設定</a>の「トレンドの収集」に、
+        英語タイトルの翻訳は同じく設定の「論文タイトルの翻訳」にあります。
+        並びは<strong>新着順</strong>で、upvote の多いものはカードの濃さで
+        目立ちます(話題度の高い順は<a href="/recent">トレンド</a>)。
         日本語の論文は<a href="/papers">論文(興味トピック)</a>の担当です。
     </p>
 }
@@ -62,7 +59,7 @@ else if (_kind == ArticleKind.TrendingPaper)
 else if (_articles.Count == 0)
 {
     @* 空のときの行き先も種別で変える —— 論文は自分のページのボタン、
-       ほかは設定の「記事の収集」で集まる *@
+       ほかは設定の「トレンドの収集」で集まる *@
     @if (_kind == ArticleKind.Paper)
     {
         <p>まだありません。上の「論文の収集」を実行してください
@@ -70,7 +67,7 @@ else if (_articles.Count == 0)
     }
     else
     {
-        <p>まだありません。<a href="/settings">設定</a>の「記事の収集」を実行してください。</p>
+        <p>まだありません。<a href="/settings">設定</a>の「トレンドの収集」を実行してください。</p>
     }
 }
 else
@@ -124,16 +121,10 @@ else
         result => $"{result.Fetched} 件取得、うち {result.Added} 件を新規追加しました。"
             + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : ""));
 
-    void Translate() => TranslationRunner.StartInBackground(
-        ct => TranslationRunner.RunOnceAsync(ct),
-        result => result.Requested == 0
-            ? "訳題の付いていない論文はありません。"
-            : $"{result.Requested} 件中 {result.Translated} 件に訳題を付けました。");
-
     async Task LoadAsync()
     {
         // **種別ページは全部**新着順**で統一**(話題度は並びではなくカードの強調に出す)。
-        // 「話題度の高い順」は直近動向(/recent)の担当 —— 同じ一覧が2つの並びを持つと、
+        // 「話題度の高い順」はトレンド(/recent)の担当 —— 同じ一覧が2つの並びを持つと、
         // どちらを見ているのか分からなくなる
         _articles = await ArticleStore.GetRecentAsync(Limit, _kind);
         _selected = (await TopicStore.GetSelectedAsync())

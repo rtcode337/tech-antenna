@@ -111,7 +111,7 @@ foreach (var feed in collection.Feeds)
         feed.Kind));
 }
 
-// arXiv も記事ソースの1つとして「記事の収集」で回る。選択中のトピックが検索語なので、
+// arXiv も記事ソースの1つとして「トレンドの収集」で回る。選択中のトピックが検索語なので、
 // 選択が空なら問い合わせない(Arxiv:Enabled=false で止められる)
 // 話題の論文(Hugging Face Daily Papers)。**トピックの選択に依存しない**ので、
 // 記事の RSS と同じ「巡回」の扱いにして `IArticleSource` として登録する

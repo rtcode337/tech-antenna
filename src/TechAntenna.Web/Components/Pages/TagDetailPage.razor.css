@@ -1,0 +1,67 @@
+/* 仕分けの状態のブロック。面に載せて「ここが上段(この語はどう仕分けられているか)」と
+   分かるようにする(下段の記事・イベント・書籍と読み分けるため) */
+.tag-state {
+    max-width: 62rem;
+    margin-top: 0.75rem;
+    padding: 0.9rem 1.1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+}
+
+.tag-state dl {
+    display: grid;
+    grid-template-columns: 8rem minmax(0, 1fr);
+    gap: 0.3rem 1rem;
+    margin: 0;
+}
+
+.tag-state dt {
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 0.88rem;
+}
+
+.tag-state dd {
+    margin: 0;
+    font-size: 0.92rem;
+}
+
+.tag-state p {
+    margin: 0.6rem 0 0;
+    font-size: 0.88rem;
+}
+
+/* 記事で薦められている本の強調(/books・トピック詳細と同じ文法: 左帯 + 薄い面) */
+.recommended-book {
+    padding: 0.25rem 0.5rem;
+    border-left: 3px solid var(--accent-border);
+    background: var(--accent-soft);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.recommended {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* スマホでは見出しと値を縦に積む(8rem の列を確保すると値が潰れる) */
+@media (max-width: 640px) {
+    .tag-state dl {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0 0;
+    }
+
+    .tag-state dt {
+        margin-top: 0.4rem;
+    }
+}
+
+/* 種別(記事 / ニュース / 論文)のバッジ。一覧は種別で絞っていないので、行ごとに見分ける */
+.kind-badge {
+    margin-right: 0.35rem;
+    background: var(--surface-sunken);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    font-weight: 500;
+}
