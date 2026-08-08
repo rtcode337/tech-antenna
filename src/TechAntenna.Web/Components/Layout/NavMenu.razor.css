@@ -116,6 +116,12 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' class='bi bi-list-nested' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M4.5 11.5A.5.5 0 0 1 5 11h10a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zm-2-4A.5.5 0 0 1 3 7h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm-2-4A.5.5 0 0 1 1 3h10a.5.5 0 0 1 0 1H1a.5.5 0 0 1-.5-.5z'/%3E%3C/svg%3E");
 }
 
+/* 「興味トピック」の★。**画面の★(興味のあるトピックに当たる記事)と同じ記号**にして、
+   どの軸の話かが結びつくようにする */
+.bi-star-fill-nav-menu {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='white' class='bi bi-star-fill' viewBox='0 0 16 16'%3E%3Cpath d='M3.612 15.443c-.386.198-.824-.149-.746-.592l.83-4.73L.173 6.765c-.329-.32-.158-.888.283-.95l4.898-.696L7.538.792c.197-.39.73-.39.927 0l2.184 4.327 4.898.696c.441.062.612.63.283.95l-3.523 3.356.83 4.73c.078.443-.36.79-.746.592L8 13.187l-4.389 2.256z'/%3E%3C/svg%3E");
+}
+
 /* 「設定」の歯車。マークアップ側は最初から bi-gear-fill-nav-menu を指していたが、
    この規則が無くアイコンだけ出ていなかった(Blazor の雛形が持っているのは house / plus / list だけ) */
 .bi-gear-fill-nav-menu {
@@ -127,29 +133,45 @@
     padding-bottom: 0.5rem;
 }
 
-/* 親の行。**display は list-item のまま**にする —— flex にすると Chrome が
-   開閉の三角(::marker)を消してしまい、閉じているグループを開く手がかりが無くなる */
+/* 親の行。**標準マーカー(::marker)は消して、開閉の三角は自前の .caret で描く** ——
+   マーカーの実寸はブラウザ任せなので、三角を持たないホームの行と字下げを合わせられない
+   (トピックのツリーも同じ理由で自前に描いている)。消したままにはしないこと ——
+   閉じているグループを開く手がかりが無くなる */
 .nav-group > summary {
-    display: list-item;
-    list-style-position: inside;
+    display: flex;
+    align-items: center;
+    list-style: none;
     cursor: pointer;
-    color: var(--text-muted);
 }
 
-.nav-group > summary::marker {
-    font-size: 0.75rem;
+.nav-group > summary::-webkit-details-marker {
+    display: none;
 }
 
-/* 三角と同じ行に収める(既定の .nav-link は幅 100% の block なので折り返してしまう) */
+/* 三角(▶/▼)と、三角を持たない行の空白は**同じ幅**にして名前の頭をそろえる。
+   数値で字下げするのではなく同じ箱を両方に置くのが要点 */
+.caret,
+.caret-spacer {
+    flex: none;
+    width: 1.4rem;
+    color: var(--nav-text);
+    opacity: 0.6;
+}
+
+.caret::before {
+    content: "▶";
+    font-size: 0.7rem;
+}
+
+.nav-group[open] > summary .caret::before {
+    content: "▼";
+}
+
+/* 三角と同じ行に収める(既定の .nav-link は幅 100% なので、箱のぶんはみ出す) */
 .nav-group > summary ::deep .nav-link {
-    display: inline-flex;
-    width: calc(100% - 1.6rem);
-    vertical-align: middle;
-}
-
-/* 三角とアイコンが詰まって見えるので、アイコンの手前を空ける */
-.nav-group > summary .bi {
-    margin-left: 0.4rem;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
 }
 
 /* 子リンク。アイコンの代わりに字下げと細い縦線で階層を示す。
@@ -185,11 +207,27 @@
     font-size: 0.82rem;
 }
 
-    /* 上下の余白はグループ単位で付ける。.nav-item に :first-of-type を使うと
-       グループごとに効いてしまい、2つ目の親の手前だけ大きく空く */
-    .nav-group:first-of-type > summary {
-        padding-top: 1rem;
-    }
+/* ホームの行。**グループの親(summary)と同じ組み方にする** —— 同じ flex で、
+   三角の代わりに同じ幅の .caret-spacer が入る。div と summary で組み方が違うと、
+   同じレベルに並べたつもりでも名前の位置がずれる。
+   **一覧の先頭の余白もここに付ける**(`.nav-group:first-of-type` に付けるのは
+   ホームがグループの子だった頃の名残で、残すとホームと直近動向のあいだだけ 1rem 空く。
+   下の余白は最後のグループ側 —— .nav-item に :first-of-type / :last-of-type を使うと
+   グループごとに効いてしまい、親の手前だけ大きく空く) */
+.nav-root {
+    padding-top: 1rem;
+    display: flex;
+    align-items: center;
+}
+
+/* **両方のクラスを書く**(.nav-root だけだと下の `.nav-item ::deep .nav-link` と
+   詳細度が並び、後に来るあちらの width: 100% が勝って空白のぶんはみ出す) */
+
+.nav-item.nav-root ::deep .nav-link {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+}
 
     .nav-group:last-of-type > .nav-item:last-of-type {
         padding-bottom: 1rem;

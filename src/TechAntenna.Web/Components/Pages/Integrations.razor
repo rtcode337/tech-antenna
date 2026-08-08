@@ -7,14 +7,44 @@
 <h1>外部連携</h1>
 
 <p class="text-muted">
-    どこから何を集めていて、キーが要るのか・設定できているのかを用途ごとにまとめています。
+    どこから何を集めていて、キーが要るのか・設定できているのかをまとめています。
     <strong>キーの値そのものは表示しません</strong>(有無だけを見ています)。
     設定は環境変数か user-secrets で渡します —— 実値はリポジトリに置きません。
 </p>
 
-@foreach (var group in _groups)
-{
-    <h2 class="purpose">@group.Key</h2>
+@* **画面と同じ2軸で分ける。** 「直近動向が動かない」と「興味トピックが動かない」で
+   見る場所が変わるので、どちらの軸で使う連携なのかを先に示す。
+   **両方で使うものは両方の節に出す**(片方だけに置くと、もう片方から辿れない) *@
+@AxisSection(IntegrationAxis.Trending, "直近動向で使う",
+    "トピックの選択に関係なく集めるもの(ニュース・記事・話題の論文)。")
+@AxisSection(IntegrationAxis.Interests, "興味トピックで使う",
+    "選んだトピックを検索語にして集めるもの(書籍・イベント・論文)。")
+
+@* 用途ごとの表。1つの軸の中を用途で束ねる *@
+@{
+    RenderFragment AxisSection(IntegrationAxis axis, string title, string note) =>
+    @<text>
+        <h2 class="axis">@title</h2>
+        <p class="text-muted axis-note">
+            @note
+            @{
+                var shared = _all.Count(i => i.Axis == IntegrationAxis.Both && i.Axis.HasFlag(axis));
+            }
+            @if (shared > 0)
+            {
+                <text>両方の軸で使う @shared 件(話題度・LLM)もここに含めています。</text>
+            }
+        </p>
+        @foreach (var group in _all.Where(i => i.Axis.HasFlag(axis))
+            .GroupBy(integration => integration.Purpose))
+        {
+            @PurposeTable(group)
+        }
+    </text>;
+
+    RenderFragment PurposeTable(IGrouping<string, Integration> group) =>
+    @<text>
+        <h3 class="purpose">@group.Key</h3>
     <table class="table align-middle">
         <thead>
             <tr>
@@ -47,14 +77,15 @@
             }
         </tbody>
     </table>
+    </text>;
 }
 
 @code {
-    IEnumerable<IGrouping<string, Integration>> _groups = [];
+    IReadOnlyList<Integration> _all = [];
 
     protected override void OnInitialized() =>
-        // 並びは収集の流れ(記事 → ニュース → 論文 → 書籍 → イベント → …)のまま出す
-        _groups = Catalog.GetAll().GroupBy(integration => integration.Purpose).ToList();
+        // 並びは収集の流れ(記事 → ニュース → 話題の論文 → 書籍 → …)のまま出す
+        _all = Catalog.GetAll();
 
     static string NeedLabel(CredentialNeed need) => need switch
     {

@@ -1,6 +1,22 @@
+/* 軸(直近動向 / 興味トピック)の見出し。**用途の見出しより上位**だと分かるよう、
+   上に間を空けて罫線で切る */
+.axis {
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border-strong);
+    font-size: 1.15rem;
+}
+
+.axis-note {
+    max-width: 62rem;
+    margin-bottom: 1rem;
+    font-size: 0.86rem;
+}
+
+/* 用途の見出し。軸の見出し(.axis)より一段下なので、字を小さくして間も詰める */
 .purpose {
-    margin: 2rem 0 0.6rem;
-    font-size: 1.1rem;
+    margin: 1.5rem 0 0.5rem;
+    font-size: 1rem;
     font-weight: 700;
     letter-spacing: -0.01em;
 }
