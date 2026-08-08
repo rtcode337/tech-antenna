@@ -48,6 +48,55 @@
     white-space: nowrap;
 }
 
+/* トピックの検索。GET のフォームなので、見た目だけ整える */
+.topic-search {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.topic-search label {
+    color: var(--text-muted);
+    font-size: 0.86rem;
+}
+
+.topic-search input {
+    flex: 1 1 14rem;
+    min-width: 0;
+    max-width: 24rem;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.92rem;
+}
+
+.topic-search a {
+    color: var(--text-muted);
+    font-size: 0.86rem;
+}
+
+.search-result {
+    margin-bottom: 0.75rem;
+    font-size: 0.88rem;
+    color: var(--text-muted);
+}
+
+/* 検索で当たった行。**左帯 + 薄い面**(選択済みの強調と同じ文法)で、
+   焦点の輪(:focus-visible)と重なっても読めるようにする */
+.topic-grid.match,
+tr.match > td {
+    background: var(--accent-soft);
+}
+
+.topic-grid.match {
+    border-radius: var(--radius-sm);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
 /* ツリー/ランキングの切り替え。リンクだけのタブ(JS 不要) */
 .view-switch {
     display: flex;
@@ -263,6 +312,17 @@ details[open] > summary .caret::before {
     flex-wrap: wrap;
     gap: 0.3rem;
     margin: 0.25rem 0 0;
+}
+
+/* 一覧に出していない語の用語集。一覧の続きではなく別の区切りだと分かるよう間を空ける */
+.glossary {
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+}
+
+.glossary h2 {
+    margin-bottom: 0.35rem;
 }
 
 /* 狭い画面(スマホ)。列の幅の合計が画面を超えると、伸縮する名前の列だけが潰れて

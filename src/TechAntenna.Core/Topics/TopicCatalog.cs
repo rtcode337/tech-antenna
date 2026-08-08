@@ -98,6 +98,13 @@ public class TopicCatalog
 
     public IReadOnlyList<TopicCatalogEntry> Entries => _snapshot.Entries;
 
+    /// <summary>
+    /// キーが<b>トピック本体</b>(カタログの正式表記)か。**別名は含まない** ——
+    /// 一覧に出すのは正式表記の行だけで、別名の行は正式表記に吸収された重複だから
+    /// (<see cref="Contains"/> は別名も true になるので、この用途には使えない)。
+    /// </summary>
+    public bool IsTopic(string key) => _snapshot.ByKey.ContainsKey(key);
+
     /// <summary>キーがカタログに載っているか(正式表記・別名のどちらでも)。</summary>
     public bool Contains(string key)
     {
@@ -184,6 +191,13 @@ public class TopicCatalog
 
         _snapshot = Build(entries);
     }
+
+    /// <summary>
+    /// キーに登録されている別名。カタログに無いキーは空。
+    /// **検索で「類義語も含めて当てる」ために要る** —— `人工知能` で引いて `AI` に当てたい。
+    /// </summary>
+    public IReadOnlyList<string> AliasesOf(string key) =>
+        _snapshot.ByKey.TryGetValue(key, out var entry) ? entry.Aliases : [];
 
     /// <summary>キーに対する一言説明。無ければ null。</summary>
     public string? DescriptionOf(string key) =>

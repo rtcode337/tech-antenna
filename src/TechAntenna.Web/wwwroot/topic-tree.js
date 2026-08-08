@@ -4,8 +4,10 @@
 //   1. 開閉状態をブラウザに覚えて、次に開いたとき再現する
 //   2. 親のチェックを配下のトピックへ広げる(保存時にサーバーが広げるのと同じ結果を先に見せる)
 //
-// 既定は**全て開いた状態**で、ユーザーが閉じたノードだけを localStorage に持つ
-// (トピックの一覧は何度も開き直すものなので、タブを閉じても覚えておきたい ——
+// **持つのは既定との差分だけ。** 既定はサーバー側のマークアップが決めていて
+// (根は畳む・中は開く)、ここで覚えるのは「ユーザーが自分で開閉したノード」に限る ——
+// 「閉じたノードの一覧」を持つ以前の作りだと、既定で畳んである根を毎回開いてしまっていた。
+// 保存先は localStorage(トピックの一覧は何度も開き直すので、タブを閉じても覚えておきたい。
 // nav-menu の sessionStorage とは寿命の要件が違う)。
 //
 // **復元は2か所で要る**のは nav-menu.js と同じ事情:
@@ -14,18 +16,27 @@
 (function () {
     var key = 'tech-antenna:topic-tree-closed';
 
-    function loadClosed() {
+    // { タグ: true(開いた) / false(閉じた) }。ここに無いノードは既定のまま
+    function loadState() {
         try {
-            return new Set(JSON.parse(localStorage.getItem(key) || '[]'));
+            var stored = JSON.parse(localStorage.getItem(key) || '{}');
+            if (Array.isArray(stored)) {
+                // 以前の形式(閉じたタグの配列)からの引き継ぎ
+                var migrated = {};
+                stored.forEach(function (tag) { migrated[tag] = false; });
+                return migrated;
+            }
+
+            return stored && typeof stored === 'object' ? stored : {};
         } catch (e) {
             // プライベートモード等で localStorage が使えない場合は、復元しないだけ
-            return new Set();
+            return {};
         }
     }
 
-    function saveClosed(closed) {
+    function saveState(state) {
         try {
-            localStorage.setItem(key, JSON.stringify(Array.from(closed)));
+            localStorage.setItem(key, JSON.stringify(state));
         } catch (e) {
             // 保存できなくても開閉自体は動く
         }
@@ -37,23 +48,23 @@
             return;
         }
 
-        var closed = loadClosed();
+        var state = loadState();
         nodes.forEach(function (node) {
             // 先に状態を当ててからリスナーを付ける(当てた瞬間の toggle で保存が走らないように)
-            node.open = !closed.has(node.dataset.tag);
+            // 検索で開いた枝(data-force-open)は復元しない —— 以前に畳んだ枝が
+            // 閉じ直されると、検索で当たった行が隠れてしまう
+            var remembered = state[node.dataset.tag];
+            if (typeof remembered === 'boolean' && node.dataset.forceOpen !== '1') {
+                node.open = remembered;
+            }
 
             // enhanced navigation のたびに呼ばれるので、二重に登録しない
             if (!node.dataset.treeRestore) {
                 node.dataset.treeRestore = '1';
                 node.addEventListener('toggle', function () {
-                    var set = loadClosed();
-                    if (node.open) {
-                        set.delete(node.dataset.tag);
-                    } else {
-                        set.add(node.dataset.tag);
-                    }
-
-                    saveClosed(set);
+                    var current = loadState();
+                    current[node.dataset.tag] = node.open;
+                    saveState(current);
                 });
             }
         });
