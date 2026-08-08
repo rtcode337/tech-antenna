@@ -10,7 +10,7 @@ namespace TechAntenna.Infrastructure.Topics;
 /// Anthropic API(Messages API)で未知タグを分類する。従量課金だが呼び出しの固定費が
 /// 小さい。とはいえ既存ツリーを毎回渡すので、こちらも**1回にまとめて**呼ぶ。
 /// </summary>
-public class AnthropicTopicClassifier(string apiKey, string model) : ITopicClassifier, ITopicDescriber
+public class AnthropicTopicClassifier(string apiKey, string model) : ITopicClassifier, ITopicDescriber, ITopicMergeAdvisor
 {
     readonly AnthropicClient _client = new() { ApiKey = apiKey };
 
@@ -69,6 +69,41 @@ public class AnthropicTopicClassifier(string apiKey, string model) : ITopicClass
         }
 
         return verdicts;
+    }
+
+    /// <summary>語彙の中の同義トピックを見つける(一覧は 1 回で渡す)。</summary>
+    public async Task<IReadOnlyList<TopicMergeVerdict>> SuggestMergesAsync(
+        IReadOnlyList<TopicCatalogEntry> topics,
+        Action<string>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (topics.Count == 0)
+        {
+            return [];
+        }
+
+        progress?.Invoke($"{topics.Count} 件のトピックから重複を探索中");
+        var response = await _client.Messages.Create(
+            new MessageCreateParams
+            {
+                Model = model,
+                MaxTokens = 8192,
+                System = TopicMergePrompt.System
+                    + "応答は指定の JSON だけを出力する。前置きも説明も書かない。"
+                    + "形式: " + TopicMergePrompt.Schema,
+                Messages =
+                [
+                    new() { Role = Role.User, Content = TopicMergePrompt.ForTopics(topics) },
+                ],
+            },
+            cancellationToken: cancellationToken);
+
+        var text = string.Join(
+            "",
+            response.Content.Select(b => b.Value).OfType<TextBlock>().Select(t => t.Text)).Trim();
+        using var doc = JsonDocument.Parse(ExtractJson(text));
+
+        return TopicMergePrompt.ReadMerges(doc.RootElement);
     }
 
     /// <summary>説明の無い用語に一言説明を付ける(分類と同じバッチの作法)。</summary>

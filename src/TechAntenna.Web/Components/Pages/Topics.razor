@@ -22,9 +22,9 @@
     トピック名の横の「記事 N」は<strong>その語がタグに付いた記事の件数</strong>(配下は含みません)、
     後ろのかっこ書きが<strong>用語の一言説明</strong>です
     (幅に収まらない分はカーソルを当てると全文が出ます。スマホでは <code>?</code> を押すと出ます)。
-    一覧に出るのは<strong>語彙(ツリー)に入っている語と、収集対象に選んだ語</strong>です
+    一覧に出るのは<strong>語彙(ツリー)に入っている語</strong>です
     (<strong>話題度 0 でも消えません</strong>)。まだ語彙に入っていない語は
-    <a href="#glossary-heading">下の用語集</a>にまとめてあります。
+    <a href="/tags">タグ</a>の画面にあり、そこで<strong>仕分けを手で直せます</strong>。
 </p>
 
 <p class="page-note text-muted">
@@ -185,7 +185,7 @@ else
             {
                 <text>
                     「@Query」に一致するトピックはありません。
-                    <a href="#glossary-heading">下の用語集</a>に @_glossaryHits.Count 件あります
+                    <a href="/tags">タグ</a>の側に @_glossaryHits.Count 件あります
                     （@string.Join("・", _glossaryHits.Take(5))@(_glossaryHits.Count > 5 ? " …" : "")）。
                 </text>
             }
@@ -262,51 +262,6 @@ else
             <span class="ms-2 text-body-secondary">@_selectionMessage</span>
         }
     </form>
-}
-
-@* 一覧に出していない語の用語集。**画面から消してしまわない** —— 誤判定や、
-   分類が追いついていない語に気づけなくなる。行ではなくバッジで出すのは、
-   選ぶ対象ではないから(選択は語彙に入った語に対して行う) *@
-<section class="glossary" aria-labelledby="glossary-heading">
-    <h2 id="glossary-heading" class="h5">一覧に出していない語</h2>
-    <p class="page-note text-muted">
-        記事・イベント・書籍で見つかったタグは<strong>まずタグとして記録され</strong>、
-        再編成のときに LLM が仕分けます。<strong>語彙(トピックのツリー)に入っていないタグ</strong>を
-        状態ごとに出しています(状態は列で持っているので、ここの区分がそのまま実体です)。
-    </p>
-
-    @GlossaryGroup(
-        "仕分けまち", _waiting,
-        "まだ LLM に聞いていないタグ。集めたデータに 3 回以上付いた語か、外部トレンドに現れた語から順に聞きます（1 回に 300 語まで）。")
-    @GlossaryGroup(
-        "LLM が判断できなかった", _unresolved,
-        "知らない語・新しすぎる語として保留したタグ。1 週間おいて自動で聞き直します。")
-    @GlossaryGroup(
-        "技術用語でないと判定された", _notTopics,
-        "メディア名・一般語などとして LLM が除いたタグ。記事などのタグとしては残ります。")
-    @GlossaryGroup(
-        "別名に吸収された", _absorbed,
-        "既存トピックの別表記として寄せたタグ（→ の右が寄せ先）。件数は寄せ先のトピックに合算されます。")
-</section>
-
-@* 用語集の 1 グループ。件数が 0 のときは節ごと出さない *@
-@{
-    RenderFragment GlossaryGroup(string title, IReadOnlyList<string> terms, string note) =>
-    @<text>
-        @if (terms.Count > 0)
-        {
-            <details class="score-help">
-                <summary>@title（@terms.Count 語）</summary>
-                <p class="text-muted">@note</p>
-                <p class="candidate-list">
-                    @foreach (var term in terms)
-                    {
-                        <span class="badge bg-secondary">@term</span>
-                    }
-                </p>
-            </details>
-        }
-    </text>;
 }
 
 @* タグの再正規化に専用ボタンは無い —— 再編成が毎回、保存済みデータのタグを
@@ -410,10 +365,6 @@ else
     IReadOnlyList<Topic>? _topics;
     List<TopicNode>? _roots;
     IReadOnlyList<Tag>? _pending;
-    IReadOnlyList<string> _waiting = [];
-    IReadOnlyList<string> _unresolved = [];
-    IReadOnlyList<string> _absorbed = [];
-    IReadOnlyList<string> _notTopics = [];
     HashSet<string> _matches = new(StringComparer.Ordinal);
     string? _firstMatch;
     IReadOnlyList<string> _glossaryHits = [];
@@ -456,6 +407,7 @@ else
         result => $"{result.Count} 件のトピックを更新しました（うち {result.Trending} 件に話題度が付きました）。"
             + (result.Classified > 0 ? $" LLM が {result.Classified} 件の語をツリーへ分類しました。" : "")
             + (result.Described > 0 ? $" {result.Described} 件の用語に説明を付けました。" : "")
+            + (result.Merged > 0 ? $" 同義の {result.Merged} 件を寄せました。" : "")
             + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : ""));
 
     // 画面に出すのはキー(生成ai)ではなくカタログの正式表記(生成AI)
@@ -520,18 +472,11 @@ else
             ? resolved
             : FirstMatchInOrder(_roots, _matches);
 
-        // タグを状態ごとに分ける。**状態は列にある**ので、テーブルの突き合わせも期限の計算も要らない
+        // 次に聞く語(語彙に加えようとしている語)だけをこの画面に出す。
+        // 状態ごとの一覧は**タグの画面**の担当 —— あれはタグの話で、ここは語彙の話
         var tags = await TagStore.GetAllAsync();
         _pending = await TagStore.GetPendingAsync(
             DateTimeOffset.UtcNow, TopicReorganizationRunner.MinTagCount);
-        _waiting = Keys(tags.Where(tag => tag.Status == TagStatus.Pending));
-        _unresolved = Keys(tags.Where(tag => tag.Status == TagStatus.Unresolved));
-        _notTopics = Keys(tags.Where(tag => tag.Status == TagStatus.NotTopic));
-        _absorbed = tags
-            .Where(tag => tag.Status == TagStatus.Alias && tag.TopicKey is { Length: > 0 })
-            .OrderBy(tag => tag.Key, StringComparer.Ordinal)
-            .Select(tag => $"{tag.Key} → {Catalog.DisplayOf(tag.TopicKey!)}")
-            .ToList();
 
         // 前回 LLM に聞いた語。**プロセス内の記録を優先し、無ければ DB から復元する** ——
         // 記録はアプリを再起動すると消えるが、仕分けは「同じ実行の分は DecidedAt が揃う」
@@ -551,19 +496,16 @@ else
                 .ToList();
         }
 
-        // 一覧に無くても、用語集の側に当たっていれば案内できる(「なぜ出てこないのか」が分かる)
+        // 語彙に無くても、タグの側に当たっていれば案内できる(「なぜ出てこないのか」が分かる)
         _glossaryHits = HasQuery
-            ? _waiting.Concat(_unresolved).Concat(_notTopics)
-                .Where(Matches)
+            ? tags
+                .Where(tag => tag.Status != TagStatus.Promoted && Matches(tag.Key))
+                .Select(tag => tag.Key)
+                .OrderBy(key => key, StringComparer.Ordinal)
                 .Take(20)
                 .ToList()
             : [];
     }
-
-    static IReadOnlyList<string> Keys(IEnumerable<Tag> tags) => tags
-        .Select(tag => tag.Key)
-        .OrderBy(key => key, StringComparer.Ordinal)
-        .ToList();
 
     /// 検索語に当たるトピックのキー。**別名でも当たる**のがこの検索の要点
     /// (`人工知能` で引いて `AI` に当てたい)。

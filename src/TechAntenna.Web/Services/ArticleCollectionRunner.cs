@@ -16,6 +16,7 @@ namespace TechAntenna.Web.Services;
 public class ArticleCollectionRunner(
     IEnumerable<IArticleSource> sources,
     IArticleStore store,
+    TagObserver tagObserver,
     IOptions<CollectionOptions> options,
     ILogger<ArticleCollectionRunner> logger,
     BookmarkCountRefresher? bookmarkRefresher = null) : JobRunner
@@ -68,6 +69,12 @@ public class ArticleCollectionRunner(
         }
 
         await RefreshBookmarkCountsAsync(cancellationToken);
+
+        // **見つけたタグをタグの一覧へ反映する。** これが無いと、集めたのにタグの画面が
+        // 変わらない(仕分けまちの語が増えず、次の再編成まで何も起きないように見える)。
+        // 状態は触らないので、仕分け済みの語が巻き戻ることはない
+        Progress = "タグを反映中…";
+        await tagObserver.ObserveAsync(cancellationToken: cancellationToken);
 
         return new CollectionRunResult(fetched, added, failed);
     }

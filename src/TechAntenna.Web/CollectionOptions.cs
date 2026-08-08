@@ -53,6 +53,18 @@ public class JstageOptions
     public double DelaySeconds { get; set; } = 3;
 }
 
+/// <summary>
+/// Hugging Face Daily Papers の設定。**トピックの選択に依存しない**収集元なので、
+/// キーワードの設定も間隔の設定も持たない(1 回の実行で 1 リクエストだけ)。
+/// </summary>
+public class HuggingFacePapersOptions
+{
+    public const string SectionName = "HuggingFacePapers";
+
+    /// <summary>話題の論文を集めるか。</summary>
+    public bool Enabled { get; set; } = true;
+}
+
 /// <summary>arXiv(論文)の設定。appsettings の Arxiv セクションから読む。</summary>
 public class ArxivOptions
 {

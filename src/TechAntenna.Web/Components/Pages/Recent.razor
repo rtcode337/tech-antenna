@@ -38,6 +38,8 @@ else
         直近 @WindowDays 日の話題を、興味のあるトピックに限らず新着順で並べています。
         カードの濃さは話題度(はてなブックマーク数)、
         <span class="star" aria-hidden="true">★</span> は興味のあるトピックに当たる記事です。
+        <strong>話題の論文</strong>も Hugging Face Daily Papers から
+        トピックに関係なく拾っています。
     </p>
 
     @* ループ変数を section にすると Razor の @@section ディレクティブと衝突する *@
@@ -57,8 +59,8 @@ else
     }
 
     <p class="papers-link">
-        論文はここには出しません(はてブにほぼ載らず、話題度で測れないため)。
-        <a href="/papers">論文の一覧 →</a>
+        <strong>選んだトピックを深掘る</strong>もの(書籍・イベント・トピック検索の論文)は
+        <a href="/interests">興味トピック</a>にまとめてあります。
     </p>
 }
 
@@ -87,9 +89,16 @@ else
         var sections = new List<Section>();
         foreach (var (kind, title, allHref) in Kinds)
         {
-            // 新着順のまま直近の窓で切る(話題度は並びではなくカードの強調に出す)
-            var articles = (await ArticleStore.GetRecentAsync(PerSection, kind))
-                .Where(a => (a.PublishedAt ?? a.CollectedAt) >= threshold)
+            // 新着順のまま直近の窓で切る(話題度は並びではなくカードの強調に出す)。
+            // **話題の論文だけは upvote 順** —— 選別された 50 件から「どれが話題か」を
+            // 出す枠なので、新着順だと軸が消える
+            var recent = (await ArticleStore.GetRecentAsync(PerSection * 5, kind))
+                .Where(a => (a.PublishedAt ?? a.CollectedAt) >= threshold);
+            var articles = (kind == ArticleKind.TrendingPaper
+                    ? recent.OrderByDescending(a => a.UpvoteCount ?? 0)
+                        .ThenByDescending(a => a.PublishedAt)
+                    : recent)
+                .Take(PerSection)
                 .ToList();
             if (articles.Count > 0)
             {
@@ -104,10 +113,16 @@ else
     }
 
     /// <summary>ニュースが先 —— 動きの速いものから読む。</summary>
+    /// <summary>
+    /// 出す種別と順番。**話題の論文もここに入れる** —— トピックの選択に依存せず
+    /// 「外で何が話題か」を映すものなので、直近動向の担当。
+    /// 検索で取る論文(<see cref="ArticleKind.Paper"/>)は興味トピック側に置く。
+    /// </summary>
     static readonly (ArticleKind Kind, string Title, string AllHref)[] Kinds =
     [
         (ArticleKind.News, "ニュース", "/news"),
         (ArticleKind.Article, "記事", "/articles"),
+        (ArticleKind.TrendingPaper, "話題の論文", "/trending-papers"),
     ];
 
     record Section(string Title, string AllHref, IReadOnlyList<Article> Articles);

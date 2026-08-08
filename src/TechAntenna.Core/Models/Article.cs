@@ -37,6 +37,15 @@ public class Article
     /// </summary>
     public int? BookmarkCount { get; set; }
 
+    /// <summary>
+    /// Hugging Face Daily Papers の upvote 数。**はてブ数とは別の列にしてある** ——
+    /// 母集団も測っているものも違うので、同じ列に混ぜると 2 つの意味が 1 つの数字に潰れる
+    /// (はてブは日本語圏の記事の反応、upvote は論文コミュニティの反応)。
+    /// null は「未取得(この収集元由来でない)」、0 は「まだ upvote されていない」。
+    /// **話題の論文の一覧はこれで並べる** —— 新着順だと「話題」の軸が出ない。
+    /// </summary>
+    public int? UpvoteCount { get; set; }
+
     /// <summary>収集元が公開日時を提供しない場合は null。</summary>
     public DateTimeOffset? PublishedAt { get; init; }
 

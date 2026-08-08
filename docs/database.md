@@ -22,11 +22,12 @@ erDiagram
         text Title
         text Url UK "収集元の URL。重複判定のキー"
         text SourceName
-        text Kind "Article / News / Paper"
+        text Kind "Article / News / Paper / TrendingPaper"
         text Summary "LLM 要約。null = 未要約"
         text TitleJa "論文タイトルの和訳"
         text ContentSnippet "フィードの本文抜粋（要約の材料）"
         integer BookmarkCount "null=未取得 / 0=ブックマークなし"
+        integer UpvoteCount "HF Daily Papers の upvote。はてブとは別指標"
         text_array Tags "正規化済み"
         text_array RawTags "収集元のまま"
         timestamptz PublishedAt
@@ -115,8 +116,11 @@ erDiagram
   ように両方持つ(`RawTags` から `Tags` を再生成する)
 - **列挙は数値ではなく名前で保存**(`Articles.Kind`・`Tags.Status`・`Tags.DecidedBy`)。
   `psql` で覗いたときに読めるほうを優先した
-- **`null` と `0` は別物**。`BookmarkCount` / `ReviewCount` の `null` は「取得していない」、
-  `0` は「ブックマーク・レビューが無い」。混ぜると未取得の行が最下位に沈む
+- **`null` と `0` は別物**。`BookmarkCount` / `UpvoteCount` / `ReviewCount` の `null` は
+  「取得していない」、`0` は「ブックマーク・upvote・レビューが無い」。混ぜると未取得の行が
+  最下位に沈む
+- **人気の指標は収集元ごとに列を分ける**(`BookmarkCount` = はてブ、`UpvoteCount` = HF の
+  upvote)。母集団が違うものを 1 列に混ぜると、2 つの意味が 1 つの数字に潰れる
 - **重複判定のキーは列にしてユニーク索引を張る**(`Articles.Url` / `Events.Url` /
   `Books.DedupKey`)。ISBN が無い本もあるので、書籍は ISBN13 → URL → タイトルの順で決めた値を持つ
 
@@ -211,8 +215,12 @@ JSON との衝突ルールは持たない。手直しは画面から状態を書
 
 - ~~英語表記を LLM に出させる~~ —— **済み**。`Topics.English` に持ち、分類の応答に
   相乗りさせている(呼び出しは増えない)。arXiv には英語の検索語が要る
-- **同義の親を寄せる統合パス**(未着手)。シード無しで始めると、あるバッチが `AI` を、
-  別のバッチが `人工知能` を新トピックとして作りうる(検証はキーの重複しか見ない)
+- ~~同義の親を寄せる統合パス~~ —— **済み**(`ITopicMergeAdvisor`)。再編成の中で語彙の重複を
+  LLM に見つけさせ、寄せ元のタグ・配下の親・行の削除まで面倒を見る(`TopicMerger`)
+- ~~手直しの経路~~ —— **済み**。`/tags` から状態を書き換えられる(`DecidedBy = Human`)
+
+**残っているのは JSON を実際に外すかの判断だけ。** 空から始めると語彙が育つまで数回の
+再編成が要るので、初期値として置いておくか、捨てて統合パスに任せるかは運用の好みで決められる。
 
 ### 何が単純になるか
 

@@ -1,0 +1,283 @@
+@page "/tags"
+@using TechAntenna.Core
+@using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Topics
+@using TechAntenna.Web.Services
+@inject ITagStore TagStore
+@inject ITopicStore TopicStore
+@inject TopicCatalog Catalog
+@inject TopicCatalogRefresher CatalogRefresher
+@inject TopicMerger Merger
+@inject TimeProvider Clock
+
+<PageTitle>タグ - tech-antenna</PageTitle>
+
+<h1>タグ</h1>
+
+<p><a href="/topics">← トピック</a></p>
+
+<p class="page-note text-muted">
+    記事・イベント・書籍で見つかったタグは<strong>まずここに全部入り</strong>、再編成のときに
+    LLM が仕分けます。語彙(トピックのツリー)になるのは、仕分けで<strong>昇格</strong>したものだけです。
+    <strong>誤判定はこの画面から直せます</strong> —— 直した分は LLM の判定より優先され、
+    再編成でも上書きされません。
+</p>
+
+<details class="score-help">
+    <summary>状態の意味</summary>
+    <ul class="text-muted">
+        <li><strong>仕分けまち</strong> —— まだ LLM に聞いていない。集めたデータに
+            @TopicReorganizationRunner.MinTagCount 回以上付いた語か、外部トレンドに現れた語から順に聞きます
+            (次に聞く語は<a href="/topics">トピック</a>の画面に出ます)</li>
+        <li><strong>トピック</strong> —— 語彙に昇格した語。ツリーに並びます</li>
+        <li><strong>別名</strong> —— 既存トピックの別表記として寄せた語。件数は寄せ先へ合算されます</li>
+        <li><strong>トピック外</strong> —— メディア名・一般語など。記事のタグとしては残ります</li>
+        <li><strong>保留</strong> —— LLM が判断できなかった語。期限を過ぎると自動で聞き直します</li>
+    </ul>
+</details>
+
+@if (_message is { Length: > 0 })
+{
+    <p class="notice">@_message</p>
+}
+
+@* 別名にする操作だけは寄せ先を選ぶ必要があるので、行から一段進んだ専用のフォームにする
+   (行ごとに選択肢を置くと、1000 行のページに 1000 個の select が並ぶ) *@
+@if (AliasKey is { Length: > 0 } aliasKey)
+{
+    <form class="alias-form" method="post" @formname="tag-alias" @onsubmit="SaveAliasAsync">
+        <AntiforgeryToken />
+        <input type="hidden" name="AliasKey" value="@aliasKey" />
+        <label for="alias-target"><strong>@aliasKey</strong> を寄せるトピック</label>
+        @* datalist なので、打ちながら絞れる(select だと 300 件から探すことになる) *@
+        <input id="alias-target" name="AliasTarget" list="topic-keys" placeholder="生成AI / rag …"
+               value="@AliasTarget" autofocus />
+        <datalist id="topic-keys">
+            @foreach (var topic in _topics)
+            {
+                <option value="@topic.Key">@topic.Display</option>
+            }
+        </datalist>
+        <button type="submit" class="btn btn-primary btn-sm">別名にする</button>
+        <a href="/tags">やめる</a>
+    </form>
+}
+
+@if (_tags is null)
+{
+    <p>読み込み中…</p>
+}
+else
+{
+    <form method="post" @formname="tag-decide" @onsubmit="DecideAsync">
+        <AntiforgeryToken />
+        @TagGroup("仕分けまち", TagStatus.Pending)
+        @TagGroup("保留(LLM が判断できなかった)", TagStatus.Unresolved)
+        @TagGroup("トピック外", TagStatus.NotTopic)
+        @TagGroup("別名", TagStatus.Alias)
+        @TagGroup("トピック(語彙)", TagStatus.Promoted)
+    </form>
+}
+
+@* 状態ごとの一覧。行に操作を並べる。**押した行は button の value で分かる**ので、
+   フォームは 1 つで足りる(行ごとにフォームを作ると @formname が数百個になる) *@
+@{
+    RenderFragment TagGroup(string title, TagStatus status) =>
+    @<text>
+        @{
+            var tags = _tags!.Where(tag => tag.Status == status).ToList();
+        }
+        @if (tags.Count > 0)
+        {
+            <details class="tag-group" open="@(status is TagStatus.Pending or TagStatus.Unresolved)">
+                <summary>@title<text>(</text>@tags.Count<text> 語)</text></summary>
+                <div class="tag-rows">
+                    @foreach (var tag in tags.Take(MaxRows))
+                    {
+                        <div class="tag-row">
+                            <span class="tag-name">
+                                @tag.Key
+                                @if (tag.TopicKey is { Length: > 0 } topicKey && topicKey != tag.Key)
+                                {
+                                    <span class="text-muted">→ @Catalog.DisplayOf(topicKey)</span>
+                                }
+                            </span>
+                            <span class="tag-meta text-muted">@Meta(tag)</span>
+                            <span class="tag-actions">@Actions(tag)</span>
+                        </div>
+                    }
+                </div>
+                @if (tags.Count > MaxRows)
+                {
+                    <p class="text-muted">
+                        多いので先頭 @MaxRows 語だけ出しています（残り @(tags.Count - MaxRows) 語）。
+                    </p>
+                }
+            </details>
+        }
+    </text>;
+
+    RenderFragment Actions(Tag tag) =>
+    @<text>
+        @if (tag.Status != TagStatus.Promoted)
+        {
+            <button type="submit" name="Action" value="@($"promote:{tag.Key}")"
+                    class="btn btn-outline-primary btn-sm">トピックにする</button>
+            <a class="btn btn-outline-primary btn-sm" href="@($"/tags?alias={Uri.EscapeDataString(tag.Key)}")">別名にする</a>
+        }
+        else
+        {
+            <a class="btn btn-outline-primary btn-sm" href="@($"/topics/{Uri.EscapeDataString(tag.Key)}")">詳細</a>
+        }
+        @if (tag.Status != TagStatus.NotTopic)
+        {
+            <button type="submit" name="Action" value="@($"exclude:{tag.Key}")"
+                    class="btn btn-outline-primary btn-sm">トピック外</button>
+        }
+        @if (tag.Status != TagStatus.Pending)
+        {
+            <button type="submit" name="Action" value="@($"reset:{tag.Key}")"
+                    class="btn btn-outline-primary btn-sm">仕分けまちに戻す</button>
+        }
+    </text>;
+}
+
+@code {
+    /// <summary>1 グループに出す上限。全部出すと 1000 行を超えて開くのが重くなる。</summary>
+    const int MaxRows = 300;
+
+    IReadOnlyList<Tag>? _tags;
+    IReadOnlyList<Topic> _topics = [];
+    string? _message;
+
+    /// <summary>別名にするタグ(`?alias=` で来る)。寄せ先を選ぶフォームを出す。</summary>
+    [SupplyParameterFromQuery(Name = "alias")]
+    string? AliasKey { get; set; }
+
+    [SupplyParameterFromForm(FormName = "tag-decide")]
+    string? Action { get; set; }
+
+    [SupplyParameterFromForm(FormName = "tag-alias", Name = "AliasKey")]
+    string? AliasFormKey { get; set; }
+
+    [SupplyParameterFromForm(FormName = "tag-alias")]
+    string? AliasTarget { get; set; }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    async Task LoadAsync()
+    {
+        _tags = await TagStore.GetAllAsync();
+        _topics = await TopicStore.GetAllAsync();
+    }
+
+    /// <summary>件数と話題度、状態の出どころ。なぜこの状態なのかが読めるように出す。</summary>
+    static string Meta(Tag tag)
+    {
+        var parts = new List<string>(3);
+        if (tag.TotalCount > 0)
+        {
+            parts.Add($"{tag.TotalCount}件");
+        }
+
+        if (tag.TrendScore > 0)
+        {
+            parts.Add($"話題度 {tag.TrendScore:0.0}");
+        }
+
+        parts.Add(tag.DecidedBy switch
+        {
+            DecidedBy.Rule => "規則",
+            DecidedBy.Seed => "初期値",
+            DecidedBy.Llm => "LLM",
+            DecidedBy.Human => "手直し",
+            _ => "未判定",
+        });
+
+        if (tag.Status == TagStatus.Unresolved && tag.RetryAfter is { } retry)
+        {
+            parts.Add($"{retry.ToLocalTime():MM-dd HH:mm} に再挑戦");
+        }
+
+        return string.Join(" / ", parts);
+    }
+
+    /// <summary>
+    /// 行の操作を処理する。**手直しは `DecidedBy.Human`** で記録し、LLM の判定より優先させる
+    /// (誤判定を直したのに次の再編成で戻される、が起きないようにするため)。
+    /// </summary>
+    async Task DecideAsync()
+    {
+        if (Action is not { Length: > 0 } action || !action.Contains(':'))
+        {
+            return;
+        }
+
+        var (verb, key) = (action[..action.IndexOf(':')], action[(action.IndexOf(':') + 1)..]);
+        var now = Clock.GetUtcNow();
+
+        switch (verb)
+        {
+            case "promote":
+                // 語彙に無ければ作る。表記はタグそのまま(正式表記を入れ直したいときは
+                // トピックの詳細から直す)
+                if (await TopicStore.GetAsync(key) is null)
+                {
+                    await TopicStore.SaveAsync(
+                        new Topic { Key = key, Display = key, DecidedBy = DecidedBy.Human }, now);
+                }
+
+                await TagStore.DecideAsync(
+                    [new TagDecision(key, TagStatus.Promoted, key, DecidedBy.Human)], now);
+                _message = $"「{key}」をトピックにしました。";
+                break;
+
+            case "exclude":
+                await TagStore.DecideAsync(
+                    [new TagDecision(key, TagStatus.NotTopic, DecidedBy: DecidedBy.Human)], now);
+                // トピックだった語なら語彙からも外す(どのタグにも紐づかない行を残さない)
+                await Merger.DemoteAsync(key);
+                _message = $"「{key}」をトピック外にしました。";
+                break;
+
+            case "reset":
+                await TagStore.DecideAsync(
+                    [new TagDecision(key, TagStatus.Pending, DecidedBy: DecidedBy.None)], now);
+                await Merger.DemoteAsync(key);
+                _message = $"「{key}」を仕分けまちに戻しました（次の再編成で LLM に聞きます）。";
+                break;
+        }
+
+        await CatalogRefresher.RefreshAsync();
+        await LoadAsync();
+    }
+
+    /// <summary>寄せ先を選んで別名にする。**寄せ先が語彙に無ければ何もしない**(LLM の応答と同じ検証)。</summary>
+    async Task SaveAliasAsync()
+    {
+        var key = AliasFormKey;
+        var target = AliasTarget is { Length: > 0 } input ? Catalog.Resolve(input) : null;
+
+        if (key is not { Length: > 0 } || target is null || target == key || !Catalog.IsTopic(target))
+        {
+            _message = "寄せ先のトピックが見つかりませんでした（一覧にあるトピックを選んでください）。";
+        }
+        else if (Catalog.IsTopic(key))
+        {
+            // 寄せ元もトピックなら**統合**。子の付け替えと行の削除まで面倒を見る
+            _message = await Merger.MergeAsync(key, target, DecidedBy.Human)
+                ? $"トピック「{key}」を「{Catalog.DisplayOf(target)}」へ寄せました（配下も付け替えました）。"
+                : $"「{key}」は寄せられませんでした（収集対象に選ばれているトピックは、先に選択を外してください）。";
+        }
+        else
+        {
+            await TagStore.DecideAsync(
+                [new TagDecision(key, TagStatus.Alias, target, DecidedBy.Human)], Clock.GetUtcNow());
+            await CatalogRefresher.RefreshAsync();
+            _message = $"「{key}」を「{Catalog.DisplayOf(target)}」の別名にしました。";
+        }
+
+        AliasKey = null;
+        await LoadAsync();
+    }
+}

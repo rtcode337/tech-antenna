@@ -68,7 +68,10 @@ public class EfArticleStore(IDbContextFactory<TechAntennaDbContext> contextFacto
 
         return await db.Articles
             // 論文は本文を取り込んでいないので要約しない
-            .Where(a => a.Summary == null && a.Kind != ArticleKind.Paper)
+            // 論文は**要旨(ContentSnippet)がある分だけ**要約する(材料が無い行は除く)
+            .Where(a => a.Summary == null
+                && (a.ContentSnippet != null
+                    || (a.Kind != ArticleKind.Paper && a.Kind != ArticleKind.TrendingPaper)))
             .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)
             .Take(count)
             .ToListAsync(cancellationToken);
@@ -80,7 +83,8 @@ public class EfArticleStore(IDbContextFactory<TechAntennaDbContext> contextFacto
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await db.Articles
-            .Where(a => a.Kind == ArticleKind.Paper && a.TitleJa == null)
+            .Where(a => (a.Kind == ArticleKind.Paper || a.Kind == ArticleKind.TrendingPaper)
+                && a.TitleJa == null)
             .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)
             .Take(count)
             .ToListAsync(cancellationToken);

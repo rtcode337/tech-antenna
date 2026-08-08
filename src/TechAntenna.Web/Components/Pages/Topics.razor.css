@@ -314,17 +314,6 @@ details[open] > summary .caret::before {
     margin: 0.25rem 0 0;
 }
 
-/* 一覧に出していない語の用語集。一覧の続きではなく別の区切りだと分かるよう間を空ける */
-.glossary {
-    margin-top: 2rem;
-    padding-top: 1.25rem;
-    border-top: 1px solid var(--border);
-}
-
-.glossary h2 {
-    margin-bottom: 0.35rem;
-}
-
 /* 狭い画面(スマホ)。列の幅の合計が画面を超えると、伸縮する名前の列だけが潰れて
    トピック名が読めなくなる。**列を減らして名前に幅を戻す**:
 

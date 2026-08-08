@@ -112,13 +112,26 @@ foreach (var feed in collection.Feeds)
 
 // arXiv も記事ソースの1つとして「記事の収集」で回る。選択中のトピックが検索語なので、
 // 選択が空なら問い合わせない(Arxiv:Enabled=false で止められる)
+// 話題の論文(Hugging Face Daily Papers)。**トピックの選択に依存しない**ので、
+// 記事の RSS と同じ「巡回」の扱いにして `IArticleSource` として登録する
+// —— 検索の arXiv / J-STAGE(`IPaperSource`)とはボタンも画面も分ける
+var huggingFace = builder.Configuration
+    .GetSection(HuggingFacePapersOptions.SectionName)
+    .Get<HuggingFacePapersOptions>() ?? new HuggingFacePapersOptions();
+if (huggingFace.Enabled)
+{
+    builder.Services.AddHttpClient(HuggingFacePapersSource.HttpClientName, ConfigureFeedClient);
+    builder.Services.AddSingleton<IArticleSource>(sp => new HuggingFacePapersSource(
+        sp.GetRequiredService<IHttpClientFactory>(), topicCatalog));
+}
+
 var arxiv = builder.Configuration
     .GetSection(ArxivOptions.SectionName)
     .Get<ArxivOptions>() ?? new ArxivOptions();
 if (arxiv.Enabled)
 {
     builder.Services.AddHttpClient(ArxivPaperSource.HttpClientName, ConfigureFeedClient);
-    builder.Services.AddSingleton<IArticleSource>(sp => new ArxivPaperSource(
+    builder.Services.AddSingleton<IPaperSource>(sp => new ArxivPaperSource(
         sp.GetRequiredService<IHttpClientFactory>(),
         sp.GetRequiredService<TimeProvider>(),
         sp.GetRequiredService<ITopicStore>(),
@@ -134,7 +147,7 @@ var jstage = builder.Configuration
 if (jstage.Enabled)
 {
     builder.Services.AddHttpClient(JstagePaperSource.HttpClientName, ConfigureFeedClient);
-    builder.Services.AddSingleton<IArticleSource>(sp => new JstagePaperSource(
+    builder.Services.AddSingleton<IPaperSource>(sp => new JstagePaperSource(
         sp.GetRequiredService<IHttpClientFactory>(),
         sp.GetRequiredService<TimeProvider>(),
         sp.GetRequiredService<ITopicStore>(),
@@ -289,10 +302,16 @@ if (qiita.Enabled && qiita.Queries.Count > 0)
 }
 
 builder.Services.AddSingleton<BookCollectionRunner>();
+// 論文は記事と別のボタン(検索なので収集対象のトピックが要る)
+builder.Services.AddSingleton<PaperCollectionRunner>();
 // 語彙のスナップショット(TopicCatalog)を DB から組み直す。起動時と再編成のあとに呼ぶ
 builder.Services.AddSingleton<TopicCatalogRefresher>();
+// 保存済みデータのタグを数え直してタグの一覧へ反映する(収集と再編成の両方から呼ぶ)
+builder.Services.AddSingleton<TagObserver>();
 // 語彙の初期投入(DB が空のときだけ topic-catalog.json を流し込む)
 builder.Services.AddSingleton<TopicSeeder>();
+// トピックを別のトピックへ寄せる(画面からの手直しと、LLM の統合パスで共有する)
+builder.Services.AddSingleton<TopicMerger>();
 builder.Services.AddSingleton<TopicReorganizationRunner>();
 // タグの正規化規則を変えたときに保存済みデータを追従させる(外部へは出ないので常に登録する)
 builder.Services.AddSingleton<TagRenormalizationRunner>();
@@ -345,6 +364,8 @@ if (hasClaudeCodeToken)
         sp => sp.GetRequiredService<ClaudeCodeTopicClassifier>());
     builder.Services.AddSingleton<ITopicDescriber>(
         sp => sp.GetRequiredService<ClaudeCodeTopicClassifier>());
+    builder.Services.AddSingleton<ITopicMergeAdvisor>(
+        sp => sp.GetRequiredService<ClaudeCodeTopicClassifier>());
 }
 else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
 {
@@ -355,6 +376,7 @@ else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
     var topicClassifier = new AnthropicTopicClassifier(anthropic.ApiKey, anthropic.Model);
     builder.Services.AddSingleton<ITopicClassifier>(topicClassifier);
     builder.Services.AddSingleton<ITopicDescriber>(topicClassifier);
+    builder.Services.AddSingleton<ITopicMergeAdvisor>(topicClassifier);
 }
 
 // 応答を圧縮する。**トピックのツリーは全件(1000 行超)を出すので HTML が 1MB を超える** ——

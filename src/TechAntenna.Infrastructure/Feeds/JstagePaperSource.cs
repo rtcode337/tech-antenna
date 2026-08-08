@@ -20,7 +20,7 @@ public class JstagePaperSource(
     TopicCatalog? catalog = null,
     int maxResults = 20,
     int withinYears = 2,
-    TimeSpan? delayBetweenKeywords = null) : IArticleSource
+    TimeSpan? delayBetweenKeywords = null) : IPaperSource
 {
     public const string HttpClientName = "jstage";
 

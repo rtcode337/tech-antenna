@@ -1,0 +1,40 @@
+@page "/interests"
+
+<PageTitle>興味トピック - tech-antenna</PageTitle>
+
+<h1>興味トピック</h1>
+
+@* **直近動向と対になる親ページ。** 軸が違う —— 直近動向は「外で何が話題か」を
+   トピックの選択に関係なく見る場所で、こちらは「選んだトピックを深掘る」場所。
+   下に付くページはどれも<b>収集対象に選んだトピックを検索語にして集める</b>ものにそろえてある *@
+<p class="page-note text-muted">
+    <a href="/topics">収集対象に選んだトピック</a>を検索語にして集めたものです。
+    <strong>選んでいないと 1 件も集まりません</strong> ——
+    書籍・イベント・論文はどれも「検索」で取るので、キーワードが必要です。
+    トピックに関係なく<strong>いま外で話題になっているもの</strong>を見たいときは
+    <a href="/recent">直近動向</a>へ。
+</p>
+
+<ul class="interest-links list-unstyled">
+    <li>
+        <a href="/books">書籍</a>
+        <span class="text-muted">
+            その分野で<strong>読んでおくべき本</strong>。並びは読まれている度合い(レビュー)と、
+            記事で薦められた回数。トピックごとの折りたたみで出します。
+        </span>
+    </li>
+    <li>
+        <a href="/events">イベント</a>
+        <span class="text-muted">
+            これからの勉強会・ウェビナー(connpass / Doorkeeper / TECH PLAY)。
+            開催日順で、選んだトピックが検索キーワードになります。
+        </span>
+    </li>
+    <li>
+        <a href="/papers">論文</a>
+        <span class="text-muted">
+            arXiv(英語)と J-STAGE(日本語)を<strong>トピックで検索</strong>して集めた論文。
+            英語のタイトルは LLM で和訳できます。
+        </span>
+    </li>
+</ul>

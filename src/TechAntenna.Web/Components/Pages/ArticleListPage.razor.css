@@ -1,0 +1,6 @@
+/* 論文ページの補足(収集の前提)。本文より一段落として読み幅を抑える */
+.page-note {
+    max-width: 62rem;
+    margin-bottom: 1rem;
+    font-size: 0.89rem;
+}

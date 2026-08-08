@@ -82,12 +82,15 @@ public class ArxivPaperSourceTests
     }
 
     [Fact]
-    public async Task abstractは取り込まない()
+    public async Task abstractを要旨として取り込む()
     {
-        // 著者の文章なので保持しない。本文が無いので要約ジョブの対象からも外れる
+        // **arXiv のメタデータは CC0**(API Terms of Use に明記)なので取り込める。
+        // 取り込んだ要旨は要約の材料になる —— 以前は材料が無いので要約の対象外だった
         var source = NewSource(new StubHttpClientFactory(Response), await StoreWith("生成AI"));
 
-        Assert.Null(Assert.Single(await source.FetchAsync()).ContentSnippet);
+        Assert.Equal(
+            "著者が書いた abstract の本文。",
+            Assert.Single(await source.FetchAsync()).ContentSnippet);
     }
 
     [Fact]

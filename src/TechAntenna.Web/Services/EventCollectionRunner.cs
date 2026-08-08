@@ -8,6 +8,7 @@ public class EventCollectionRunner(
     IEnumerable<IEventSource> sources,
     IEventStore store,
     ITopicStore topicStore,
+    TagObserver tagObserver,
     IOptions<CollectionOptions> options,
     ILogger<EventCollectionRunner> logger) : JobRunner
 {
@@ -66,6 +67,11 @@ public class EventCollectionRunner(
                 await Task.Delay(delay, cancellationToken);
             }
         }
+
+        // 見つけたタグをタグの一覧へ反映する(状態は触らない)
+
+        await tagObserver.ObserveAsync(cancellationToken: cancellationToken);
+
 
         return new CollectionRunResult(fetched, added, failed);
     }

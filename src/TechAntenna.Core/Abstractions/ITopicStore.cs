@@ -30,6 +30,13 @@ public interface ITopicStore
     /// </summary>
     Task<IReadOnlyList<Topic>> GetAllAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// 1 件だけ追加・更新する。**<see cref="UpsertAsync"/> と違って他の行に触らない** ——
+    /// 画面からの手直し(タグをトピックに昇格させる等)で 1 件だけ入れたいときに使う
+    /// (Upsert は渡されなかった行の件数と話題度を 0 にするので、この用途には使えない)。
+    /// </summary>
+    Task SaveAsync(Topic topic, DateTimeOffset updatedAt, CancellationToken cancellationToken = default);
+
     /// <summary>キーで 1 件引く。無ければ null。</summary>
     Task<Topic?> GetAsync(string key, CancellationToken cancellationToken = default);
 

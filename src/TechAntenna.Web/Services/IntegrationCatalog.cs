@@ -51,6 +51,7 @@ public class IntegrationCatalog(
 {
     public IReadOnlyList<Integration> GetAll()
     {
+        var huggingFace = Section<HuggingFacePapersOptions>(HuggingFacePapersOptions.SectionName);
         var arxiv = Section<ArxivOptions>(ArxivOptions.SectionName);
         var jstage = Section<JstageOptions>(JstageOptions.SectionName);
         var qiita = Section<QiitaOptions>(QiitaOptions.SectionName);
@@ -78,6 +79,10 @@ public class IntegrationCatalog(
             "記事・ニュースの人気(ブックマーク数)を全ソース横断で補う。50 URL まで一括で引ける"));
 
         // --- 論文 ---
+        integrations.Add(new Integration(
+            "論文", "Hugging Face Daily Papers", CredentialNeed.NotNeeded, null, true,
+            "話題の論文。トピックの選択に依存しない(中身は arXiv 投稿なので英語のみ)",
+            huggingFace.Enabled));
         integrations.Add(new Integration(
             "論文", "arXiv", CredentialNeed.NotNeeded, null, true,
             "英語の論文。3 秒以上の間隔を空けて問い合わせる", arxiv.Enabled));

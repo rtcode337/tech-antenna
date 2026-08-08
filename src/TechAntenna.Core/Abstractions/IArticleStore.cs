@@ -20,8 +20,9 @@ public interface IArticleStore
 
     /// <summary>
     /// 要約が未生成の記事を、新しい順に最大 <paramref name="count"/> 件返す。
-    /// **論文(<see cref="ArticleKind.Paper"/>)は返さない** —— 本文を取り込んでいないので
-    /// 要約する材料が無く、タイトルだけ渡しても LLM の枠を使うだけになる。
+    /// **論文は要旨(<see cref="Article.ContentSnippet"/>)がある分だけ返す** ——
+    /// 材料が無い行にタイトルだけ渡しても LLM の枠を使うだけになる
+    /// (arXiv のメタデータは CC0 なので要旨を取り込める。J-STAGE は取り込んでいない)。
     /// </summary>
     Task<IReadOnlyList<Article>> GetUnsummarizedAsync(int count, CancellationToken cancellationToken = default);
 

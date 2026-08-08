@@ -1,6 +1,7 @@
 @page "/articles"
 @page "/news"
 @page "/papers"
+@page "/trending-papers"
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
 @using TechAntenna.Core.Topics
@@ -10,6 +11,7 @@
 @inject TopicCatalog Catalog
 @inject NavigationManager Navigation
 @inject TitleTranslationRunner TranslationRunner
+@inject PaperCollectionRunner PaperRunner
 
 @* 記事・ニュース・論文の一覧ページ。種別ごとの違いは「どの Kind を出すか」と
    論文だけにある翻訳ボタンだけなので、3ルートを1コンポーネントにまとめている。
@@ -21,8 +23,28 @@
 
 @if (_kind == ArticleKind.Paper)
 {
-    @* 翻訳の対象は論文だけなので、ボタンも論文のページに置く *@
+    @* 興味トピック側の論文。**収集を記事と分けてある**のは検索だから ——
+       収集対象のトピックが無いと 1 件も集まらない(イベント・書籍と同じ性質) *@
+    <JobButton Runner="PaperRunner" FormName="collect-papers" OnRun="Collect" />
     <JobButton Runner="TranslationRunner" FormName="translate-titles" OnRun="Translate" />
+    <p class="page-note text-muted">
+        <strong>収集対象に選んだトピックを検索語</strong>にして arXiv(英語)と
+        J-STAGE(日本語)へ問い合わせます —— <a href="/topics">トピック</a>を選んでいないと
+        1 件も集まりません。arXiv には<strong>英語表記</strong>を投げます(日本語のままだと 0 件)。
+        トピックに関係なく話題のものを見たいときは<a href="/trending-papers">話題の論文</a>へ。
+    </p>
+}
+else if (_kind == ArticleKind.TrendingPaper)
+{
+    @* 話題の論文。**収集は「記事の収集」に含まれる**(トピックの選択に依存しない巡回なので、
+       ニュース・記事と同じ扱い)。翻訳だけはこちらにも置く —— タイトルは英語なので *@
+    <JobButton Runner="TranslationRunner" FormName="translate-titles" OnRun="Translate" />
+    <p class="page-note text-muted">
+        Hugging Face Daily Papers から<strong>トピックの選択に関係なく</strong>拾います
+        (投稿と upvote で選ばれた論文)。収集は<a href="/recent">直近動向</a>の「記事の収集」に
+        含まれます。<strong>中身は arXiv への投稿で、事実上すべて英語</strong>です ——
+        日本語の論文は<a href="/papers">論文(興味トピック)</a>の担当です。
+    </p>
 }
 
 @if (_articles is null)
@@ -70,7 +92,8 @@ else
         (_kind, _title) = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/') switch
         {
             "news" => (ArticleKind.News, "ニュース"),
-            "papers" => (ArticleKind.Paper, "論文"),
+            "papers" => (ArticleKind.Paper, "論文（興味トピック）"),
+            "trending-papers" => (ArticleKind.TrendingPaper, "話題の論文"),
             _ => (ArticleKind.Article, "記事"),
         };
 
@@ -78,6 +101,11 @@ else
     }
 
     // バックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
+    void Collect() => PaperRunner.StartInBackground(
+        ct => PaperRunner.RunOnceAsync(ct),
+        result => $"{result.Fetched} 件取得、うち {result.Added} 件を新規追加しました。"
+            + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : ""));
+
     void Translate() => TranslationRunner.StartInBackground(
         ct => TranslationRunner.RunOnceAsync(ct),
         result => result.Requested == 0
@@ -87,6 +115,17 @@ else
     async Task LoadAsync()
     {
         _articles = await ArticleStore.GetRecentAsync(Limit, _kind);
+
+        // **話題の論文だけ upvote 順**。ほかは新着順のまま —— 「今日なにが出たか」を
+        // 追える並びを崩さないため。並べ替えるのは取ってきた直近 @Limit 件の中だけで、
+        // 昔の高 upvote の論文がいつまでも先頭に居座らないのは意図どおり
+        if (_kind == ArticleKind.TrendingPaper)
+        {
+            _articles = _articles
+                .OrderByDescending(article => article.UpvoteCount ?? 0)
+                .ThenByDescending(article => article.PublishedAt)
+                .ToList();
+        }
         _selected = (await TopicStore.GetSelectedAsync())
             .Select(topic => topic.Key)
             .ToHashSet(StringComparer.Ordinal);

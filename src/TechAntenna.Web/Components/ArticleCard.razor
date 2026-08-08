@@ -35,6 +35,11 @@
         {
             <span class="users @Tier(users)" title="はてなブックマーク数">@users users</span>
         }
+        @* upvote は論文の指標。**はてブ数とは別に出す** —— 母集団が違うので同じ数字に混ぜない *@
+        @if (Article.UpvoteCount is { } upvotes and > 0)
+        {
+            <span class="users @Tier(upvotes)" title="Hugging Face Daily Papers の upvote 数">▲ @upvotes</span>
+        }
         @Article.SourceName
         @if (Article.PublishedAt is { } publishedAt)
         {
@@ -75,8 +80,13 @@
         _ => "users-low",
     };
 
+    /// <summary>
+    /// 話題度による強調。**はてブ数と upvote 数のどちらか大きいほうで測る** ——
+    /// 記事は前者、論文は後者しか持たないので、片方だけを見ると論文が常に地味になる。
+    /// </summary>
     string PopularityClass() =>
-        EmphasizeByPopularity && Article.BookmarkCount is { } users and >= 10
-            ? users >= 100 ? "hot-high" : "hot-mid"
+        EmphasizeByPopularity
+            && Math.Max(Article.BookmarkCount ?? 0, Article.UpvoteCount ?? 0) is var score and >= 10
+            ? score >= 100 ? "hot-high" : "hot-mid"
             : "";
 }

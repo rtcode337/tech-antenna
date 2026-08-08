@@ -40,6 +40,22 @@ public class EfTopicStore(IDbContextFactory<TechAntennaDbContext> contextFactory
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task SaveAsync(
+        Topic topic, DateTimeOffset updatedAt, CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var stored = await db.Topics.FirstOrDefaultAsync(t => t.Key == topic.Key, cancellationToken);
+        if (stored is null)
+        {
+            stored = new Topic { Key = topic.Key };
+            db.Topics.Add(stored);
+        }
+
+        InMemoryTopicStore.Apply(stored, topic, updatedAt);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Topic>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);

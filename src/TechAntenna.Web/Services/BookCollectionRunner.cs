@@ -11,6 +11,7 @@ public class BookCollectionRunner(
     IEnumerable<IBookRecommendationSource> recommendationSources,
     IBookStore store,
     ITopicStore topicStore,
+    TagObserver tagObserver,
     IOptions<BooksOptions> options,
     TimeProvider clock,
     ILogger<BookCollectionRunner> logger) : JobRunner
@@ -75,6 +76,11 @@ public class BookCollectionRunner(
         }
 
         var recommended = await CollectRecommendationsAsync(cancellationToken);
+
+        // 見つけたタグをタグの一覧へ反映する(状態は触らない)
+
+        await tagObserver.ObserveAsync(cancellationToken: cancellationToken);
+
 
         return new CollectionRunResult(found + recommended.Found, added + recommended.Added, failed + recommended.Failed);
     }

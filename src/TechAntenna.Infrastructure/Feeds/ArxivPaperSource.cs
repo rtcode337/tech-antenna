@@ -9,7 +9,10 @@ namespace TechAntenna.Infrastructure.Feeds;
 /// 検索に使ったキーワードをそのままタグにする(connpass・書籍と同じやり方)。
 /// arXiv 側の分類(`cs.CL` 等)はタグにしない —— トピック横断の語彙と噛み合わないため。
 ///
-/// 取り込むのは**タイトル・URL・投稿日だけ**。abstract は著者の文章なので取り込まない
+/// 取り込むのはタイトル・URL・投稿日・**要旨**。**要旨を取り込んでよいのは
+/// arXiv のメタデータが CC0 だから** —— API Terms of Use が「descriptive metadata について
+/// CC0 1.0 の下で自由に利用できる」と明記している(書籍の `description` は出版社の
+/// 著作物なので別扱い)。要旨があると**論文も要約の対象にできる**
 /// (書籍で書誌事実だけを取り込むのと同じ方針)。本文が無いので要約ジョブの対象からも
 /// 外してある(<see cref="ArticleKind.Paper"/>)。
 ///
@@ -22,7 +25,7 @@ public class ArxivPaperSource(
     ITopicStore topicStore,
     TopicCatalog? catalog = null,
     int maxResults = 20,
-    TimeSpan? delayBetweenKeywords = null) : IArticleSource
+    TimeSpan? delayBetweenKeywords = null) : IPaperSource
 {
     public const string HttpClientName = "arxiv";
 
@@ -97,7 +100,8 @@ public class ArxivPaperSource(
                 Url = item.Entry.Url,
                 SourceName = Name,
                 Kind = ArticleKind.Paper,
-                ContentSnippet = null,
+                // 要旨(arXiv のメタデータ = CC0)。要約の材料になる
+                ContentSnippet = item.Entry.Summary,
                 PublishedAt = item.Entry.PublishedAt,
                 CollectedAt = collectedAt,
                 Tags = topics.Normalize(item.Keywords),

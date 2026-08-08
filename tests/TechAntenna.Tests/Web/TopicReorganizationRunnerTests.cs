@@ -56,25 +56,28 @@ public class TopicReorganizationRunnerTests
         ITagStore tagStore,
         ITopicStore topicStore,
         ITopicClassifier? classifier = null,
-        IArticleStore? articleStore = null)
+        IArticleStore? articleStore = null,
+        ITopicMergeAdvisor? mergeAdvisor = null)
     {
         var articles = articleStore ?? new InMemoryArticleStore();
         var events = new InMemoryEventStore();
         var books = new InMemoryBookStore();
+        var refresher = new TopicCatalogRefresher(catalog, topicStore, tagStore);
 
         return new TopicReorganizationRunner(
             catalog,
             [source],
             tagStore,
             topicStore,
-            articles,
-            events,
-            books,
+            new TagObserver(tagStore, articles, events, books, TimeProvider.System),
             new TagRenormalizationRunner(catalog, articles, events, books),
-            new TopicCatalogRefresher(catalog, topicStore, tagStore),
+            refresher,
+            new TopicMerger(
+                tagStore, topicStore, refresher, NullLogger<TopicMerger>.Instance, TimeProvider.System),
             NullLogger<TopicReorganizationRunner>.Instance,
             TimeProvider.System,
-            classifier);
+            classifier,
+            mergeAdvisor: mergeAdvisor);
     }
 
     [Fact]
@@ -209,6 +212,84 @@ public class TopicReorganizationRunnerTests
             .RunOnceAsync();
 
         Assert.Equal(5, (await topics.GetAsync("ai"))!.ArticleCount);
+    }
+
+    /// <summary>決められた統合案を返す助言者。</summary>
+    class StubMergeAdvisor(Func<IReadOnlyList<TopicCatalogEntry>, IReadOnlyList<TopicMergeVerdict>> answer)
+        : ITopicMergeAdvisor
+    {
+        public string Name => "スタブ";
+
+        public Task<IReadOnlyList<TopicMergeVerdict>> SuggestMergesAsync(
+            IReadOnlyList<TopicCatalogEntry> topics,
+            Action<string>? progress = null,
+            CancellationToken cancellationToken = default) => Task.FromResult(answer(topics));
+    }
+
+    [Fact]
+    public async Task 同義のトピックは寄せて配下を付け替える()
+    {
+        // シード無しで語彙を育てると、`AI` と `人工知能` が別々に作られうる
+        // (分類の検証はキーの重複しか見ないので防げない)。後から寄せる手当てがこれ
+        var tags = new InMemoryTagStore();
+        var topics = new InMemoryTopicStore();
+        var at = new DateTimeOffset(2026, 8, 8, 0, 0, 0, TimeSpan.Zero);
+        await topics.UpsertAsync(
+        [
+            new Topic { Key = "ai", Display = "AI" },
+            new Topic { Key = "人工知能", Display = "人工知能" },
+            new Topic { Key = "生成ai", Display = "生成AI", Parent = "人工知能" },
+        ], at);
+        await tags.ObserveAsync(
+        [
+            new TagObservation("ai"), new TagObservation("人工知能"), new TagObservation("生成ai"),
+        ], at);
+        await tags.DecideAsync(
+        [
+            new TagDecision("ai", TagStatus.Promoted, "ai", DecidedBy.Seed),
+            new TagDecision("人工知能", TagStatus.Promoted, "人工知能", DecidedBy.Llm),
+            new TagDecision("生成ai", TagStatus.Promoted, "生成ai", DecidedBy.Llm),
+        ], at);
+        var catalog = TopicCatalog.Empty;
+        var advisor = new StubMergeAdvisor(entries =>
+        [
+            // 「人工知能」を「AI」へ寄せる
+            new TopicMergeVerdict(entries.Select((e, i) => (e, i)).First(x => x.e.Key == "人工知能").i + 1, "AI"),
+        ]);
+
+        await NewRunner(catalog, new StubTrendSource([]), tags, topics, mergeAdvisor: advisor)
+            .RunOnceAsync();
+
+        // 寄せ元の行は消え、タグは別名になり、配下は寄せ先へ付け替わる
+        Assert.Null(await topics.GetAsync("人工知能"));
+        var moved = (await tags.GetAllAsync()).Single(tag => tag.Key == "人工知能");
+        Assert.Equal(TagStatus.Alias, moved.Status);
+        Assert.Equal("ai", moved.TopicKey);
+        Assert.Equal("ai", (await topics.GetAsync("生成ai"))!.Parent);
+    }
+
+    [Fact]
+    public async Task 収集対象に選ばれているトピックは寄せない()
+    {
+        // 収集キーワードが黙って変わると、集めるものが勝手に変わってしまう
+        var tags = new InMemoryTagStore();
+        var topics = new InMemoryTopicStore();
+        var at = new DateTimeOffset(2026, 8, 8, 0, 0, 0, TimeSpan.Zero);
+        await topics.UpsertAsync(
+            [new Topic { Key = "ai", Display = "AI" }, new Topic { Key = "人工知能", Display = "人工知能" }],
+            at);
+        await topics.UpdateSelectionAsync(["人工知能"]);
+        await tags.ObserveAsync([new TagObservation("ai"), new TagObservation("人工知能")], at);
+        var advisor = new StubMergeAdvisor(entries =>
+            entries.Select((e, i) => (e, i))
+                .Where(x => x.e.Key == "人工知能")
+                .Select(x => new TopicMergeVerdict(x.i + 1, "AI"))
+                .ToList());
+
+        await NewRunner(TopicCatalog.Empty, new StubTrendSource([]), tags, topics, mergeAdvisor: advisor)
+            .RunOnceAsync();
+
+        Assert.NotNull(await topics.GetAsync("人工知能"));
     }
 
     /// <summary>指定のタグを持つ記事を作る(件数の集計は記事ストアから作られる)。</summary>

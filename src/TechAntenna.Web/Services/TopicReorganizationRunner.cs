@@ -21,11 +21,13 @@ namespace TechAntenna.Web.Services;
 /// 4. **前回までに観測したタグ**を LLM で仕分け(<see cref="ITopicClassifier"/>)。
 ///    今回の観測より前に置くのが肝 —— その回に取得したトレンドの語まで聞くと、
 ///    押すまで何語 LLM に流れるか分からなくなる
-/// 5. 説明の無いトピックに一言説明を付ける(<see cref="ITopicDescriber"/>)
-/// 6. タグを作り直す(2 回目) —— 今回増えた別名を過去データへ反映する
-/// 7. タグを観測(件数 + 話題度を書き込む。**状態は触らない**)。
+/// 5. 同義のトピックを寄せる(<see cref="ITopicMergeAdvisor"/>)。
+///    分類はキーの重複しか見ないので、`AI` と `人工知能` が別々に作られうる
+/// 6. 説明の無いトピックに一言説明を付ける(<see cref="ITopicDescriber"/>)
+/// 7. タグを作り直す(2 回目) —— 今回増えた別名を過去データへ反映する
+/// 8. タグを観測(件数 + 話題度を書き込む。**状態は触らない**)。
 ///    ここで<b>次の回の対象が確定する</b>(画面に出す一覧と同じ)
-/// 8. 語彙を組み立てて書き込む(件数と話題度の合算)
+/// 9. 語彙を組み立てて書き込む(件数と話題度の合算)
 ///
 /// **1 本のジョブにしてあるのは、分けると互いの結果を消し合うから。**
 /// 以前はカタログ生成が全行を削除し、話題度の更新が全行を 0 にしてから書き戻していたため、
@@ -36,15 +38,15 @@ public class TopicReorganizationRunner(
     IEnumerable<ITrendTopicSource> sources,
     ITagStore tagStore,
     ITopicStore topicStore,
-    IArticleStore articleStore,
-    IEventStore eventStore,
-    IBookStore bookStore,
+    TagObserver tagObserver,
     TagRenormalizationRunner renormalizationRunner,
     TopicCatalogRefresher catalogRefresher,
+    TopicMerger merger,
     ILogger<TopicReorganizationRunner> logger,
     TimeProvider clock,
     ITopicClassifier? classifier = null,
-    ITopicDescriber? describer = null) : JobRunner
+    ITopicDescriber? describer = null,
+    ITopicMergeAdvisor? mergeAdvisor = null) : JobRunner
 {
     /// <summary>
     /// 1回の実行で LLM に渡すタグの上限(呼び出し回数の暴走を防ぐ枠)。
@@ -88,6 +90,10 @@ public class TopicReorganizationRunner(
     {
         var now = clock.GetUtcNow();
 
+        // **最初に語彙のスナップショットを DB からそろえる。** 画面からの手直しや別プロセスの
+        // 変更が入っていることがあり、古いままだと別名の解決も統合の判定も食い違う
+        await catalogRefresher.RefreshAsync(cancellationToken);
+
         Progress = "外部トレンドを取得中…";
         var trends = await FetchTrendsAsync(cancellationToken);
 
@@ -104,67 +110,24 @@ public class TopicReorganizationRunner(
         // その場で取得したトレンドの語までその回で聞くことになり、
         // 押すまで何語 LLM に流れるか分からなくなる(画面に出している一覧と食い違う)
         var classified = await ClassifyPendingAsync(now, cancellationToken);
+        var merged = await MergeDuplicatesAsync(cancellationToken);
         var described = await DescribeMissingAsync(now, cancellationToken);
 
         // 2 回目のタグの作り直し。今回の仕分けで増えた別名を過去データへ反映する
         Progress = "タグを再正規化中…";
         await renormalizationRunner.RunOnceAsync(cancellationToken);
 
-        // 観測はここで 1 回だけ。**次の回の対象がこの時点で確定する**(画面に出す一覧と同じ)
+        // 観測はここで 1 回だけ。**次の回の対象がこの時点で確定する**(画面に出す一覧と同じ)。
+        // 3 種すべてを数え直すので、渡さなかったタグの件数は 0 に戻す(古い件数を残さない)
         Progress = "タグを観測中…";
-        await ObserveTagsAsync(trends, now, cancellationToken);
+        await tagObserver.ObserveAsync(trends, resetMissing: true, cancellationToken);
 
         Progress = "語彙を組み立て中…";
         var topics = await BuildTopicsAsync(now, cancellationToken);
         await catalogRefresher.RefreshAsync(cancellationToken);
 
         return new TopicReorganizationResult(
-            topics, trends.Count, _failedSources, classified, described);
-    }
-
-    /// <summary>
-    /// 集めたデータの件数と外部トレンドの話題度を、タグの行へ書き込む。
-    /// **状態には触らない** —— 収集のたびに仕分けが巻き戻らないようにするため。
-    /// </summary>
-    async Task ObserveTagsAsync(
-        Dictionary<string, (double Score, int Sources)> trends,
-        DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        var counts = new Dictionary<string, (int Articles, int Events, int Books)>(StringComparer.Ordinal);
-
-        foreach (var tagCount in await articleStore.GetTagCountsAsync(cancellationToken))
-        {
-            var current = counts.GetValueOrDefault(tagCount.Tag);
-            counts[tagCount.Tag] = (current.Articles + tagCount.Count, current.Events, current.Books);
-        }
-
-        foreach (var tagCount in await eventStore.GetTagCountsAsync(cancellationToken))
-        {
-            var current = counts.GetValueOrDefault(tagCount.Tag);
-            counts[tagCount.Tag] = (current.Articles, current.Events + tagCount.Count, current.Books);
-        }
-
-        foreach (var tagCount in await bookStore.GetTagCountsAsync(cancellationToken))
-        {
-            var current = counts.GetValueOrDefault(tagCount.Tag);
-            counts[tagCount.Tag] = (current.Articles, current.Events, current.Books + tagCount.Count);
-        }
-
-        var observations = counts.Keys.Concat(trends.Keys)
-            .Distinct(StringComparer.Ordinal)
-            .Select(tag =>
-            {
-                var count = counts.GetValueOrDefault(tag);
-                var trend = trends.GetValueOrDefault(tag);
-
-                return new TagObservation(
-                    tag, count.Articles, count.Events, count.Books, trend.Score, trend.Sources);
-            })
-            .ToList();
-
-        // 渡さなかったタグは件数と話題度を 0 にする(別名がまとまって消えたタグに古い値が残らないように)
-        await tagStore.ObserveAsync(observations, now, resetMissing: true, cancellationToken);
+            topics, trends.Count, _failedSources, classified, described, merged);
     }
 
     /// <summary>
@@ -265,6 +228,96 @@ public class TopicReorganizationRunner(
         catch (Exception ex)
         {
             logger.LogError(ex, "タグの仕分けに失敗(再編成は続ける)");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 語彙の中の同義トピックを LLM に見つけさせて寄せる。寄せた件数を返す。
+    ///
+    /// **分類だけでは重複を防げない。** 検証はキーの重複しか見ないので、あるバッチが
+    /// `AI` を、別のバッチが `人工知能` を新トピックとして作りうる。ここで後から寄せる
+    /// 手当てがあるので、語彙を空から始められる(初期値の JSON を捨てられる)。
+    ///
+    /// **LLM の応答はそのまま信じない** —— 寄せ先が実在するか、自分自身でないか、
+    /// 寄せ先が寄せ元を指していないか(相互参照)を確かめてから適用する。
+    /// </summary>
+    async Task<int> MergeDuplicatesAsync(CancellationToken cancellationToken)
+    {
+        if (mergeAdvisor is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            var topics = catalog.Entries;
+            if (topics.Count < 2)
+            {
+                return 0;
+            }
+
+            var verdicts = await mergeAdvisor.SuggestMergesAsync(
+                topics,
+                step => Progress = $"同義のトピックを探索中: {step}…",
+                cancellationToken);
+
+            // 番号 → 寄せ元、表記 → 寄せ先。**相互参照は両方捨てる**
+            // (A→B と B→A が来たとき、順に適用すると語彙が 1 つに潰れる)
+            var pairs = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var verdict in verdicts)
+            {
+                if (verdict.Index < 1 || verdict.Index > topics.Count)
+                {
+                    continue;
+                }
+
+                var from = topics[verdict.Index - 1].Key;
+                var into = catalog.Resolve(verdict.Into);
+                if (from != into && catalog.IsTopic(into))
+                {
+                    pairs[from] = into;
+                }
+            }
+
+            var merged = 0;
+            foreach (var (from, into) in pairs)
+            {
+                if (pairs.TryGetValue(into, out var back) && back == from)
+                {
+                    logger.LogInformation("相互に寄せ合っているので見送る: {From} ⇄ {Into}", from, into);
+                    continue;
+                }
+
+                // 連鎖(A→B→C)は最後まで辿ってから寄せる。途中の行は先に消えている
+                var target = into;
+                var guard = 0;
+                while (pairs.TryGetValue(target, out var next) && next != target && guard++ < 10)
+                {
+                    target = next;
+                }
+
+                if (target != from && await merger.MergeAsync(from, target, DecidedBy.Llm, cancellationToken))
+                {
+                    merged++;
+                }
+            }
+
+            if (merged > 0)
+            {
+                logger.LogInformation(
+                    "{Advisor} の判定で同義のトピック {Merged} 件を寄せた", mergeAdvisor.Name, merged);
+            }
+
+            return merged;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "同義トピックの統合に失敗(再編成は続ける)");
             return 0;
         }
     }
@@ -490,8 +543,10 @@ public class TopicReorganizationRunner(
 /// <param name="FailedSources">取得に失敗した収集元の数。</param>
 /// <param name="Classified">今回 LLM の仕分けで語彙へ入った(昇格・別名)タグの数。</param>
 /// <param name="Described">今回 LLM が一言説明を付けた用語の数。</param>
+/// <param name="Merged">今回 LLM の判定で寄せた同義トピックの数。</param>
 public record TopicReorganizationResult(
-    int Count, int Trending, int FailedSources, int Classified = 0, int Described = 0)
+    int Count, int Trending, int FailedSources,
+    int Classified = 0, int Described = 0, int Merged = 0)
 {
     public static readonly TopicReorganizationResult Nothing = new(0, 0, 0);
 }

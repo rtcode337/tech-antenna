@@ -1,0 +1,137 @@
+/* 冒頭の説明文。本文より一段落として読み幅を抑える(他のページと同じ扱い) */
+.page-note {
+    max-width: 62rem;
+    font-size: 0.89rem;
+}
+
+/* 手直しの結果。次の操作の邪魔にならないよう、面は薄く */
+.notice {
+    max-width: 62rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--accent-border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+    font-size: 0.9rem;
+}
+
+/* 状態の説明。普段は畳んでおく */
+.score-help {
+    margin-bottom: 1rem;
+    font-size: 0.86rem;
+}
+
+.score-help > summary {
+    cursor: pointer;
+    color: var(--text-muted);
+}
+
+.score-help ul {
+    margin: 0.5rem 0 0;
+    padding-left: 1.4rem;
+}
+
+.score-help li {
+    margin-bottom: 0.25rem;
+    line-height: 1.7;
+}
+
+/* 別名にするフォーム。1 行に収める */
+.alias-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 62rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+}
+
+.alias-form input {
+    flex: 1 1 14rem;
+    min-width: 0;
+    max-width: 24rem;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.92rem;
+}
+
+.alias-form a {
+    color: var(--text-muted);
+    font-size: 0.86rem;
+}
+
+/* 状態ごとのまとまり。仕分けまち・保留だけ既定で開く(直す対象がそこにあるため) */
+.tag-group {
+    margin-bottom: 0.75rem;
+}
+
+.tag-group > summary {
+    padding: 0.4rem 0;
+    cursor: pointer;
+    font-weight: 650;
+}
+
+.tag-rows {
+    border-top: 1px solid var(--border);
+}
+
+/* 1 行 = 名前 / 補足 / 操作。**列をそろえる**(操作の位置が行ごとに動くと押し間違える) */
+.tag-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 14rem auto;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.35rem 0.25rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.tag-name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: 0.94rem;
+}
+
+.tag-name .text-muted {
+    font-size: 0.82rem;
+}
+
+.tag-meta {
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.tag-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    justify-content: flex-end;
+}
+
+.tag-actions .btn {
+    padding: 0.15rem 0.5rem;
+    font-size: 0.78rem;
+}
+
+/* 狭い画面では 1 行を 2 段にする(3 列だと操作が潰れて押せない) */
+@media (max-width: 640px) {
+    .tag-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .tag-meta {
+        grid-column: 1 / -1;
+    }
+
+    .tag-actions {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+    }
+}

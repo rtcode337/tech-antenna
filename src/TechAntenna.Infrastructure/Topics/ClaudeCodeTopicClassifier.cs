@@ -16,7 +16,7 @@ public class ClaudeCodeTopicClassifier(
     IProcessRunner processRunner,
     string executablePath,
     string? model,
-    TimeSpan timeout) : ITopicClassifier, ITopicDescriber
+    TimeSpan timeout) : ITopicClassifier, ITopicDescriber, ITopicMergeAdvisor
 {
     /// <summary>1回の呼び出しで渡す語数。固定費(1回3万トークン規模)と応答時間の折り合い。</summary>
     public const int BatchSize = 60;
@@ -69,6 +69,34 @@ public class ClaudeCodeTopicClassifier(
         }
 
         return verdicts;
+    }
+
+    /// <summary>
+    /// 語彙の中の同義トピックを見つける。**一覧は 1 回で渡す** ——
+    /// 重複はどこにあるか分からないので、バッチに割ると跨いだ重複を見落とす。
+    /// </summary>
+    public async Task<IReadOnlyList<TopicMergeVerdict>> SuggestMergesAsync(
+        IReadOnlyList<TopicCatalogEntry> topics,
+        Action<string>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (topics.Count == 0)
+        {
+            return [];
+        }
+
+        progress?.Invoke($"{topics.Count} 件のトピックから重複を探索中");
+        var stdout = await ClaudeCodeBatch.RunRawAsync(
+            processRunner,
+            executablePath,
+            model,
+            timeout,
+            TopicMergePrompt.System,
+            TopicMergePrompt.Schema,
+            TopicMergePrompt.ForTopics(topics),
+            cancellationToken);
+
+        return ClaudeCodeResponseParser.ReadStructuredOutput(stdout, TopicMergePrompt.ReadMerges);
     }
 
     /// <summary>

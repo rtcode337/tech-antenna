@@ -39,6 +39,22 @@ public class InMemoryTopicStore : ITopicStore
         return Task.CompletedTask;
     }
 
+    public Task SaveAsync(Topic topic, DateTimeOffset updatedAt, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            if (!_byKey.TryGetValue(topic.Key, out var stored))
+            {
+                stored = new Topic { Key = topic.Key };
+                _byKey[topic.Key] = stored;
+            }
+
+            Apply(stored, topic, updatedAt);
+        }
+
+        return Task.CompletedTask;
+    }
+
     public Task<IReadOnlyList<Topic>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         lock (_gate)
