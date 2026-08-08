@@ -968,6 +968,14 @@ dotnet watch --project src/TechAntenna.Web --launch-profile watch
   (データは空。compose の db は 7021 をホストへ公開していないので、実データを見るならコンテナ側)
 - **始める前に `free -h` を見る。** ビルドとコンテナを同時に走らせるとメモリを使い切り、
   swap の無い環境では OOM でホストごと巻き込まれる
+- **`dotnet build` / `dotnet test` は watch を止めてから走らせ、止めたあとは
+  アプリのプロセスが残っていないか確かめる**(`watch` を kill してもアプリ
+  (`bin/Debug/net10.0/TechAntenna.Web`)は生き残ることがある)。動いたままビルドすると、
+  そのプロセスが覚えている静的アセットの指紋と obj 側の中身が食い違う ——
+  以前これで **ブラウザだけ CSS が全部消える**(gzip を要求すると空の応答が返り、
+  curl では再現しない)状態になった。**Debug では事前圧縮を切ってある**
+  (`CompressionEnabled`。理由は `TechAntenna.Web.csproj` のコメント)ので同じ壊れ方は
+  しないが、内容がずれること自体は起きる
 
 ## コマンド
 
