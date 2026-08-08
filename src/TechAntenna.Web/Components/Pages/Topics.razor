@@ -17,57 +17,6 @@
 
 <p><a href="/settings">← 設定</a></p>
 
-@* ボタンの行: ボタン / 説明チップの ? / 副作用の注意。
-   説明は details ではなく **? を押して出すチップ(HTML 標準の popover)** —— 一覧の
-   説明チップと同じ流儀で、JS を使わずに「押して出す・外を押して閉じる」が成り立つ。
-   手順と話題度の算出方法をチップ1つにまとめてある(実装は TopicMaintenanceRunner と
-   FetchTrendsAsync。説明を変えるときはそちらと揃えること)。
-   仕分け(LLM)側のボタンと説明はタグの画面 —— Runner は同じ1つなので、あちらで
-   仕分けが走っていればこのボタンも実行中になって二重には走らない *@
-<div class="job-row">
-    <JobButton Runner="MaintenanceRunner" FormName="refresh-trends"
-               Label="話題度を取り直す" OnRun="RefreshTrends" />
-    <button class="help-toggle" type="button" popovertarget="trend-help"
-            aria-label="「話題度を取り直す」の説明">?</button>
-    @* 副作用(仕分けまちが増える)はチップの中に隠さない —— 押す前に知っておくべき話 *@
-    <span class="job-note text-muted">
-        外部トレンドで見つかった新しい語が、仕分けまち(<a href="/tags">タグ</a>)に増えることがあります。
-    </span>
-    <div class="help-popover" id="trend-help" popover>
-        <strong>「話題度を取り直す」は何をしている?</strong>
-        <p>
-            外部トレンドを引いて鮮度を更新します。<strong>LLM は使いません</strong>。
-            新しく現れた語は<strong>仕分けまち</strong>として
-            <a href="/tags">タグ</a>の画面に溜まり、そこの「タグを仕分けなおす」で語彙に入ります。
-        </p>
-        <ol>
-            <li><strong>話題度を取得</strong> —— Qiita の新着記事と、はてなブックマークの
-                人気エントリーを<strong>押した時点でその場から</strong>取得します
-                (記事の収集をいつ回したかには依存しません)</li>
-            <li><strong>タグを観測</strong> —— 保存済みの記事・イベント・書籍に付いたタグの件数と、
-                取ってきた話題度を書き込みます。<strong>ここで次の仕分けの対象が決まります</strong>
-                (<a href="/tags">タグ</a>の画面の「仕分けまち」がその一覧です)</li>
-            <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
-                トピック一覧を書き込みます。話題度は親へも合算します</li>
-        </ol>
-        <strong>話題度はどう算出している?</strong>
-        <ul>
-            <li>材料は2つ、どちらも<strong>押した時点でその場から取得</strong>します。
-                <strong>Qiita の新着記事(直近 7 日)</strong>は「いいね数」を、
-                <strong>はてなブックマークの人気エントリー</strong>は「ブックマーク数」を
-                重み(どちらも最低 1)として、記事に付いているタグとタイトルに出てくる
-                トピックへ加算します</li>
-            <li>別名(<code>人工知能</code> など)は正式表記(<code>AI</code>)へ寄せてから数えます</li>
-            <li>材料ごとに<strong>合計を 100 とした割合</strong>に直してから足し合わせます
-                (数値の桁が違う材料どうしを混ぜられるように。1 材料あたり最大 100)</li>
-            <li><strong>ツリー表示の値は配下のトピックも合算</strong>した話題度、
-                <strong>ランキング表示はその用語単体</strong>の話題度です</li>
-            <li>このボタンを押した時点の値で、自動では更新されません
-                (「タグを仕分けなおす」でも変わりません)</li>
-        </ul>
-    </div>
-</div>
-
 @* 仕分けまちの中身と仕分けのボタンはタグの画面。ここは「溜まっている」ことだけ知らせる ——
    語彙の画面に居ながら、まだ語彙に入っていない語があると気づけるように *@
 @if (_pendingCount > 0)
@@ -102,12 +51,6 @@ else
        チェックボックスから遠くて読まれなかった)。イベント・書籍がトピックごとに
        問い合わせる作りは改善したい —— 直したらこの文言も直すこと *@
     <div class="list-toolbar">
-        <p>
-            チェックボックスで収集したいトピックを選び、「選択を保存」を押してください。
-            <strong>親を選ぶと配下もまとめて収集対象になります</strong>
-            （子だけを外すことはできません。イベント・書籍はトピック 1 つごとに
-            外部へ問い合わせるため、大きな親を選ぶとリクエスト数も増えます）。
-        </p>
         <form class="topic-search" method="get" action="/topics">
             @if (IsRanking)
             {
@@ -121,6 +64,12 @@ else
                 <a href="@(IsRanking ? "/topics?view=ranking" : "/topics")">クリア</a>
             }
         </form>
+        <p>
+            チェックボックスで収集したいトピックを選び、「選択を保存」を押してください。
+            <strong>親を選ぶと配下もまとめて収集対象になります</strong>
+            （子だけを外すことはできません。イベント・書籍はトピック 1 つごとに
+            外部へ問い合わせるため、大きな親を選ぶとリクエスト数も増えます）。
+        </p>
     </div>
 
     @if (HasQuery)
@@ -147,51 +96,6 @@ else
             }
         </p>
     }
-
-    @* **語彙と仕分けをファイルで運ぶ。** LLM の仕分けは呼ぶたびに枠を使うので、本番で仕分けた
-       結果を開発サーバーへ持って行けるようにしてある(逆向き・バックアップにも使える)。
-       畳んであるのは日々の操作ではないため。**一覧(テーブル)の直上に置く** ——
-       運ぶ中身がこの一覧そのものなので、対象のそばにあるほうが結びついて見える *@
-    <details class="score-help transfer">
-        <summary>ファイルで持ち出す / 取り込む</summary>
-        <p>
-            <strong>語彙(トピック)とタグの仕分けだけ</strong>を JSON で運びます。
-            <strong>件数・話題度は入りません</strong> —— それは各環境が集めたデータの話なので、
-            取り込んだ先では次の「話題度を取り直す」が集め直します。
-            取り込みは<strong>足し込みで、この環境にしか無い語彙や仕分けは消しません</strong>。
-            <strong>画面から手で直した仕分けは守ります</strong>(ファイル側で上書きしません)。
-        </p>
-
-        <p><a class="btn btn-outline-primary btn-sm" href="/export/topics.json" download>JSON で書き出す</a></p>
-
-        @* ファイルの受け取りは HttpContext から読む(静的 SSR のフォームはファイルを束縛しない) *@
-        <form method="post" enctype="multipart/form-data" @formname="import-topics" @onsubmit="ImportAsync">
-            <AntiforgeryToken />
-            <p>
-                <input type="file" name="file" accept=".json,application/json" required
-                       aria-label="取り込むトピックのファイル" />
-            </p>
-            <p>
-                <label>
-                    <input type="checkbox" name="import-selection" value="true" />
-                    収集対象の選択も取り込む
-                </label>
-                <span class="text-muted">
-                    （既定では取り込みません。イベントと書籍の検索語が黙って変わらないようにするためです）
-                </span>
-            </p>
-            <button type="submit" class="btn btn-outline-primary btn-sm">ファイルを取り込む</button>
-        </form>
-
-        @if (_importMessage is { Length: > 0 })
-        {
-            <p class="import-result">@_importMessage</p>
-        }
-        @if (_importError is { Length: > 0 })
-        {
-            <p class="import-error">@_importError</p>
-        }
-    </details>
 
     <form method="post" @formname="save-topic-selection" @onsubmit="SaveSelectionAsync" class="mb-3">
         <AntiforgeryToken />
@@ -252,6 +156,104 @@ else
         }
     </form>
 }
+
+@* ボタンの行: ボタン / 説明チップの ? / 副作用の注意。**一覧より下に置く** ——
+   毎回押すものではなく(押すのは鮮度が気になったとき)、一覧より先に目に入ると
+   「まず押すもの」に見えてしまう。持ち出し/取り込みも同じ理由でこの下。
+   説明は details ではなく **? を押して出すチップ(HTML 標準の popover)** —— 一覧の
+   説明チップと同じ流儀で、JS を使わずに「押して出す・外を押して閉じる」が成り立つ。
+   手順と話題度の算出方法をチップ1つにまとめてある(実装は TopicMaintenanceRunner と
+   FetchTrendsAsync。説明を変えるときはそちらと揃えること)。
+   仕分け(LLM)側のボタンと説明はタグの画面 —— Runner は同じ1つなので、あちらで
+   仕分けが走っていればこのボタンも実行中になって二重には走らない *@
+<div class="job-row">
+    <JobButton Runner="MaintenanceRunner" FormName="refresh-trends"
+               Label="話題度を取り直す" OnRun="RefreshTrends" />
+    <button class="help-toggle" type="button" popovertarget="trend-help"
+            aria-label="「話題度を取り直す」の説明">?</button>
+    @* 副作用(仕分けまちが増える)はチップの中に隠さない —— 押す前に知っておくべき話 *@
+    <span class="job-note text-muted">
+        外部トレンドで見つかった新しい語が、仕分けまち(<a href="/tags">タグ</a>)に増えることがあります。
+    </span>
+    <div class="help-popover" id="trend-help" popover>
+        <strong>「話題度を取り直す」は何をしている?</strong>
+        <p>
+            外部トレンドを引いて鮮度を更新します。<strong>LLM は使いません</strong>。
+            新しく現れた語は<strong>仕分けまち</strong>として
+            <a href="/tags">タグ</a>の画面に溜まり、そこの「タグを仕分けなおす」で語彙に入ります。
+        </p>
+        <ol>
+            <li><strong>話題度を取得</strong> —— Qiita の新着記事と、はてなブックマークの
+                人気エントリーを<strong>押した時点でその場から</strong>取得します
+                (記事の収集をいつ回したかには依存しません)</li>
+            <li><strong>タグを観測</strong> —— 保存済みの記事・イベント・書籍に付いたタグの件数と、
+                取ってきた話題度を書き込みます。<strong>ここで次の仕分けの対象が決まります</strong>
+                (<a href="/tags">タグ</a>の画面の「仕分けまち」がその一覧です)</li>
+            <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
+                トピック一覧を書き込みます。話題度は親へも合算します</li>
+        </ol>
+        <strong>話題度はどう算出している?</strong>
+        <ul>
+            <li>材料は2つ、どちらも<strong>押した時点でその場から取得</strong>します。
+                <strong>Qiita の新着記事(直近 7 日)</strong>は「いいね数」を、
+                <strong>はてなブックマークの人気エントリー</strong>は「ブックマーク数」を
+                重み(どちらも最低 1)として、記事に付いているタグとタイトルに出てくる
+                トピックへ加算します</li>
+            <li>別名(<code>人工知能</code> など)は正式表記(<code>AI</code>)へ寄せてから数えます</li>
+            <li>材料ごとに<strong>合計を 100 とした割合</strong>に直してから足し合わせます
+                (数値の桁が違う材料どうしを混ぜられるように。1 材料あたり最大 100)</li>
+            <li><strong>ツリー表示の値は配下のトピックも合算</strong>した話題度、
+                <strong>ランキング表示はその用語単体</strong>の話題度です</li>
+            <li>このボタンを押した時点の値で、自動では更新されません
+                (「タグを仕分けなおす」でも変わりません)</li>
+        </ul>
+    </div>
+</div>
+
+@* **語彙と仕分けをファイルで運ぶ。** LLM の仕分けは呼ぶたびに枠を使うので、本番で仕分けた
+   結果を開発サーバーへ持って行けるようにしてある(逆向き・バックアップにも使える)。
+   畳んであるのは日々の操作ではないため。置き場はページの一番下(話題度ボタンの下)——
+   日々の操作(選択・検索)より先に目に入る必要が無い *@
+<details class="score-help transfer">
+    <summary>ファイルで持ち出す / 取り込む</summary>
+    <p>
+        <strong>語彙(トピック)とタグの仕分けだけ</strong>を JSON で運びます。
+        <strong>件数・話題度は入りません</strong> —— それは各環境が集めたデータの話なので、
+        取り込んだ先では次の「話題度を取り直す」が集め直します。
+        取り込みは<strong>足し込みで、この環境にしか無い語彙や仕分けは消しません</strong>。
+        <strong>画面から手で直した仕分けは守ります</strong>(ファイル側で上書きしません)。
+    </p>
+
+    <p><a class="btn btn-outline-primary btn-sm" href="/export/topics.json" download>JSON で書き出す</a></p>
+
+    @* ファイルの受け取りは HttpContext から読む(静的 SSR のフォームはファイルを束縛しない) *@
+    <form method="post" enctype="multipart/form-data" @formname="import-topics" @onsubmit="ImportAsync">
+        <AntiforgeryToken />
+        <p>
+            <input type="file" name="file" accept=".json,application/json" required
+                   aria-label="取り込むトピックのファイル" />
+        </p>
+        <p>
+            <label>
+                <input type="checkbox" name="import-selection" value="true" />
+                収集対象の選択も取り込む
+            </label>
+            <span class="text-muted">
+                （既定では取り込みません。イベントと書籍の検索語が黙って変わらないようにするためです）
+            </span>
+        </p>
+        <button type="submit" class="btn btn-outline-primary btn-sm">ファイルを取り込む</button>
+    </form>
+
+    @if (_importMessage is { Length: > 0 })
+    {
+        <p class="import-result">@_importMessage</p>
+    }
+    @if (_importError is { Length: > 0 })
+    {
+        <p class="import-error">@_importError</p>
+    }
+</details>
 
 @* タグの再正規化に専用ボタンは無い —— 「タグを仕分けなおす」が毎回、保存済みデータの
    タグを生タグ + カタログから作り直す(正規化の規則を変えたらこれを押せば効く) *@
