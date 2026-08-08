@@ -21,7 +21,7 @@
         <p class="topic-description">
             @description
             <span class="text-muted">
-                （<code>topic-catalog.json</code> に書かれていなければ LLM が付けた説明です）
+                （<code>topic-seed.json</code> に書かれていなければ LLM が付けた説明です）
             </span>
         </p>
     }
@@ -53,7 +53,7 @@
         <p class="text-muted">
             これらの表記は正式表記「@structure.Display」へ寄せて数えます。
             <strong>LLM</strong> と付いた語は再編成のときに LLM が分類したもので、
-            残りは <code>topic-catalog.json</code> に人が書いたものです。
+            残りは <code>topic-seed.json</code> に人が書いたものです。
         </p>
         <p class="alias-list">
             @foreach (var alias in structure.Aliases)
@@ -66,7 +66,7 @@
                 }
                 else
                 {
-                    <span class="badge" title="カタログ（topic-catalog.json）に書いた別名">@alias</span>
+                    <span class="badge" title="カタログ（topic-seed.json）に書いた別名">@alias</span>
                 }
             }
         </p>

@@ -33,7 +33,7 @@ public enum DecidedBy
     /// <summary>機械的な正規化の規則(表記ゆれ・区切り・カンマ分割など)。</summary>
     Rule = 1,
 
-    /// <summary>初期投入した語彙(`topic-catalog.json`)。</summary>
+    /// <summary>初期投入した語彙(`topic-seed.json`)。</summary>
     Seed = 2,
 
     /// <summary>LLM の分類。</summary>

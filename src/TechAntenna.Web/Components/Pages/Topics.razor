@@ -403,12 +403,7 @@ else
 
     // ジョブはバックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
     void Reorganize() => ReorganizationRunner.StartInBackground(
-        ct => ReorganizationRunner.RunOnceAsync(ct),
-        result => $"{result.Count} 件のトピックを更新しました（うち {result.Trending} 件に話題度が付きました）。"
-            + (result.Classified > 0 ? $" LLM が {result.Classified} 件の語をツリーへ分類しました。" : "")
-            + (result.Described > 0 ? $" {result.Described} 件の用語に説明を付けました。" : "")
-            + (result.Merged > 0 ? $" 同義の {result.Merged} 件を寄せました。" : "")
-            + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : ""));
+        ct => ReorganizationRunner.RunOnceAsync(ct), JobMessage.Describe);
 
     // 画面に出すのはキー(生成ai)ではなくカタログの正式表記(生成AI)
     static string Label(Topic topic) => topic.Display is { Length: > 0 } display ? display : topic.Key;

@@ -51,10 +51,10 @@ builder.Services.AddSingleton<ITrendTopicSource, QiitaTrendTopicSource>();
 builder.Services.AddSingleton<ITrendTopicSource, HatenaHotentryTrendSource>();
 
 // トピックの語彙(読み取り用のスナップショット)。**権威は DB** で、起動時に組み立てる。
-// `topic-catalog.json` は **DB が空のときに流し込む初期値** —— 語彙がまったく無いと
+// `topic-seed.json` は **DB が空のときに流し込む初期値** —— 語彙がまったく無いと
 // LLM が寄せ先も親も選べず、同義の親が二重にできるため。読めなくても起動は止めない
 var seedEntries = JsonTopicCatalogLoader.Load(
-    Path.Combine(builder.Environment.ContentRootPath, "topic-catalog.json")).Entries;
+    Path.Combine(builder.Environment.ContentRootPath, "topic-seed.json")).Entries;
 var topicCatalog = TopicCatalog.Empty;
 builder.Services.AddSingleton(topicCatalog);
 
@@ -308,7 +308,7 @@ builder.Services.AddSingleton<PaperCollectionRunner>();
 builder.Services.AddSingleton<TopicCatalogRefresher>();
 // 保存済みデータのタグを数え直してタグの一覧へ反映する(収集と再編成の両方から呼ぶ)
 builder.Services.AddSingleton<TagObserver>();
-// 語彙の初期投入(DB が空のときだけ topic-catalog.json を流し込む)
+// 語彙の初期投入(DB が空のときだけ topic-seed.json を流し込む)
 builder.Services.AddSingleton<TopicSeeder>();
 // トピックを別のトピックへ寄せる(画面からの手直しと、LLM の統合パスで共有する)
 builder.Services.AddSingleton<TopicMerger>();
@@ -405,7 +405,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     await db.Database.MigrateAsync();
 }
 
-// **語彙の権威は DB。** DB が空なら topic-catalog.json を初期値として流し込み、
+// **語彙の権威は DB。** DB が空なら topic-seed.json を初期値として流し込み、
 // そのうえで DB からカタログ(読み取り用のスナップショット)を組み立てる。
 // 起動のたびに組み直すので、コンテナを作り直しても語彙は DB から復元される
 {

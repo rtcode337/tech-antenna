@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <!-- トピックの語彙と別名の対応表。実行時に読むので発行物に含める -->
-    <Content Update="topic-catalog.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Update="topic-seed.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

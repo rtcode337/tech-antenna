@@ -21,6 +21,10 @@
 
 <h1>@_title</h1>
 
+@if (_kind is ArticleKind.News or ArticleKind.Article)
+{
+    <CollectionHint />
+}
 @if (_kind == ArticleKind.Paper)
 {
     @* 興味トピック側の論文。**収集を記事と分けてある**のは検索だから ——
@@ -36,6 +40,8 @@
 }
 else if (_kind == ArticleKind.TrendingPaper)
 {
+    @* 収集は「記事の収集」に含まれる(設定にある)。翻訳だけはここに置く *@
+    <CollectionHint />
     @* 話題の論文。**収集は「記事の収集」に含まれる**(トピックの選択に依存しない巡回なので、
        ニュース・記事と同じ扱い)。翻訳だけはこちらにも置く —— タイトルは英語なので *@
     <JobButton Runner="TranslationRunner" FormName="translate-titles" OnRun="Translate" />
@@ -53,7 +59,17 @@ else if (_kind == ArticleKind.TrendingPaper)
 }
 else if (_articles.Count == 0)
 {
-    <p>まだありません。<a href="/recent">直近動向</a>から「記事の収集」を実行してください。</p>
+    @* 空のときの行き先も種別で変える —— 論文は自分のページのボタン、
+       ほかは設定の「記事の収集」で集まる *@
+    @if (_kind == ArticleKind.Paper)
+    {
+        <p>まだありません。上の「論文の収集」を実行してください
+            (<a href="/topics">トピック</a>を選んでいないと集まりません)。</p>
+    }
+    else
+    {
+        <p>まだありません。<a href="/settings">設定</a>の「記事の収集」を実行してください。</p>
+    }
 }
 else
 {

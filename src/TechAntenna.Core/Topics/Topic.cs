@@ -3,7 +3,7 @@ namespace TechAntenna.Core.Topics;
 /// <summary>
 /// 語彙としてのトピック1件。**タグ(<see cref="Tag"/>)から精査で昇格したもの**だけがここに入る。
 ///
-/// 権威は DB 側にある。`topic-catalog.json` は<b>DB が空のときに流し込むシード</b>で、
+/// 権威は DB 側にある。`topic-seed.json` は<b>DB が空のときに流し込むシード</b>で、
 /// 以後の衝突ルールは持たない(手直しは画面から状態を書き換える)。
 /// </summary>
 public class Topic

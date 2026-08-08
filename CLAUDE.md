@@ -44,12 +44,12 @@ docker run --rm -v "$PWD":/src -w /src -e HOME=/tmp mcr.microsoft.com/dotnet/sdk
 
 | ジョブ | 設定 | 既定 | 手動ボタン |
 |---|---|---|---|
-| 記事・ニュースの収集 | `Collection:AutoRun` | false | `/recent` |
-| 論文の収集 | `Collection:AutoRun` | false | `/papers` |
-| ブックマーク数の補完 | (記事の収集に含まれる) | — | `/recent` |
+| 記事・ニュース・話題の論文の収集 | `Collection:AutoRun` | false | `/settings` |
+| ブックマーク数の補完 | (記事の収集に含まれる) | — | `/settings` |
+| 記事の要約 | `Anthropic:AutoRun` | false | `/settings` |
+| 論文(トピック検索)の収集 | `Collection:AutoRun` | false | `/papers` |
 | イベントの収集 | `Collection:AutoRun` | false | `/events` |
 | 書籍の収集 | `Books:AutoRun` | false | `/books` |
-| 記事の要約 | `Anthropic:AutoRun` | false | `/recent` |
 | 論文タイトルの翻訳 | (定期実行しない) | — | `/papers` |
 | トピックの再編成(未知語の LLM 分類を含む) | (定期実行しない) | — | `/topics` |
 
@@ -81,6 +81,12 @@ docker compose では `.env` の `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` /
   出すと、設定の下にいるあいだ記事や書籍へ辿れなくなる
 - `summary` の `display` は **`list-item` のまま**にすること。`flex` にすると Chrome が
   開閉の三角(`::marker`)を消し、閉じたグループを開く手がかりが無くなる
+
+**直近動向側のボタンは設定に集めてある**(記事の収集・記事の要約)。一覧を読む画面に
+ジョブのボタンを置くと、**読みに来た人が押す場所と、集めなおしたい人が探す場所が混ざる** ——
+代わりに直近動向とその配下には `Components/CollectionHint.razor` で設定への導線を出す。
+**興味トピック側(論文・イベント・書籍)は各ページに残す** —— トピックの選択と地続きで、
+「選んでいないと集まらない」を同じ画面で示せるほうが分かるため。
 
 ボタンは共通コンポーネント `Components/JobButton.razor`。**静的 SSR のフォーム POST**で、
 対話回線(WebSocket)は張らない —— このアプリは `<Routes />` にレンダーモードを指定して
@@ -281,7 +287,7 @@ RSS(`hatena:bookmarkcount`)しか無いため —— Qiita の popular-items も
 
 - **観測(件数・話題度)と仕分け(状態)を分けてある。** 収集は状態に触らない ——
   触ると収集のたびに仕分けが巻き戻り、同じ語を何度も LLM に聞くことになる
-- **語彙の権威は DB。** `topic-catalog.json` は **DB が空のときに流し込む初期値**
+- **語彙の権威は DB。** `topic-seed.json` は **DB が空のときに流し込む初期値**
   (`TopicSeeder`)で、以後の衝突ルールは持たない。読み取り用のスナップショットが
   `TopicCatalog` で、起動時と再編成のあとに `TopicCatalogRefresher` が DB から組み直す
 - **別名は「その語彙へ寄せると決めたタグ」そのもの**(`TopicCatalogBuilder`)。
@@ -317,7 +323,7 @@ RSS(`hatena:bookmarkcount`)しか無いため —— Qiita の popular-items も
 - **見出しは正式表記**(`生成ai` ではなく `生成AI`)。カタログに無い語はキーのまま出し、
   「まだ語彙に載っていない平置きの語」だと画面に書く —— 詳細ページ自体は出す
   (タグとしては生きているので、記事の一覧からは辿れる)
-- **別名は出どころで見分けられるようにする。** `topic-catalog.json` に人が書いた分と、
+- **別名は出どころで見分けられるようにする。** `topic-seed.json` に人が書いた分と、
   LLM が分類した分(`ITopicClassificationStore` の `Alias`)を突き合わせて印を付ける。
   役割が「人が確定させた語彙」と「LLM の自動分類」で分かれているため。
   **色だけで分けない**(字でも `LLM` と出す)
@@ -498,7 +504,7 @@ EF 版のタグ関連クエリだけ生 SQL にしている。`Tags` 列には�
 **見かけたタグを状態ごとに全部出す**(仕分けまち / 保留 / トピック外 / 別名 / トピック)。
 語彙に入らなかった語を画面から消すと、誤判定や仕分けの遅れに気づけないため。
 
-**ここで仕分けを手で直せる**(`DecidedBy.Human` で記録)。これが `topic-catalog.json` を
+**ここで仕分けを手で直せる**(`DecidedBy.Human` で記録)。これが `topic-seed.json` を
 手で編集する代わり —— 権威が DB に移ったので、JSON を直しても投入済みの語彙には効かない。
 
 - **操作はフォーム 1 つで受ける。** 行ごとにフォームを作ると `@formname` が数百個になるので、
@@ -516,7 +522,7 @@ EF 版のタグ関連クエリだけ生 SQL にしている。`Tags` 列には�
 
 見慣れない語が一覧に並んだときに何の話か分かるよう、トピックは**一言説明**を持てる
 (一覧はトピック名のツールチップ、詳細ページは見出しの下)。置き場は語彙と同じ2層で、
-`topic-catalog.json` の `description`(人が書いた説明)が **DB の `TopicDescriptions`
+`topic-seed.json` の `description`(人が書いた説明)が **DB の `TopicDescriptions`
 (LLM が埋めた説明)より優先される**(`TopicCatalog.ApplyDescriptions`)。
 
 **LLM の呼び出しを増やさないのが設計の要点。**
@@ -763,7 +769,7 @@ ER 図・トピック3テーブルの関係)。**DB に変更を入れたら、�
 - マイグレーションは起動時に自動適用される(個人運用前提)。
   **本格稼働前に履歴は 1 本(`InitialCreate`)にまとめ直した** —— 16 個積み上がって
   最終形が読めなくなっていたため。以後は積み上げる
-- **語彙(`Topics`)が空の起動では `topic-catalog.json` が初期値として流し込まれる**
+- **語彙(`Topics`)が空の起動では `topic-seed.json` が初期値として流し込まれる**
   (`TopicSeeder`。実測でトピック 83 件・タグ 245 件)。語彙がまったく無いと LLM が
   寄せ先も親も選べず、同義の親が二重にできるため
 - マイグレーション追加:

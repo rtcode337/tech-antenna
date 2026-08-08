@@ -1,0 +1,6 @@
+/* 一覧の前に置く小さな案内。読み物の邪魔にならないよう、面は張らず文字だけ落とす */
+.collection-hint {
+    max-width: 62rem;
+    margin-bottom: 1rem;
+    font-size: 0.86rem;
+}

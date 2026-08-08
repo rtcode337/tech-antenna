@@ -8,6 +8,7 @@
 @inject TopicCatalog Catalog
 @inject TopicCatalogRefresher CatalogRefresher
 @inject TopicMerger Merger
+@inject TopicReorganizationRunner ReorganizationRunner
 @inject TimeProvider Clock
 
 <PageTitle>タグ - tech-antenna</PageTitle>
@@ -22,6 +23,20 @@
     <strong>誤判定はこの画面から直せます</strong> —— 直した分は LLM の判定より優先され、
     再編成でも上書きされません。
 </p>
+
+@* 「増えない」と見えたときの行き先を書いておく —— タグが増えるのは収集のときで、
+   その収集のボタンは設定にある(この画面には無い) *@
+<p class="page-note text-muted">
+    <strong>新しいタグは収集のときに登録されます。</strong>
+    <a href="/settings">設定</a>の「記事の収集」を実行すると、見つかった語が
+    <strong>仕分けまち</strong>として増えます(イベント・書籍・論文の収集でも同じように増えます)。
+    そのあと下の「トピックを再編成」を押すと、LLM が仕分けてツリーへ組み込みます。
+</p>
+
+@* **再編成のボタンはトピックの画面と両方に置く。** 仕分けを見ている場所がここなので、
+   「仕分けまちが溜まった → 押す → 結果を見る」が同じ画面で完結するほうが分かる
+   (`JobRunner` が直列化するので、両方から押しても二重には走らない) *@
+<JobButton Runner="ReorganizationRunner" FormName="reorganize-topics" OnRun="Reorganize" />
 
 <details class="score-help">
     <summary>状態の意味</summary>
@@ -164,6 +179,10 @@ else
     string? AliasTarget { get; set; }
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    // ジョブはバックグラウンドで走らせる(結果は自動リロードの GET が読み直す)
+    void Reorganize() => ReorganizationRunner.StartInBackground(
+        ct => ReorganizationRunner.RunOnceAsync(ct), JobMessage.Describe);
 
     async Task LoadAsync()
     {

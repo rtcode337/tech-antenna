@@ -17,6 +17,17 @@ public static class JobMessage
             : message;
     }
 
+    /// <summary>
+    /// トピック再編成の結果。**トピックとタグの両方の画面から押せる**ので、
+    /// 文言はここに1つ置く(画面ごとに書くとずれる)。
+    /// </summary>
+    public static string Describe(TopicReorganizationResult result) =>
+        $"{result.Count} 件のトピックを更新しました（うち {result.Trending} 件に話題度が付きました）。"
+        + (result.Classified > 0 ? $" LLM が {result.Classified} 件のタグを仕分けました。" : "")
+        + (result.Merged > 0 ? $" 同義の {result.Merged} 件を寄せました。" : "")
+        + (result.Described > 0 ? $" {result.Described} 件の用語に説明を付けました。" : "")
+        + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : "");
+
     public static string Describe(SummaryRunResult result)
     {
         if (result == SummaryRunResult.Nothing)

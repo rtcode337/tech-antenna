@@ -1,15 +1,40 @@
 @page "/settings"
+@using TechAntenna.Web.Services
+@inject ArticleCollectionRunner CollectionRunner
+@inject SummaryRunner SummaryRunner
 
 <PageTitle>設定 - tech-antenna</PageTitle>
 
 <h1>設定</h1>
 
 @* 設定は種類ごとにページを分けてある(トピックの一覧は長く、外部連携は表なので、
-   1ページに詰めると目的の操作へ辿り着けない)。ここはその入口だけを持つ。
+   1ページに詰めると目的の操作へ辿り着けない)。ここは入口と、手動実行のボタンを持つ。
    サイドバーからも同じページへ直接行ける *@
-<p class="page-note text-muted">
-    設定は内容ごとにページを分けています。サイドバーの「設定」の下からも直接開けます。
-</p>
+
+@* **直近動向側の収集はここに集める。** 一覧を見ている画面にジョブのボタンを置くと、
+   読みに来た人が押す場所と、集め直したい人が探す場所が混ざる。
+   興味トピック側(論文・イベント・書籍)は<b>トピックの選択と地続き</b>なので各ページに残す *@
+<section class="jobs" aria-labelledby="jobs-heading">
+    <h2 id="jobs-heading" class="h5">手動で集めなおす</h2>
+    <p class="page-note text-muted">
+        <strong>収集は自動では走りません</strong>(消し忘れたサーバーが収集先を叩き続けたり、
+        LLM の枠を使い切らないようにするため)。集めなおしたいときはここから実行します。
+        押すとバックグラウンドで走り、進捗がボタンの隣に出ます。
+    </p>
+
+    <JobButton Runner="CollectionRunner" FormName="collect-articles" OnRun="Collect" />
+    <JobButton Runner="SummaryRunner" FormName="summarize" OnRun="Summarize" />
+
+    <p class="page-note text-muted">
+        「記事の収集」で<strong>ニュース・記事・話題の論文</strong>(<a href="/recent">直近動向</a>の
+        下にあるもの)をまとめて 1 巡します。「記事の要約」は要約がまだ無いものに LLM で要約を付けます。
+        <strong>選んだトピックで検索して集めるもの</strong>は、それぞれのページにボタンがあります ——
+        <a href="/papers">論文</a>・<a href="/events">イベント</a>・<a href="/books">書籍</a>、
+        語彙の整理は<a href="/topics">トピック</a>の「トピックを再編成」です。
+    </p>
+</section>
+
+<h2 class="h5">設定のページ</h2>
 
 <ul class="settings-links list-unstyled">
     <li>
@@ -30,3 +55,11 @@
         </span>
     </li>
 </ul>
+
+@code {
+    void Collect() =>
+        CollectionRunner.StartInBackground(ct => CollectionRunner.RunOnceAsync(ct), JobMessage.Describe);
+
+    void Summarize() =>
+        SummaryRunner.StartInBackground(ct => SummaryRunner.RunOnceAsync(ct), JobMessage.Describe);
+}
