@@ -81,7 +81,7 @@ public class TopicMerger(
     }
 
     /// <summary>
-    /// トピックだったタグを語彙から外す(トピック外・仕分けまちへ戻すとき)。
+    /// トピックだったタグを語彙から外す(除外・仕分けまちへ戻すとき)。
     /// **トピックの行も消す** —— 残すと、どのタグにも紐づかない行がツリーに居座る。
     /// </summary>
     public async Task DemoteAsync(string key, CancellationToken cancellationToken = default)

@@ -77,18 +77,15 @@ public class EfTagStore(IDbContextFactory<TechAntennaDbContext> contextFactory) 
     }
 
     public async Task<IReadOnlyList<Tag>> GetPendingAsync(
-        DateTimeOffset now, int minCount, CancellationToken cancellationToken = default)
+        DateTimeOffset now, CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // 未仕分け、または保留の期限切れ。**件数の下限は集めたデータの分だけに掛ける**
-        // (外部トレンドで見つかった語は手元の件数が 0 なのが普通)
+        // 未仕分け、または保留の期限切れ。**件数で足切りはしない**
+        // (画面の「仕分けまち」がそのまま対象になるようにするため)
         return await db.Tags
             .Where(tag => tag.Status == TagStatus.Pending
                 || (tag.Status == TagStatus.Unresolved && tag.RetryAfter <= now))
-            .Where(tag => tag.ArticleCount + tag.EventCount + tag.BookCount >= minCount
-                || tag.TrendScore > 0
-                || tag.SourceCount > 0)
             .OrderByDescending(tag =>
                 tag.ArticleCount + tag.EventCount + tag.BookCount + tag.TrendScore)
             .ThenBy(tag => tag.Key)

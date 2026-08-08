@@ -71,12 +71,12 @@ public class InMemoryTagStore : ITagStore
     }
 
     public Task<IReadOnlyList<Tag>> GetPendingAsync(
-        DateTimeOffset now, int minCount, CancellationToken cancellationToken = default)
+        DateTimeOffset now, CancellationToken cancellationToken = default)
     {
         lock (_gate)
         {
             return Task.FromResult<IReadOnlyList<Tag>>(_byKey.Values
-                .Where(tag => IsPending(tag, now) && IsWorthAsking(tag, minCount))
+                .Where(tag => IsPending(tag, now))
                 .OrderByDescending(tag => tag.TotalCount + tag.TrendScore)
                 .ThenBy(tag => tag.Key, StringComparer.Ordinal)
                 .ToList());
@@ -95,13 +95,6 @@ public class InMemoryTagStore : ITagStore
     internal static bool IsPending(Tag tag, DateTimeOffset now) =>
         tag.Status == TagStatus.Pending
         || (tag.Status == TagStatus.Unresolved && tag.RetryAfter <= now);
-
-    /// <summary>
-    /// 聞く価値があるか。**件数の下限は「集めたデータに付いた回数」だけに掛ける** ——
-    /// 外部トレンドで見つかった語は手元の件数が 0 なのが普通で、そこで落とすと新語が入らない。
-    /// </summary>
-    internal static bool IsWorthAsking(Tag tag, int minCount) =>
-        tag.TotalCount >= minCount || tag.TrendScore > 0 || tag.SourceCount > 0;
 
     internal static void Reset(Tag tag)
     {

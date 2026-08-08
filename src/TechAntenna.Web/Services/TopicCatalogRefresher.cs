@@ -7,7 +7,7 @@ namespace TechAntenna.Web.Services;
 /// DB から語彙のスナップショット(<see cref="TopicCatalog"/>)を組み直す。
 ///
 /// **カタログは DI で収集元に配られたまま中身だけ差し替わる**ので、起動時と、
-/// 語彙が変わったあと(再編成・画面からの手直し)に呼べば全体に効く。
+/// 語彙が変わったあと(整備・画面からの手直し)に呼べば全体に効く。
 /// </summary>
 public class TopicCatalogRefresher(
     TopicCatalog catalog,

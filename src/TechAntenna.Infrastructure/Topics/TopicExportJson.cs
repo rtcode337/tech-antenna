@@ -10,7 +10,7 @@ namespace TechAntenna.Infrastructure.Topics;
 ///
 /// 件数・話題度・最初に見た時刻といった<b>観測は入れない</b> —— あれは
 /// 「その環境が集めたデータ」の話で、持ち込むと取り込み先の実データと食い違う
-/// (件数は再編成が集め直す)。運ぶのは<b>人と LLM が決めた仕分け</b>だけ。
+/// (件数は整備が集め直す)。運ぶのは<b>人と LLM が決めた仕分け</b>だけ。
 /// </summary>
 public record TopicExportFile
 {

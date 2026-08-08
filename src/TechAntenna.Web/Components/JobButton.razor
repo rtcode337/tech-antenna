@@ -17,7 +17,7 @@
     <form method="post" @formname="@FormName" @onsubmit="RunAsync" class="mb-3">
         <AntiforgeryToken />
         <button type="submit" class="btn btn-outline-primary btn-sm" disabled="@Runner.IsRunning">
-            @Runner.Name
+            @(Label is { Length: > 0 } label ? label : Runner.Name)
         </button>
         @if (Runner.IsRunning)
         {
@@ -51,6 +51,13 @@
     /// <summary>ボタンが押されたときの処理。中で Runner.StartInBackground を呼ぶこと。</summary>
     [Parameter, EditorRequired]
     public EventCallback OnRun { get; set; }
+
+    /// <summary>
+    /// ボタンの文字。省略すると Runner.Name。**1 つの Runner に入口が 2 つある**ジョブ
+    /// (トピックの整備)で、どちらを押すのかを書き分けるために持つ。
+    /// </summary>
+    [Parameter]
+    public string? Label { get; set; }
 
     string CurrentPath =>
         "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];

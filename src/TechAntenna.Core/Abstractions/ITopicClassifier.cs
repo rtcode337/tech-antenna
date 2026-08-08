@@ -21,7 +21,7 @@ public record TopicClassifierVerdict(
     string? English = null);
 
 /// <summary>
-/// カタログに無いタグを、既存トピックの同義語・新トピック(親付き)・トピック外に
+/// カタログに無いタグを、既存トピックの同義語・新トピック(親付き)・除外(トピックにしない)に
 /// 振り分ける分類器。実装は LLM(Claude Code ヘッドレス / Anthropic API)。
 /// 応答は <see cref="Topics.TopicClassificationValidator"/> で検証してから使うこと ——
 /// 存在しない寄せ先や自己参照の親をそのまま信じるとツリーが壊れる。

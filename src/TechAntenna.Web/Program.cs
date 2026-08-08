@@ -305,9 +305,9 @@ if (qiita.Enabled && qiita.Queries.Count > 0)
 builder.Services.AddSingleton<BookCollectionRunner>();
 // 論文は記事と別のボタン(検索なので収集対象のトピックが要る)
 builder.Services.AddSingleton<PaperCollectionRunner>();
-// 語彙のスナップショット(TopicCatalog)を DB から組み直す。起動時と再編成のあとに呼ぶ
+// 語彙のスナップショット(TopicCatalog)を DB から組み直す。起動時と整備のあとに呼ぶ
 builder.Services.AddSingleton<TopicCatalogRefresher>();
-// 保存済みデータのタグを数え直してタグの一覧へ反映する(収集と再編成の両方から呼ぶ)
+// 保存済みデータのタグを数え直してタグの一覧へ反映する(収集と整備の両方から呼ぶ)
 builder.Services.AddSingleton<TagObserver>();
 // 語彙の初期投入(DB が空のときだけ topic-seed.json を流し込む)
 builder.Services.AddSingleton<TopicSeeder>();
@@ -316,7 +316,8 @@ builder.Services.AddSingleton<TopicMerger>();
 // 語彙と仕分けのファイル持ち出し・取り込み(本番で LLM に仕分けさせた結果を別の環境で使う)
 builder.Services.AddSingleton<TopicExporter>();
 builder.Services.AddSingleton<TopicImporter>();
-builder.Services.AddSingleton<TopicReorganizationRunner>();
+// トピックの整備。話題度の取り直し(LLM なし)とタグの仕分け直し(LLM あり)の2つの入口を持つ
+builder.Services.AddSingleton<TopicMaintenanceRunner>();
 // タグの正規化規則を変えたときに保存済みデータを追従させる(外部へは出ないので常に登録する)
 builder.Services.AddSingleton<TagRenormalizationRunner>();
 // 外部連携の一覧(/integrations)。設定を読むだけなので常に登録する
@@ -356,7 +357,7 @@ if (hasClaudeCodeToken)
         claudeCode.ExecutablePath,
         string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
         TimeSpan.FromSeconds(claudeCode.TimeoutSeconds)));
-    // カタログに無いタグの分類と、用語の一言説明も同じ方式(どちらも再編成の中で動く)。
+    // カタログに無いタグの分類と、用語の一言説明も同じ方式(どちらも仕分けの中で動く)。
     // 1 つのインスタンスを 2 つの抽象として配る —— 分類の応答に説明を相乗りさせるので、
     // 実装も設定も分ける理由が無い
     builder.Services.AddSingleton(sp => new ClaudeCodeTopicClassifier(

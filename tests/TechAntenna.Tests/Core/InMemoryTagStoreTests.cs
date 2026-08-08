@@ -51,7 +51,7 @@ public class InMemoryTagStoreTests
         await store.ObserveAsync(
         [
             new TagObservation("未仕分け", ArticleCount: 3),
-            new TagObservation("件数不足", ArticleCount: 1),
+            new TagObservation("1件だけ", ArticleCount: 1),
             new TagObservation("トレンド由来", TrendScore: 0.5),
             new TagObservation("済み", ArticleCount: 9),
             new TagObservation("保留中", ArticleCount: 4),
@@ -64,11 +64,13 @@ public class InMemoryTagStoreTests
             new TagDecision("保留の期限切れ", TagStatus.Unresolved, RetryAfter: Now.AddDays(-1)),
         ], Now);
 
-        var pending = await store.GetPendingAsync(Now, minCount: 3);
+        var pending = await store.GetPendingAsync(Now);
 
-        // **件数の下限は集めたデータの分だけに掛ける** ——
-        // トレンド由来の語は手元の件数が 0 なのが普通で、そこで落とすと新語が入らない
-        Assert.Equal(["保留の期限切れ", "未仕分け", "トレンド由来"], pending.Select(tag => tag.Key));
+        // **件数で足切りはしない。** 画面の「仕分けまち」がそのまま対象になるようにするため ——
+        // 下限を掛けていた頃は、収集を何回押したかで対象が変わり、落ちた語は残り続けた
+        // (並びは目立つ順。ゴミは画面から「まとめて除外」で落とす)
+        Assert.Equal(
+            ["保留の期限切れ", "未仕分け", "1件だけ", "トレンド由来"], pending.Select(tag => tag.Key));
     }
 
     [Fact]

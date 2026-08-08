@@ -29,7 +29,7 @@
     {
         <p class="text-muted">
             この用語の説明はまだありません
-            （<a href="/topics">トピック</a>の「トピックを再編成」で LLM が埋めます）。
+            （<a href="/topics">トピック</a>の「タグを仕分けなおす」で LLM が埋めます）。
         </p>
     }
 
@@ -39,7 +39,7 @@
         <p class="text-muted">
             この語はまだ語彙(カタログ)に載っていません —— 記事などのタグとしては生きていますが、
             同義語も親子も決まっていない<strong>平置きの語</strong>です。
-            <a href="/topics">トピック</a>の「トピックを再編成」で LLM が分類します。
+            <a href="/topics">トピック</a>の「タグを仕分けなおす」で LLM が分類します。
         </p>
     }
     else if (structure.Aliases.Count == 0)
@@ -52,7 +52,7 @@
     {
         <p class="text-muted">
             これらの表記は正式表記「@structure.Display」へ寄せて数えます。
-            <strong>LLM</strong> と付いた語は再編成のときに LLM が分類したもので、
+            <strong>LLM</strong> と付いた語は仕分けのときに LLM が分類したもので、
             残りは <code>topic-seed.json</code> に人が書いたものです。
         </p>
         <p class="alias-list">
@@ -255,7 +255,7 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
-        // 語彙としての姿はカタログから引く(LLM の分類は起動時と再編成時に合成済み)
+        // 語彙としての姿はカタログから引く(LLM の分類は起動時と整備のあとに合成済み)
         _structure = Catalog.StructureOf(Tag);
 
         // 別名の出どころ(規則 / シード / LLM / 人の手直し)。どちらが付けた別名なのか

@@ -6,34 +6,47 @@ using TechAntenna.Core.Trends;
 namespace TechAntenna.Web.Services;
 
 /// <summary>
-/// トピックを再編成する。**タグの観測 → 仕分け → 語彙の組み立て**を 1 回で通す。
-/// 「収集」ではなく「再編成」なのは、材料の性質が分かれているから ——
+/// トピックの整備。**入口を2つ持つ**(どちらも語彙の組み立てまで面倒を見る)。
+///
+/// | 入口 | やること | LLM | 未知語が増えるか |
+/// |---|---|---|---|
+/// | <see cref="RefreshTrendsAsync"/> 話題度を取り直す | 外部トレンドを引いて鮮度を更新 | 使わない | **増える** |
+/// | <see cref="ReclassifyTagsAsync"/> タグを仕分けなおす | 溜まったタグを LLM で語彙へ入れる | 使う | **増えない** |
+///
+/// **分けてあるのは、1 本だと終わらないから。** 以前は 1 つのジョブで「トレンドを引く →
+/// 溜まったタグを仕分ける」を通していたので、押すたびに<b>その回のトレンドが新しい未知語を
+/// 連れてきて</b>、仕分けまちが尽きなかった。仕分け側がトレンドを引かないので、
+/// **押し続ければ仕分けまちは空になる**(新しい語は収集と話題度の取り直しで増える)。
+///
+/// **2 つは同じ <see cref="JobRunner"/> の上に置く**(メソッドを 2 つにしただけ)。
+/// 別のクラスにすると直列化の関門も別々になり、同時に走って互いの結果を上書きする ——
+/// どちらも最後にタグの観測と語彙の組み立てをするため。
+///
+/// 「収集」ではなく「整備」なのは、材料の性質が分かれているから ——
 /// **新しい語は記事などの収集で自然に溜まる**(語彙の問題。ここでは集めない)。
-/// このジョブは溜まったタグを LLM で仕分けて語彙に組み込み、
-/// **話題度だけをその場で取り直す**(鮮度の問題)。
 ///
 /// 手順(画面の説明とそろえること):
 ///
+/// **話題度を取り直す**
 /// 1. 外部トレンドを取得(<see cref="ITrendTopicSource"/>。Qiita のいいね・はてブのブックマーク数)
-/// 2. タグを作り直す(1 回目) —— 正規化の規則やカタログを変えたときに<b>そこで初めて現れる語</b>を
-///    保存済みデータへ反映する
-/// 3. 残骸のタグ・トピックを掃除する(いまの正規化では作られないキー)
-/// 4. **前回までに観測したタグ**を LLM で仕分け(<see cref="ITopicClassifier"/>)。
-///    今回の観測より前に置くのが肝 —— その回に取得したトレンドの語まで聞くと、
-///    押すまで何語 LLM に流れるか分からなくなる
-/// 5. 同義のトピックを寄せる(<see cref="ITopicMergeAdvisor"/>)。
-///    分類はキーの重複しか見ないので、`AI` と `人工知能` が別々に作られうる
-/// 6. 説明の無いトピックに一言説明を付ける(<see cref="ITopicDescriber"/>)
-/// 7. タグを作り直す(2 回目) —— 今回増えた別名を過去データへ反映する
-/// 8. タグを観測(件数 + 話題度を書き込む。**状態は触らない**)。
-///    ここで<b>次の回の対象が確定する</b>(画面に出す一覧と同じ)
-/// 9. 語彙を組み立てて書き込む(件数と話題度の合算)
+/// 2. タグを観測(件数 + 話題度を書き込む。**状態は触らない**)。
+///    ここで<b>次の仕分けの対象が確定する</b>(画面に出す一覧と同じ)
+/// 3. 語彙を組み立てて書き込む(件数と話題度の合算)
 ///
-/// **1 本のジョブにしてあるのは、分けると互いの結果を消し合うから。**
-/// 以前はカタログ生成が全行を削除し、話題度の更新が全行を 0 にしてから書き戻していたため、
-/// 押した順番で結果が変わっていた。
+/// **タグを仕分けなおす**
+/// 1. タグを作り直す(1 回目) —— 正規化の規則やカタログを変えたときに<b>そこで初めて現れる語</b>を
+///    保存済みデータへ反映する
+/// 2. 残骸のタグ・トピックを掃除する(いまの正規化では作られないキー)
+/// 3. 仕分けまちのタグを LLM で仕分け(<see cref="ITopicClassifier"/>)
+/// 4. 同義のトピックを寄せる(<see cref="ITopicMergeAdvisor"/>)。
+///    分類はキーの重複しか見ないので、`AI` と `人工知能` が別々に作られうる
+/// 5. 説明の無いトピックに一言説明を付ける(<see cref="ITopicDescriber"/>)
+/// 6. タグを作り直す(2 回目) —— 今回増えた別名を過去データへ反映する
+/// 7. タグを観測。**外部へは出ず、いまある話題度をそのまま持ち回す** ——
+///    空の話題度で観測すると、取ってあった話題度を 0 で上書きしてしまう
+/// 8. 語彙を組み立てて書き込む
 /// </summary>
-public class TopicReorganizationRunner(
+public class TopicMaintenanceRunner(
     TopicCatalog catalog,
     IEnumerable<ITrendTopicSource> sources,
     ITagStore tagStore,
@@ -42,7 +55,7 @@ public class TopicReorganizationRunner(
     TagRenormalizationRunner renormalizationRunner,
     TopicCatalogRefresher catalogRefresher,
     TopicMerger merger,
-    ILogger<TopicReorganizationRunner> logger,
+    ILogger<TopicMaintenanceRunner> logger,
     TimeProvider clock,
     ITopicClassifier? classifier = null,
     ITopicDescriber? describer = null,
@@ -57,13 +70,6 @@ public class TopicReorganizationRunner(
     /// <summary>1回の実行で一言説明を埋める語の上限。分類と同じ考え方。</summary>
     public const int MaxTermsPerDescription = 300;
 
-    /// <summary>
-    /// LLM に聞く下限(集めたデータに付いた回数)。1〜2 件の語は誤記や一過性のタグが多く、
-    /// 枠を使ってまで整理する価値が無い。**外部トレンドで見つかった語には掛からない**
-    /// —— 手元の件数は 0 なのが普通で、そこで落とすと新語が入ってこない。
-    /// </summary>
-    public const int MinTagCount = 3;
-
     /// <summary>判断できなかったタグを再挑戦させるまでの日数。</summary>
     public const int UnresolvedRetryDays = 7;
 
@@ -71,7 +77,7 @@ public class TopicReorganizationRunner(
 
     int _failedSources;
 
-    public override string Name => "トピックを再編成";
+    public override string Name => "トピックの整備";
 
     // 語彙だけでも一覧は作れる(外部トレンドが無ければ話題度が 0 になるだけ)
     public override bool IsConfigured => true;
@@ -82,22 +88,56 @@ public class TopicReorganizationRunner(
     /// </summary>
     public IReadOnlyList<string> LastClassificationTargets { get; private set; } = [];
 
-    public Task<TopicReorganizationResult> RunOnceAsync(CancellationToken cancellationToken = default) =>
+    /// <summary>
+    /// 話題度を取り直す(**LLM は使わない**)。外部トレンドを引いて鮮度を更新し、語彙へ反映する。
+    ///
+    /// **ここで仕分けまちの語が増える。** トレンドに現れた未知の語がタグとして入るため ——
+    /// 増えた語を語彙へ入れるのは <see cref="ReclassifyTagsAsync"/> の仕事。
+    /// </summary>
+    public Task<TrendRefreshResult> RefreshTrendsAsync(CancellationToken cancellationToken = default) =>
         RunExclusiveAsync(
-            () => ReorganizeAsync(cancellationToken), TopicReorganizationResult.Nothing, cancellationToken);
+            () => RefreshAsync(cancellationToken), TrendRefreshResult.Nothing, cancellationToken);
 
-    async Task<TopicReorganizationResult> ReorganizeAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// 溜まったタグを LLM で仕分けて語彙へ入れる(**外部トレンドは引かない**)。
+    ///
+    /// **押しても新しい未知語は増えない**ので、仕分けまちは押すぶんだけ減る ——
+    /// 以前はトレンドの取得と同じジョブだったので、押すたびに新しい語が入って終わらなかった。
+    /// </summary>
+    public Task<TagClassificationResult> ReclassifyTagsAsync(CancellationToken cancellationToken = default) =>
+        RunExclusiveAsync(
+            () => ReclassifyAsync(cancellationToken), TagClassificationResult.Nothing, cancellationToken);
+
+    async Task<TrendRefreshResult> RefreshAsync(CancellationToken cancellationToken)
     {
         var now = clock.GetUtcNow();
 
         // **最初に語彙のスナップショットを DB からそろえる。** 画面からの手直しや別プロセスの
-        // 変更が入っていることがあり、古いままだと別名の解決も統合の判定も食い違う
+        // 変更が入っていることがあり、古いままだと別名の解決が食い違う
         await catalogRefresher.RefreshAsync(cancellationToken);
 
         Progress = "外部トレンドを取得中…";
         var trends = await FetchTrendsAsync(cancellationToken);
 
-        // 分類の前にもタグを作り直す —— 正規化の規則を変えたときにそこで初めて現れる語を、
+        // 3 種すべてを数え直すので、渡さなかったタグの件数は 0 に戻す(古い件数を残さない)。
+        // **次の仕分けの対象がこの時点で確定する**(画面に出す一覧と同じ)
+        Progress = "タグを観測中…";
+        await tagObserver.ObserveAsync(trends, resetMissing: true, cancellationToken);
+
+        Progress = "語彙を組み立て中…";
+        var topics = await BuildTopicsAsync(now, cancellationToken);
+        await catalogRefresher.RefreshAsync(cancellationToken);
+
+        return new TrendRefreshResult(topics, trends.Count, _failedSources);
+    }
+
+    async Task<TagClassificationResult> ReclassifyAsync(CancellationToken cancellationToken)
+    {
+        var now = clock.GetUtcNow();
+
+        await catalogRefresher.RefreshAsync(cancellationToken);
+
+        // 仕分けの前にタグを作り直す —— 正規化の規則を変えたときにそこで初めて現れる語を、
         // その回の対象に含めるため(DB だけの処理で数秒・冪等なので前後 2 回でよい)
         Progress = "タグを作り直し中…";
         await renormalizationRunner.RunOnceAsync(cancellationToken);
@@ -106,10 +146,7 @@ public class TopicReorganizationRunner(
         // (`#生成ai`・`生成ai,`)が残る。中身は正しいタグに合流済みなので消して構わない
         await RemoveStaleAsync(cancellationToken);
 
-        // **仕分けは「前回までに観測したタグ」を対象にする。** 今回の観測を先に入れると、
-        // その場で取得したトレンドの語までその回で聞くことになり、
-        // 押すまで何語 LLM に流れるか分からなくなる(画面に出している一覧と食い違う)
-        var classified = await ClassifyPendingAsync(now, cancellationToken);
+        var (asked, classified) = await ClassifyPendingAsync(now, cancellationToken);
         var merged = await MergeDuplicatesAsync(cancellationToken);
         var described = await DescribeMissingAsync(now, cancellationToken);
 
@@ -117,18 +154,28 @@ public class TopicReorganizationRunner(
         Progress = "タグを再正規化中…";
         await renormalizationRunner.RunOnceAsync(cancellationToken);
 
-        // 観測はここで 1 回だけ。**次の回の対象がこの時点で確定する**(画面に出す一覧と同じ)。
-        // 3 種すべてを数え直すので、渡さなかったタグの件数は 0 に戻す(古い件数を残さない)
+        // **いまある話題度をそのまま持ち回して観測する。** 空のまま観測すると、
+        // 取ってあった話題度を 0 で上書きしてしまう(観測は件数と話題度を同時に書く)
         Progress = "タグを観測中…";
-        await tagObserver.ObserveAsync(trends, resetMissing: true, cancellationToken);
+        await tagObserver.ObserveAsync(
+            await CurrentTrendsAsync(cancellationToken), resetMissing: true, cancellationToken);
 
         Progress = "語彙を組み立て中…";
         var topics = await BuildTopicsAsync(now, cancellationToken);
         await catalogRefresher.RefreshAsync(cancellationToken);
 
-        return new TopicReorganizationResult(
-            topics, trends.Count, _failedSources, classified, described, merged);
+        return new TagClassificationResult(topics, asked, classified, merged, described);
     }
+
+    /// <summary>
+    /// DB にいま入っている話題度。**外部へは出ない** —— 仕分け側の観測で書き戻すために読む。
+    /// </summary>
+    async Task<Dictionary<string, (double Score, int Sources)>> CurrentTrendsAsync(
+        CancellationToken cancellationToken) =>
+        (await tagStore.GetAllAsync(cancellationToken))
+            .Where(tag => tag.TrendScore > 0)
+            .ToDictionary(
+                tag => tag.Key, tag => (tag.TrendScore, tag.SourceCount), StringComparer.Ordinal);
 
     /// <summary>
     /// いまの正規化では作られないキーの行(タグ・トピック)を消す。
@@ -162,19 +209,23 @@ public class TopicReorganizationRunner(
 
     /// <summary>
     /// 未仕分けのタグを LLM に渡し、仕分けが通った件数を返す。
-    /// **失敗しても再編成は続ける**(仕分けは次の実行でやり直せるが、語彙が
+    /// **失敗しても後の手順は続ける**(仕分けは次の実行でやり直せるが、語彙が
     /// 組み立てられないと選択まで狂う)。
     /// </summary>
-    async Task<int> ClassifyPendingAsync(DateTimeOffset now, CancellationToken cancellationToken)
+    async Task<(int Asked, int Effective)> ClassifyPendingAsync(
+        DateTimeOffset now, CancellationToken cancellationToken)
     {
         if (classifier is null)
         {
-            return 0;
+            // 前回の値が残らないように空にする(画面が「前回聞いた語」に使う)
+            LastClassificationTargets = [];
+
+            return (0, 0);
         }
 
         try
         {
-            var pending = (await tagStore.GetPendingAsync(now, MinTagCount, cancellationToken))
+            var pending = (await tagStore.GetPendingAsync(now, cancellationToken))
                 .Take(MaxTagsPerClassification)
                 .Select(tag => tag.Key)
                 .ToList();
@@ -182,7 +233,7 @@ public class TopicReorganizationRunner(
             LastClassificationTargets = pending;
             if (pending.Count == 0)
             {
-                return 0;
+                return (0, 0);
             }
 
             // 数分かかる。どこまで進んだかを画面(JobButton の自動リロード)に出す
@@ -213,13 +264,13 @@ public class TopicReorganizationRunner(
                 decision.Status is TagStatus.Promoted or TagStatus.Alias);
             logger.LogInformation(
                 "{Classifier} がタグ {Pending} 件を仕分け: 語彙へ {Effective} 件"
-                + "(トピック外 {Skipped} 件・保留 {Unresolved} 件・新トピック {New} 件)",
+                + "(除外 {Skipped} 件・保留 {Unresolved} 件・新トピック {New} 件)",
                 classifier.Name, pending.Count, effective,
                 accepted.Decisions.Count(d => d.Status == TagStatus.NotTopic),
                 accepted.Decisions.Count(d => d.Status == TagStatus.Unresolved),
                 accepted.NewTopics.Count);
 
-            return effective;
+            return (pending.Count, effective);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -227,8 +278,9 @@ public class TopicReorganizationRunner(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "タグの仕分けに失敗(再編成は続ける)");
-            return 0;
+            logger.LogError(ex, "タグの仕分けに失敗(後の手順は続ける)");
+
+            return (LastClassificationTargets.Count, 0);
         }
     }
 
@@ -317,14 +369,14 @@ public class TopicReorganizationRunner(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "同義トピックの統合に失敗(再編成は続ける)");
+            logger.LogError(ex, "同義トピックの統合に失敗(後の手順は続ける)");
             return 0;
         }
     }
 
     /// <summary>
     /// 説明がまだ無いトピックに一言説明を付ける。**1 語につき 1 回だけ聞く**
-    /// (結果は列に残るので、次の再編成では聞かない)。上限で切れる分は、
+    /// (結果は列に残るので、次の仕分けでは聞かない)。上限で切れる分は、
     /// 収集対象に選んだトピック → 話題度の高い順で先に埋める。
     /// </summary>
     async Task<int> DescribeMissingAsync(DateTimeOffset now, CancellationToken cancellationToken)
@@ -393,7 +445,7 @@ public class TopicReorganizationRunner(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "用語の説明に失敗(再編成は続ける)");
+            logger.LogError(ex, "用語の説明に失敗(後の手順は続ける)");
             return 0;
         }
     }
@@ -537,16 +589,23 @@ public class TopicReorganizationRunner(
     }
 }
 
-/// <summary>トピック再編成の結果。</summary>
+/// <summary>話題度を取り直した結果。</summary>
 /// <param name="Count">語彙に載ったトピックの数。</param>
 /// <param name="Trending">話題度が付いた(外部トレンドに現れた)タグの数。</param>
 /// <param name="FailedSources">取得に失敗した収集元の数。</param>
-/// <param name="Classified">今回 LLM の仕分けで語彙へ入った(昇格・別名)タグの数。</param>
-/// <param name="Described">今回 LLM が一言説明を付けた用語の数。</param>
-/// <param name="Merged">今回 LLM の判定で寄せた同義トピックの数。</param>
-public record TopicReorganizationResult(
-    int Count, int Trending, int FailedSources,
-    int Classified = 0, int Described = 0, int Merged = 0)
+public record TrendRefreshResult(int Count, int Trending, int FailedSources)
 {
-    public static readonly TopicReorganizationResult Nothing = new(0, 0, 0);
+    public static readonly TrendRefreshResult Nothing = new(0, 0, 0);
+}
+
+/// <summary>タグを仕分けなおした結果。</summary>
+/// <param name="Count">語彙に載ったトピックの数。</param>
+/// <param name="Asked">今回 LLM に聞いたタグの数。</param>
+/// <param name="Classified">そのうち語彙へ入った(昇格・別名)タグの数。</param>
+/// <param name="Merged">今回 LLM の判定で寄せた同義トピックの数。</param>
+/// <param name="Described">今回 LLM が一言説明を付けた用語の数。</param>
+public record TagClassificationResult(
+    int Count, int Asked, int Classified, int Merged, int Described)
+{
+    public static readonly TagClassificationResult Nothing = new(0, 0, 0, 0, 0);
 }

@@ -8,7 +8,7 @@
 @inject ITopicStore TopicStore
 @inject TopicCatalog Catalog
 @inject ITagStore TagStore
-@inject TopicReorganizationRunner ReorganizationRunner
+@inject TopicMaintenanceRunner MaintenanceRunner
 @inject TopicImporter Importer
 
 <PageTitle>トピック - tech-antenna</PageTitle>
@@ -38,35 +38,54 @@
     子だけを外したいときは、親のチェックを外してから選び直してください。
 </p>
 
-@* 挙動が画面から分かるようにしておく(説明は再編成の実装と揃えること) *@
+@* 挙動が画面から分かるようにしておく(説明は TopicMaintenanceRunner の実装と揃えること) *@
 <details class="score-help">
-    <summary>「トピックを再編成」は何をしている?</summary>
+    <summary>2つのボタンは何をしている?</summary>
+    <p class="text-muted">
+        <strong>整備は2つに分かれています。</strong>「話題度を取り直す」は外部トレンドを引くので
+        <strong>新しい未知の語を連れてきます</strong>が LLM は使いません。
+        「タグを仕分けなおす」は<strong>外部トレンドを引かない</strong>ので、
+        <strong>押しても未知の語は増えません</strong> ——
+        だから押すぶんだけ仕分けまちが減り、いつか空になります
+        (1 本のジョブだった頃は、押すたびに新しい語が入って終わりませんでした)。
+        どちらも最後に一覧を組み立て直します。同時には走りません。
+    </p>
+    <p class="text-muted"><strong>話題度を取り直す</strong>(LLM を使わない)</p>
     <ol class="text-muted">
-        <li><strong>話題度を取り直す</strong> —— Qiita の新着記事と、はてなブックマークの
+        <li><strong>話題度を取得</strong> —— Qiita の新着記事と、はてなブックマークの
             人気エントリーを<strong>押した時点でその場から</strong>取得します
             (記事の収集をいつ回したかには依存しません)</li>
+        <li><strong>タグを観測</strong> —— 保存済みの記事・イベント・書籍に付いたタグの件数と、
+            取ってきた話題度を書き込みます。<strong>ここで次の仕分けの対象が決まります</strong>
+            (下の「次の仕分けで LLM に聞く語」がその一覧です)</li>
+        <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
+            トピック一覧を書き込みます。話題度は親へも合算します</li>
+    </ol>
+    <p class="text-muted"><strong>タグを仕分けなおす</strong>(LLM を使う)</p>
+    <ol class="text-muted">
         <li><strong>タグを作り直す(1 回目)</strong> —— 保存済みの記事・イベント・書籍のタグを
-            生タグとカタログから組み直します。<strong>分類の前に走らせるのが要点</strong> ——
+            生タグとカタログから組み直します。<strong>仕分けの前に走らせるのが要点</strong> ——
             正規化の規則やカタログを変えると、そこで初めて現れる語があり、
-            後段だけで回すとその語は次に押すまで分類されません</li>
-        <li><strong>未知の語を LLM が分類</strong> —— 上の「次の再編成で LLM に聞く語」に
-            出ている語をそのまま渡します(<strong>今回のトレンドで新しく見つかった語は渡しません</strong> ——
-            行として残り、次の回の対象になります)。
+            後段だけで回すとその語は次に押すまで仕分けられません</li>
+        <li><strong>仕分けまちの語を LLM が分類</strong> —— 下の「次の仕分けで LLM に聞く語」に
+            出ている語をそのまま渡します。
             既存トピックと同じ意味なら<strong>別名として吸収</strong>、
             粒度が違う語なら<strong>親付きの新トピック</strong>としてツリーへ、
             トピックでない語(メディア名・一般語)は<strong>一覧から取り除きます</strong>。
             判断できなかった語は 1 週間おいて再挑戦します。
             1 回に渡すのは 300 語までで、残りは次回に続きから。
             LLM が未設定ならこの手順は飛ばします(語は候補のまま残る)</li>
+        <li><strong>同義のトピックを寄せる</strong> —— <code>AI</code> と <code>人工知能</code> が
+            別々にできてしまった場合に、片方へ寄せます(収集対象に選んだトピックは寄せません)</li>
         <li><strong>用語の説明を埋める</strong> —— 説明がまだ無い用語に LLM が一言説明を付けます
             (トピック名の後ろのかっこ書きと、詳細ページに出ます)。<strong>新しく見つかった語の説明は
-            手順 3(分類)の応答に相乗り</strong>していて追加の呼び出しはありません。ここで聞くのは
+            手順 2(分類)の応答に相乗り</strong>していて追加の呼び出しはありません。ここで聞くのは
             以前から一覧にあって説明だけ無い語で、1 回に 300 語まで・<strong>1 語につき 1 回だけ</strong>
             (結果は保存され、次回は聞き直しません)。収集対象に選んだトピックから先に埋めます</li>
         <li><strong>タグを作り直す(2 回目)</strong> —— 今回の分類で増えた別名を、
             保存済みの記事・イベント・書籍のタグへ反映します</li>
-        <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
-            トピック一覧を書き込みます。話題度は親へも合算します</li>
+        <li><strong>タグを観測して一覧を組み立てる</strong> —— 件数を数え直します。
+            <strong>話題度はいまの値をそのまま保ちます</strong>(取り直しはしません)</li>
     </ol>
 </details>
 
@@ -74,8 +93,8 @@
 <details class="score-help">
     <summary>話題度はどう算出している?</summary>
     <ul class="text-muted">
-        <li>算出は上の<strong>「トピックを再編成」の手順 1</strong> で行われます
-            (別のタイミングで集めているわけではありません)</li>
+        <li>算出は<strong>「話題度を取り直す」</strong>を押したときだけです
+            (別のタイミングで集めているわけではありません。「タグを仕分けなおす」では変わりません)</li>
         <li>材料は2つ、どちらも<strong>押した時点でその場から取得</strong>します。
             <strong>Qiita の新着記事(直近 7 日)</strong>は「いいね数」を、
             <strong>はてなブックマークの人気エントリー</strong>は「ブックマーク数」を
@@ -86,30 +105,40 @@
             (数値の桁が違う材料どうしを混ぜられるように。1 材料あたり最大 100)</li>
         <li><strong>ツリー表示の値は配下のトピックも合算</strong>した話題度、
             <strong>ランキング表示はその用語単体</strong>の話題度です</li>
-        <li>「トピックを再編成」を押した時点の値で、自動では更新されません</li>
+        <li>「話題度を取り直す」を押した時点の値で、自動では更新されません</li>
     </ul>
 </details>
 
-@* **次の再編成で LLM に聞く語**。対象は2つの束からできていて、片方(トレンド)は
+@* **2つの入口は同じ Runner。** 別々のクラスにすると直列化の関門も別になり、
+   同時に走って互いの結果を上書きする(どちらも最後に語彙を組み立てるため) *@
+<JobButton Runner="MaintenanceRunner" FormName="refresh-trends"
+           Label="話題度を取り直す" OnRun="RefreshTrends" />
+<JobButton Runner="MaintenanceRunner" FormName="reclassify-tags"
+           Label="タグを仕分けなおす" OnRun="ReclassifyTags" />
+
+@* **次の仕分けで LLM に聞く語**。対象は2つの束からできていて、片方(トレンド)は
    押すまで確定しない。候補の数だけを出していると「候補 1 語のはずが 30 語聞いている」と
    見えて挙動が読めないので、**前回実際に聞いた語も並べて出す** *@
 <details class="score-help">
-    <summary>次の再編成で LLM に聞く語(@NextCount 語@(NextOverflow > 0 ? $" / 次回以降に {NextOverflow} 語" : ""))</summary>
+    <summary>次の仕分けで LLM に聞く語(@NextCount 語@(NextOverflow > 0 ? $" / 次回以降に {NextOverflow} 語" : ""))</summary>
     <ul class="text-muted">
         <li>ここに出ている語が<strong>そのまま次の対象</strong>です。多いときは先頭
-            <strong>@TopicReorganizationRunner.MaxTagsPerClassification 語</strong>までを 1 回で聞き、
+            <strong>@TopicMaintenanceRunner.MaxTagsPerClassification 語</strong>までを 1 回で聞き、
             残りは次の回に回します(並びは「件数 + 話題度」の大きい順)</li>
-        <li><strong>集めたデータのタグから</strong> —— まだ語彙に無く、<strong>3 回以上</strong>付いた語
-            (バッジの括弧内が件数)。1〜2 回の語は誤記や一過性のタグが多いので聞きません</li>
-        <li><strong>前回までのトレンドで見つかった語</strong> —— Qiita・はてブに現れた未分類の語
-            (バッジの括弧内が話題度)。<strong>見つけた回では聞かず、次の回に回します</strong> ——
-            その場で足すと、押すまで何語 LLM に流れるか分からなくなるため</li>
+        <li><strong>仕分けまちのタグは全部が対象です</strong>(件数での足切りはしません)——
+            <a href="/tags">タグ</a>の画面の「仕分けまち」がそのまま流れます。
+            バッジの括弧内は件数と話題度で、<strong>並び順</strong>にだけ効きます</li>
+        <li><strong>話題度を取り直すと増えます</strong> —— Qiita・はてブに現れた未分類の語が
+            仕分けまちに入ります(そのときは LLM に聞きません)。
+            <strong>このボタンは外部トレンドを引かない</strong>ので、押しても増えません</li>
+        <li>明らかにゴミな語が並んでいるときは、<a href="/tags">タグ</a>の画面で
+            <strong>まとめて除外</strong>できます(LLM に聞かせずに片付けられます)</li>
         <li><strong>一度聞いた語は聞き直しません</strong>(判断できなかった語だけ 1 週間後に再挑戦)</li>
     </ul>
     @if (_pending is { Count: > 0 })
     {
         <p class="candidate-list">
-            @foreach (var candidate in _pending.Take(TopicReorganizationRunner.MaxTagsPerClassification))
+            @foreach (var candidate in _pending.Take(TopicMaintenanceRunner.MaxTagsPerClassification))
             {
                 <span class="badge bg-secondary">@CandidateLabel(candidate)</span>
             }
@@ -118,7 +147,7 @@
         {
             <p class="text-muted">次回以降に回る語(@NextOverflow 語):</p>
             <p class="candidate-list">
-                @foreach (var candidate in _pending.Skip(TopicReorganizationRunner.MaxTagsPerClassification))
+                @foreach (var candidate in _pending.Skip(TopicMaintenanceRunner.MaxTagsPerClassification))
                 {
                     <span class="badge bg-light">@CandidateLabel(candidate)</span>
                 }
@@ -145,8 +174,6 @@
     }
 </details>
 
-<JobButton Runner="ReorganizationRunner" FormName="reorganize-topics" OnRun="Reorganize" />
-
 @* **語彙と仕分けをファイルで運ぶ。** LLM の仕分けは呼ぶたびに枠を使うので、本番で仕分けた
    結果を開発サーバーへ持って行けるようにしてある(逆向き・バックアップにも使える)。
    畳んであるのは、日々の操作ではないため *@
@@ -155,7 +182,7 @@
     <p>
         <strong>語彙(トピック)とタグの仕分けだけ</strong>を JSON で運びます。
         <strong>件数・話題度は入りません</strong> —— それは各環境が集めたデータの話なので、
-        取り込んだ先では次の「トピックを再編成」が集め直します。
+        取り込んだ先では次の「話題度を取り直す」が集め直します。
         取り込みは<strong>足し込みで、この環境にしか無い語彙や仕分けは消しません</strong>。
         <strong>画面から手で直した仕分けは守ります</strong>(ファイル側で上書きしません)。
     </p>
@@ -197,7 +224,7 @@
 }
 else if (_topics.Count == 0)
 {
-    <p>まだトピックがありません。「トピックを再編成」を実行してください。</p>
+    <p>まだトピックがありません。「話題度を取り直す」を実行してください。</p>
 }
 else
 {
@@ -311,8 +338,8 @@ else
     </form>
 }
 
-@* タグの再正規化に専用ボタンは無い —— 再編成が毎回、保存済みデータのタグを
-   生タグ + カタログから作り直す(カタログを編集したら「トピックを再編成」を押せば効く) *@
+@* タグの再正規化に専用ボタンは無い —— 「タグを仕分けなおす」が毎回、保存済みデータの
+   タグを生タグ + カタログから作り直す(正規化の規則を変えたらこれを押せば効く) *@
 
 @* ツリーの1ノード。子があれば折りたたみ(details)、無ければただの行 *@
 @{
@@ -397,7 +424,7 @@ else
         }
         else
         {
-            <span class="no-description" title="説明はまだありません（「トピックを再編成」で埋まります）"
+            <span class="no-description" title="説明はまだありません（「タグを仕分けなおす」で埋まります）"
                   aria-hidden="true">?</span>
         }
     </span>;
@@ -463,8 +490,11 @@ else
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     // ジョブはバックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
-    void Reorganize() => ReorganizationRunner.StartInBackground(
-        ct => ReorganizationRunner.RunOnceAsync(ct), JobMessage.Describe);
+    void RefreshTrends() => MaintenanceRunner.StartInBackground(
+        ct => MaintenanceRunner.RefreshTrendsAsync(ct), JobMessage.Describe);
+
+    void ReclassifyTags() => MaintenanceRunner.StartInBackground(
+        ct => MaintenanceRunner.ReclassifyTagsAsync(ct), JobMessage.Describe);
 
     /// <summary>
     /// ファイルから語彙と仕分けを取り込む。**ジョブ(バックグラウンド)にしない** ——
@@ -512,13 +542,13 @@ else
 
     static string TopicHref(Topic topic) => $"/topics/{Uri.EscapeDataString(topic.Key)}";
 
-    /// <summary>次の再編成で 1 回に聞く語数(枠に収まる分)。</summary>
+    /// <summary>次の仕分けで 1 回に聞く語数(枠に収まる分)。</summary>
     int NextCount => Math.Min(
-        _pending?.Count ?? 0, TopicReorganizationRunner.MaxTagsPerClassification);
+        _pending?.Count ?? 0, TopicMaintenanceRunner.MaxTagsPerClassification);
 
     /// <summary>枠に収まらず次回以降に回る語数。</summary>
     int NextOverflow => Math.Max(
-        0, (_pending?.Count ?? 0) - TopicReorganizationRunner.MaxTagsPerClassification);
+        0, (_pending?.Count ?? 0) - TopicMaintenanceRunner.MaxTagsPerClassification);
 
     /// <summary>
     /// 候補のバッジ。**どちらの材料で選ばれたのかが分かるように**、件数(集めたデータ)と
@@ -572,13 +602,12 @@ else
         // 次に聞く語(語彙に加えようとしている語)だけをこの画面に出す。
         // 状態ごとの一覧は**タグの画面**の担当 —— あれはタグの話で、ここは語彙の話
         var tags = await TagStore.GetAllAsync();
-        _pending = await TagStore.GetPendingAsync(
-            DateTimeOffset.UtcNow, TopicReorganizationRunner.MinTagCount);
+        _pending = await TagStore.GetPendingAsync(DateTimeOffset.UtcNow);
 
         // 前回 LLM に聞いた語。**プロセス内の記録を優先し、無ければ DB から復元する** ——
         // 記録はアプリを再起動すると消えるが、仕分けは「同じ実行の分は DecidedAt が揃う」
         // ので、いちばん新しい日時の束がそのまま前回の結果になる
-        if (ReorganizationRunner.LastClassificationTargets is { Count: > 0 } asked)
+        if (MaintenanceRunner.LastClassificationTargets is { Count: > 0 } asked)
         {
             _lastAsked = asked;
             _lastAskedAt = null;

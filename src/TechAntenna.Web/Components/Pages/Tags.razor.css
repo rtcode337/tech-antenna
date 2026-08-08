@@ -83,10 +83,32 @@
     border-top: 1px solid var(--border);
 }
 
-/* 1 行 = 名前 / 補足 / 操作。**列をそろえる**(操作の位置が行ごとに動くと押し間違える) */
+/* 一括操作のバー。一覧の見出しと行のあいだに置く */
+.bulk-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.35rem 0.25rem;
+    font-size: 0.82rem;
+}
+
+.bulk-all {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    cursor: pointer;
+    color: var(--text-muted);
+}
+
+.bulk-bar .btn {
+    padding: 0.15rem 0.5rem;
+    font-size: 0.78rem;
+}
+
+/* 1 行 = 選択 / 名前 / 補足 / 操作。**列をそろえる**(操作の位置が行ごとに動くと押し間違える) */
 .tag-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 14rem auto;
+    grid-template-columns: 1.4rem minmax(0, 1fr) 14rem auto;
     gap: 0.5rem;
     align-items: center;
     padding: 0.35rem 0.25rem;
@@ -120,10 +142,10 @@
     font-size: 0.78rem;
 }
 
-/* 狭い画面では 1 行を 2 段にする(3 列だと操作が潰れて押せない) */
+/* 狭い画面では 1 行を 2 段にする(4 列だと操作が潰れて押せない) */
 @media (max-width: 640px) {
     .tag-row {
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: 1.4rem minmax(0, 1fr) auto;
     }
 
     .tag-meta {

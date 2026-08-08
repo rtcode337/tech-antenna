@@ -17,16 +17,29 @@ public static class JobMessage
             : message;
     }
 
+    /// <summary>話題度を取り直した結果。</summary>
+    public static string Describe(TrendRefreshResult result) =>
+        $"話題度を取り直しました：{result.Count} 件のトピックを更新（うち {result.Trending} 件に話題度が付きました）。"
+        + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : "");
+
     /// <summary>
-    /// トピック再編成の結果。**トピックとタグの両方の画面から押せる**ので、
+    /// タグを仕分けなおした結果。**トピックとタグの両方の画面から押せる**ので、
     /// 文言はここに1つ置く(画面ごとに書くとずれる)。
     /// </summary>
-    public static string Describe(TopicReorganizationResult result) =>
-        $"{result.Count} 件のトピックを更新しました（うち {result.Trending} 件に話題度が付きました）。"
-        + (result.Classified > 0 ? $" LLM が {result.Classified} 件のタグを仕分けました。" : "")
-        + (result.Merged > 0 ? $" 同義の {result.Merged} 件を寄せました。" : "")
-        + (result.Described > 0 ? $" {result.Described} 件の用語に説明を付けました。" : "")
-        + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : "");
+    public static string Describe(TagClassificationResult result)
+    {
+        if (result.Asked == 0 && result.Merged == 0 && result.Described == 0)
+        {
+            // 押しても何も起きないのが正常な状態(仕分けまちが尽きた)なので、そう書く
+            return $"仕分けまちのタグはありませんでした（{result.Count} 件のトピックを更新）。"
+                + "新しい語は収集と「話題度を取り直す」で増えます。";
+        }
+
+        return $"LLM に {result.Asked} 件のタグを聞き、{result.Classified} 件を語彙に入れました"
+            + $"（{result.Count} 件のトピックを更新）。"
+            + (result.Merged > 0 ? $" 同義の {result.Merged} 件を寄せました。" : "")
+            + (result.Described > 0 ? $" {result.Described} 件の用語に説明を付けました。" : "");
+    }
 
     /// <summary>
     /// ファイル取り込みの結果。**ジョブではない**(その場で終わる)が、文言の作り方は
@@ -57,7 +70,7 @@ public static class JobMessage
             message += $" {result.DroppedAliases} 件は寄せ先が見つからないので取り込みませんでした。";
         }
 
-        return message + " 件数と話題度は「トピックを再編成」で集め直されます。";
+        return message + " 件数と話題度は「話題度を取り直す」「タグを仕分けなおす」で集め直されます。";
     }
 
     public static string Describe(SummaryRunResult result)

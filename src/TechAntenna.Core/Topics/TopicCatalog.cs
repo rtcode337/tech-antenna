@@ -8,7 +8,7 @@ namespace TechAntenna.Core.Topics;
 /// <param name="Parent">1つ上の粒度(`LLM` の親は `生成AI`)。**統合はしない** —— まとめると上位の語だけが巨大化するため。</param>
 /// <param name="Description">
 /// 用語の一言説明(1〜2文)。見慣れない語が一覧に並んだときに、開かなくても何の話か分かるように持つ。
-/// JSON に書けば人の記述が使われ、無ければ LLM が再編成のときに埋める。
+/// JSON に書けば人の記述が使われ、無ければ LLM が仕分けのときに埋める。
 /// </param>
 /// <param name="English">
 /// 英語圏の収集元へ投げる検索語(`generative ai`)。arXiv に日本語の正式表記を投げると
@@ -28,7 +28,7 @@ public record TopicCatalogEntry(
 /// <summary>
 /// トピックの語彙と別名の対応表。**読み取り用のスナップショット**で、
 /// 権威は DB(<see cref="Topic"/> と <see cref="Tag"/>)にある ——
-/// 起動時と再編成のあとに <see cref="Replace"/> で組み直す。
+/// 起動時と整備のあとに <see cref="Replace"/> で組み直す。
 ///
 /// <see cref="TagNormalizer"/> が潰すのは機械的な表記ゆれだけなので、
 /// 「ai と 人工知能」のような**同義語をまとめるのはこちらの仕事**
@@ -120,7 +120,7 @@ public class TopicCatalog
 
     /// <summary>
     /// 中身を丸ごと差し替える。**語彙の権威は DB 側**にあり、ここは読み取り用の
-    /// スナップショット —— 起動時と再編成のあとに、DB から組み直して入れ替える。
+    /// スナップショット —— 起動時と整備のあとに、DB から組み直して入れ替える。
     /// (以前は JSON に LLM の分類を合成していたが、DB を実体にしたので合成は要らなくなった)
     /// </summary>
     public void Replace(IReadOnlyList<TopicCatalogEntry> entries) => _snapshot = Build(entries);

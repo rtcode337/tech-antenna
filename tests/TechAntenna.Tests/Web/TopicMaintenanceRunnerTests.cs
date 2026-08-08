@@ -9,7 +9,7 @@ using TechAntenna.Web.Services;
 
 namespace TechAntenna.Tests.Web;
 
-public class TopicReorganizationRunnerTests
+public class TopicMaintenanceRunnerTests
 {
     class StubTrendSource(IReadOnlyList<TrendTopicCandidate> candidates) : ITrendTopicSource
     {
@@ -50,7 +50,7 @@ public class TopicReorganizationRunnerTests
             CancellationToken cancellationToken = default) => Task.FromResult(verdicts);
     }
 
-    static TopicReorganizationRunner NewRunner(
+    static TopicMaintenanceRunner NewRunner(
         TopicCatalog catalog,
         ITrendTopicSource source,
         ITagStore tagStore,
@@ -64,7 +64,7 @@ public class TopicReorganizationRunnerTests
         var books = new InMemoryBookStore();
         var refresher = new TopicCatalogRefresher(catalog, topicStore, tagStore);
 
-        return new TopicReorganizationRunner(
+        return new TopicMaintenanceRunner(
             catalog,
             [source],
             tagStore,
@@ -74,7 +74,7 @@ public class TopicReorganizationRunnerTests
             refresher,
             new TopicMerger(
                 tagStore, topicStore, refresher, NullLogger<TopicMerger>.Instance, TimeProvider.System),
-            NullLogger<TopicReorganizationRunner>.Instance,
+            NullLogger<TopicMaintenanceRunner>.Instance,
             TimeProvider.System,
             classifier,
             mergeAdvisor: mergeAdvisor);
@@ -100,7 +100,7 @@ public class TopicReorganizationRunnerTests
         [
             new TrendTopicCandidate("Python", 30, "スタブ"),
             new TrendTopicCandidate("Rust", 10, "スタブ"),
-        ]), tags, topics).RunOnceAsync();
+        ]), tags, topics).RefreshTrendsAsync();
 
         var byKey = (await topics.GetAllAsync()).ToDictionary(topic => topic.Key);
         // 単体はソース内シェア(合計に対する割合 × 100)なので Python=75, Rust=25
@@ -130,33 +130,54 @@ public class TopicReorganizationRunnerTests
             new TagObservation("生成ai", ArticleCount: 1),
         ], at);
 
-        await NewRunner(TopicCatalog.Empty, new StubTrendSource([]), tags, topics).RunOnceAsync();
+        await NewRunner(TopicCatalog.Empty, new StubTrendSource([]), tags, topics).ReclassifyTagsAsync();
 
         Assert.Equal(["生成ai"], (await tags.GetAllAsync()).Select(tag => tag.Key));
     }
 
     [Fact]
-    public async Task トレンドで見つかった新語はその回では聞かず次の回に聞く()
+    public async Task 話題度の取り直しで見つかった語は仕分けで聞く()
     {
-        // **押すまで何語 LLM に流れるか分からない**のを避けるため、その場で取得した語は足さない。
-        // 今回のトレンドで見つかった語はタグとして残り、次の回の対象になる
+        // 話題度の側は外部トレンドを引くので**新しい語が入る**。それを語彙へ入れるのが仕分けの側
         var tags = new InMemoryTagStore();
         var topics = new InMemoryTopicStore();
         var classifier = new RecordingClassifier();
         var trend = new StubTrendSource([new TrendTopicCandidate("Kiro", 10, "スタブ")]);
 
-        await NewRunner(TopicCatalog.Empty, trend, tags, topics, classifier).RunOnceAsync();
+        await NewRunner(TopicCatalog.Empty, trend, tags, topics, classifier).RefreshTrendsAsync();
 
-        // 1 回目: 聞く語は無い(kiro はタグとして残るだけ)
+        // 取り直しは LLM に聞かない(kiro はタグとして残るだけ)
         Assert.Empty(classifier.Asked.SelectMany(asked => asked));
         var tag = Assert.Single(await tags.GetAllAsync());
         Assert.Equal("kiro", tag.Key);
         Assert.Equal(TagStatus.Pending, tag.Status);
 
-        // 2 回目: 前回のトレンドで現れた語を聞く
-        await NewRunner(TopicCatalog.Empty, trend, tags, topics, classifier).RunOnceAsync();
+        await NewRunner(TopicCatalog.Empty, trend, tags, topics, classifier).ReclassifyTagsAsync();
 
         Assert.Equal(["kiro"], classifier.Asked.SelectMany(asked => asked));
+    }
+
+    [Fact]
+    public async Task 仕分けを繰り返しても聞く語は増えない()
+    {
+        // **これが分けた理由。** 1 本のジョブだった頃は、押すたびにその回のトレンドが
+        // 新しい未知語を連れてきて、仕分けまちが尽きなかった
+        var tags = new InMemoryTagStore();
+        var topics = new InMemoryTopicStore();
+        var classifier = new RecordingClassifier();
+        // 毎回違う語を返すトレンド元。仕分け側が引いていたら、聞く語が湧き続ける
+        var trend = new StubTrendSource([new TrendTopicCandidate("Kiro", 10, "スタブ")]);
+        var runner = NewRunner(TopicCatalog.Empty, trend, tags, topics, classifier);
+
+        await runner.RefreshTrendsAsync();
+        var first = await runner.ReclassifyTagsAsync();
+        var second = await runner.ReclassifyTagsAsync();
+
+        // 1 回目は前回の取り直しで現れた語を聞き、2 回目は聞く語が無い
+        Assert.Equal(1, first.Asked);
+        Assert.Equal(0, second.Asked);
+        // 話題度は仕分けを通しても消えない(観測でいまの値を持ち回すため)
+        Assert.True(Assert.Single(await tags.GetAllAsync()).TrendScore > 0);
     }
 
     [Fact]
@@ -176,7 +197,7 @@ public class TopicReorganizationRunnerTests
         ]);
 
         await NewRunner(TopicCatalog.Empty, new StubTrendSource([]), tags, topics, classifier, articles)
-            .RunOnceAsync();
+            .ReclassifyTagsAsync();
 
         var byKey = (await tags.GetAllAsync()).ToDictionary(tag => tag.Key);
         Assert.Equal(TagStatus.Promoted, byKey["rag"].Status);
@@ -209,7 +230,7 @@ public class TopicReorganizationRunnerTests
         ], at);
 
         await NewRunner(TopicCatalog.Empty, new StubTrendSource([]), tags, topics, articleStore: articles)
-            .RunOnceAsync();
+            .ReclassifyTagsAsync();
 
         Assert.Equal(5, (await topics.GetAsync("ai"))!.ArticleCount);
     }
@@ -258,7 +279,7 @@ public class TopicReorganizationRunnerTests
         ]);
 
         await NewRunner(catalog, new StubTrendSource([]), tags, topics, mergeAdvisor: advisor)
-            .RunOnceAsync();
+            .ReclassifyTagsAsync();
 
         // 寄せ元の行は消え、タグは別名になり、配下は寄せ先へ付け替わる
         Assert.Null(await topics.GetAsync("人工知能"));
@@ -287,7 +308,7 @@ public class TopicReorganizationRunnerTests
                 .ToList());
 
         await NewRunner(TopicCatalog.Empty, new StubTrendSource([]), tags, topics, mergeAdvisor: advisor)
-            .RunOnceAsync();
+            .ReclassifyTagsAsync();
 
         Assert.NotNull(await topics.GetAsync("人工知能"));
     }

@@ -76,7 +76,7 @@ public class InMemoryTopicStoreTests
     [Fact]
     public async Task 更新でも選択は触らない()
     {
-        // 選択を変えるのは画面の操作だけ。再編成が上書きすると収集対象が勝手に変わる
+        // 選択を変えるのは画面の操作だけ。整備が上書きすると収集対象が勝手に変わる
         var store = new InMemoryTopicStore();
         await store.UpsertAsync([NewTopic("生成ai", 10)], UpdatedAt);
         await store.UpdateSelectionAsync(["生成ai"]);

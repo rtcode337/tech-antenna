@@ -5,7 +5,7 @@ namespace TechAntenna.Core.Topics;
 /// </summary>
 public enum TagStatus
 {
-    /// <summary>まだ仕分けていない。件数か話題度が付いていれば、次の再編成で LLM に聞く。</summary>
+    /// <summary>まだ仕分けていない。件数か話題度が付いていれば、次の仕分けで LLM に聞く。</summary>
     Pending = 0,
 
     /// <summary>トピックとして精査済み。<see cref="Tag.TopicKey"/> は自分自身。</summary>
@@ -14,7 +14,10 @@ public enum TagStatus
     /// <summary>既存トピックの別表記として吸収した。件数は <see cref="Tag.TopicKey"/> へ合算する。</summary>
     Alias = 2,
 
-    /// <summary>技術トピックでないと判定した(メディア名・一般語など)。一覧には出さない。</summary>
+    /// <summary>
+    /// トピックとして扱わないと判定した(メディア名・一般語など)。語彙には入らず、
+    /// LLM にも聞き直さない。**画面の見出しは「除外」**(「トピック外」だと無視する語だと読めない)。
+    /// </summary>
     NotTopic = 3,
 
     /// <summary>

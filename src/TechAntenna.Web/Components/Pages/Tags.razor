@@ -8,7 +8,7 @@
 @inject TopicCatalog Catalog
 @inject TopicCatalogRefresher CatalogRefresher
 @inject TopicMerger Merger
-@inject TopicReorganizationRunner ReorganizationRunner
+@inject TopicMaintenanceRunner MaintenanceRunner
 @inject TimeProvider Clock
 
 <PageTitle>タグ - tech-antenna</PageTitle>
@@ -18,10 +18,10 @@
 <p><a href="/topics">← トピック</a></p>
 
 <p class="page-note text-muted">
-    記事・イベント・書籍で見つかったタグは<strong>まずここに全部入り</strong>、再編成のときに
+    記事・イベント・書籍で見つかったタグは<strong>まずここに全部入り</strong>、仕分けのときに
     LLM が仕分けます。語彙(トピックのツリー)になるのは、仕分けで<strong>昇格</strong>したものだけです。
     <strong>誤判定はこの画面から直せます</strong> —— 直した分は LLM の判定より優先され、
-    再編成でも上書きされません。
+    次の仕分けでも上書きされません。
 </p>
 
 @* 「増えない」と見えたときの行き先を書いておく —— タグが増えるのは収集のときで、
@@ -30,23 +30,36 @@
     <strong>新しいタグは収集のときに登録されます。</strong>
     <a href="/settings">設定</a>の「記事の収集」を実行すると、見つかった語が
     <strong>仕分けまち</strong>として増えます(イベント・書籍・論文の収集でも同じように増えます)。
-    そのあと下の「トピックを再編成」を押すと、LLM が仕分けてツリーへ組み込みます。
+    そのあと下の「タグを仕分けなおす」を押すと、LLM が仕分けてツリーへ組み込みます。
+    <strong>このボタンは外部トレンドを引かないので、押しても仕分けまちは増えません</strong>
+    （押すぶんだけ減ります）。
 </p>
 
-@* **再編成のボタンはトピックの画面と両方に置く。** 仕分けを見ている場所がここなので、
+<p class="page-note text-muted">
+    <strong>仕分けまちの語は全部が LLM に流れます</strong>（件数での足切りはしません）。
+    誤記や一過性のゴミが並んでいるときは、<strong>チェックボックスで選んで
+    「選択した語を除外する」</strong>とまとめて片付けられます —— LLM に聞かせる前に
+    落とせるので、枠を使いません。
+</p>
+
+@* **仕分けのボタンはトピックの画面と両方に置く。** 仕分けを見ている場所がここなので、
    「仕分けまちが溜まった → 押す → 結果を見る」が同じ画面で完結するほうが分かる
-   (`JobRunner` が直列化するので、両方から押しても二重には走らない) *@
-<JobButton Runner="ReorganizationRunner" FormName="reorganize-topics" OnRun="Reorganize" />
+   (`JobRunner` が直列化するので、両方から押しても二重には走らない)。
+   **話題度の取り直しはここには置かない** —— タグの仕分けの話ではないうえ、
+   押すと仕分けまちが増える(行き先はトピックの画面) *@
+<JobButton Runner="MaintenanceRunner" FormName="reclassify-tags"
+           Label="タグを仕分けなおす" OnRun="ReclassifyTags" />
 
 <details class="score-help">
     <summary>状態の意味</summary>
     <ul class="text-muted">
-        <li><strong>仕分けまち</strong> —— まだ LLM に聞いていない。集めたデータに
-            @TopicReorganizationRunner.MinTagCount 回以上付いた語か、外部トレンドに現れた語から順に聞きます
-            (次に聞く語は<a href="/topics">トピック</a>の画面に出ます)</li>
+        <li><strong>仕分けまち</strong> —— まだ LLM に聞いていない語。<strong>ここにある語は全部が
+            次の仕分けの対象</strong>です(件数での足切りはしません。目立つ順に、1 回
+            @TopicMaintenanceRunner.MaxTagsPerClassification 語まで)</li>
         <li><strong>トピック</strong> —— 語彙に昇格した語。ツリーに並びます</li>
         <li><strong>別名</strong> —— 既存トピックの別表記として寄せた語。件数は寄せ先へ合算されます</li>
-        <li><strong>トピック外</strong> —— メディア名・一般語など。記事のタグとしては残ります</li>
+        <li><strong>除外</strong> —— <strong>トピックとして扱わない語</strong>(メディア名・一般語など)。
+            LLM にも聞き直しません。記事のタグとしては残るので、記事が消えることはありません</li>
         <li><strong>保留</strong> —— LLM が判断できなかった語。期限を過ぎると自動で聞き直します</li>
     </ul>
 </details>
@@ -88,7 +101,7 @@ else
         <AntiforgeryToken />
         @TagGroup("仕分けまち", TagStatus.Pending)
         @TagGroup("保留(LLM が判断できなかった)", TagStatus.Unresolved)
-        @TagGroup("トピック外", TagStatus.NotTopic)
+        @TagGroup("除外（トピックにしない）", TagStatus.NotTopic)
         @TagGroup("別名", TagStatus.Alias)
         @TagGroup("トピック(語彙)", TagStatus.Promoted)
     </form>
@@ -106,10 +119,34 @@ else
         {
             <details class="tag-group" open="@(status is TagStatus.Pending or TagStatus.Unresolved)">
                 <summary>@title<text>(</text>@tags.Count<text> 語)</text></summary>
+                @if (status != TagStatus.NotTopic)
+                {
+                    @* **一括の除外。** 明らかなゴミ(誤記・一過性のタグ)が並ぶので、
+                       1 語ずつ押させない。**チェックはページ全体で 1 つのフォーム**なので、
+                       どのボタンを押しても「チェックしてある語」すべてが対象になる *@
+                    <div class="bulk-bar">
+                        <label class="bulk-all">
+                            <input type="checkbox" class="select-all" />
+                            この一覧を全選択
+                        </label>
+                        <button type="submit" name="Action" value="exclude-selected"
+                                class="btn btn-outline-primary btn-sm">チェックした語を除外する</button>
+                    </div>
+                }
                 <div class="tag-rows">
                     @foreach (var tag in tags.Take(MaxRows))
                     {
                         <div class="tag-row">
+                            @if (status != TagStatus.NotTopic)
+                            {
+                                <input type="checkbox" name="Selected" value="@tag.Key"
+                                       aria-label="@($"{tag.Key} を選ぶ")" />
+                            }
+                            else
+                            {
+                                @* 列をそろえるための空きマス(除外済みの行は選ばせない) *@
+                                <span></span>
+                            }
                             <span class="tag-name">
                                 @tag.Key
                                 @if (tag.TopicKey is { Length: > 0 } topicKey && topicKey != tag.Key)
@@ -147,7 +184,7 @@ else
         @if (tag.Status != TagStatus.NotTopic)
         {
             <button type="submit" name="Action" value="@($"exclude:{tag.Key}")"
-                    class="btn btn-outline-primary btn-sm">トピック外</button>
+                    class="btn btn-outline-primary btn-sm">除外する</button>
         }
         @if (tag.Status != TagStatus.Pending)
         {
@@ -172,6 +209,13 @@ else
     [SupplyParameterFromForm(FormName = "tag-decide")]
     string? Action { get; set; }
 
+    /// <summary>
+    /// チェックしたタグ。**同名の checkbox を並べる形**で受ける
+    /// (トピックの選択と同じ流儀。静的 SSR のフォーム束縛がそのまま配列にしてくれる)。
+    /// </summary>
+    [SupplyParameterFromForm(FormName = "tag-decide", Name = "Selected")]
+    string[]? Selected { get; set; }
+
     [SupplyParameterFromForm(FormName = "tag-alias", Name = "AliasKey")]
     string? AliasFormKey { get; set; }
 
@@ -181,8 +225,8 @@ else
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     // ジョブはバックグラウンドで走らせる(結果は自動リロードの GET が読み直す)
-    void Reorganize() => ReorganizationRunner.StartInBackground(
-        ct => ReorganizationRunner.RunOnceAsync(ct), JobMessage.Describe);
+    void ReclassifyTags() => MaintenanceRunner.StartInBackground(
+        ct => MaintenanceRunner.ReclassifyTagsAsync(ct), JobMessage.Describe);
 
     async Task LoadAsync()
     {
@@ -223,10 +267,17 @@ else
 
     /// <summary>
     /// 行の操作を処理する。**手直しは `DecidedBy.Human`** で記録し、LLM の判定より優先させる
-    /// (誤判定を直したのに次の再編成で戻される、が起きないようにするため)。
+    /// (誤判定を直したのに次の仕分けで戻される、が起きないようにするため)。
     /// </summary>
     async Task DecideAsync()
     {
+        if (Action is "exclude-selected")
+        {
+            await ExcludeSelectedAsync();
+
+            return;
+        }
+
         if (Action is not { Length: > 0 } action || !action.Contains(':'))
         {
             return;
@@ -256,19 +307,51 @@ else
                     [new TagDecision(key, TagStatus.NotTopic, DecidedBy: DecidedBy.Human)], now);
                 // トピックだった語なら語彙からも外す(どのタグにも紐づかない行を残さない)
                 await Merger.DemoteAsync(key);
-                _message = $"「{key}」をトピック外にしました。";
+                _message = $"「{key}」を除外しました（トピックとして扱いません）。";
                 break;
 
             case "reset":
                 await TagStore.DecideAsync(
                     [new TagDecision(key, TagStatus.Pending, DecidedBy: DecidedBy.None)], now);
                 await Merger.DemoteAsync(key);
-                _message = $"「{key}」を仕分けまちに戻しました（次の再編成で LLM に聞きます）。";
+                _message = $"「{key}」を仕分けまちに戻しました（次の仕分けで LLM に聞きます）。";
                 break;
         }
 
         await CatalogRefresher.RefreshAsync();
         await LoadAsync();
+    }
+
+    /// <summary>
+    /// チェックした語をまとめて除外する。**LLM に聞かせる前にゴミを落とす経路**で、
+    /// 仕分けまちの語が全部 LLM に流れるようになったぶん、ここで間引けるようにしてある。
+    ///
+    /// 手直しなので <see cref="DecidedBy.Human"/>(次の仕分けで上書きされない)。
+    /// トピックだった語は語彙からも外す —— どのタグにも紐づかない行がツリーに残るため。
+    /// </summary>
+    async Task ExcludeSelectedAsync()
+    {
+        var keys = Selected ?? [];
+        if (keys.Length == 0)
+        {
+            _message = "語が選ばれていません（チェックボックスで選んでください）。";
+
+            return;
+        }
+
+        await TagStore.DecideAsync(
+            keys.Select(key => new TagDecision(key, TagStatus.NotTopic, DecidedBy: DecidedBy.Human))
+                .ToList(),
+            Clock.GetUtcNow());
+
+        foreach (var key in keys)
+        {
+            await Merger.DemoteAsync(key);
+        }
+
+        await CatalogRefresher.RefreshAsync();
+        await LoadAsync();
+        _message = $"{keys.Length} 語を除外しました（トピックとして扱わず、LLM にも聞きません）。";
     }
 
     /// <summary>寄せ先を選んで別名にする。**寄せ先が語彙に無ければ何もしない**(LLM の応答と同じ検証)。</summary>

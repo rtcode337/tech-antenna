@@ -34,7 +34,7 @@ public record TagDecision(
 /// 見かけたタグとその仕分け状態の保存先。
 ///
 /// **観測(<see cref="ObserveAsync"/>)と仕分け(<see cref="DecideAsync"/>)を分けてある。**
-/// 収集は件数と話題度を書き替えるだけで状態には触らず、状態を変えるのは再編成と
+/// 収集は件数と話題度を書き替えるだけで状態には触らず、状態を変えるのはタグの仕分けと
 /// 画面からの手直しだけ —— 混ぜると、収集のたびに仕分けが巻き戻る。
 /// </summary>
 public interface ITagStore
@@ -65,12 +65,13 @@ public interface ITagStore
     /// 1 回に何語聞くかは呼ぶ側の枠で決め、画面では枠に収まらない分も見せたいため。
     ///
     /// 対象は <see cref="TagStatus.Pending"/> と、再挑戦の時刻を過ぎた
-    /// <see cref="TagStatus.Unresolved"/>。件数も話題度も無いタグは含めない
-    /// (誰も使っていない語を聞いても枠を使うだけ)。
+    /// <see cref="TagStatus.Unresolved"/>。**件数で足切りはしない** ——
+    /// 「仕分けまちに出ている語がそのまま対象」になるようにするため。以前は件数 3 未満を
+    /// 落としていたが、収集を何回押したかで対象が変わり、落ちた語は仕分けまちに残り続けた。
+    /// 並びが「目立つ順」なので、1 回の枠に収まらない分は次の回へ自然に回る。
     /// </summary>
     Task<IReadOnlyList<Tag>> GetPendingAsync(
         DateTimeOffset now,
-        int minCount,
         CancellationToken cancellationToken = default);
 
     /// <summary>
