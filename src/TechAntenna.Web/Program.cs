@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Text;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using TechAntenna.Core.Abstractions;
@@ -312,6 +313,9 @@ builder.Services.AddSingleton<TagObserver>();
 builder.Services.AddSingleton<TopicSeeder>();
 // トピックを別のトピックへ寄せる(画面からの手直しと、LLM の統合パスで共有する)
 builder.Services.AddSingleton<TopicMerger>();
+// 語彙と仕分けのファイル持ち出し・取り込み(本番で LLM に仕分けさせた結果を別の環境で使う)
+builder.Services.AddSingleton<TopicExporter>();
+builder.Services.AddSingleton<TopicImporter>();
 builder.Services.AddSingleton<TopicReorganizationRunner>();
 // タグの正規化規則を変えたときに保存済みデータを追従させる(外部へは出ないので常に登録する)
 builder.Services.AddSingleton<TagRenormalizationRunner>();
@@ -433,6 +437,22 @@ if (httpsConfigured)
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+
+// 語彙と仕分けの持ち出し。**ダウンロードは GET 1本で足りる**ので、Blazor のフォームではなく
+// 最小 API に置く(Content-Disposition を付けてファイルとして落とさせるため)。
+// パスを /topics/… の下に置かないのは、`/topics/{tag}`(トピックの詳細)と紛れないようにするため
+app.MapGet("/export/topics.json", async (
+    TopicExporter exporter, TimeProvider clock, CancellationToken cancellationToken) =>
+{
+    var file = await exporter.BuildAsync(cancellationToken);
+    var json = Encoding.UTF8.GetBytes(TopicExportJson.Serialize(file));
+
+    return Results.File(
+        json,
+        "application/json",
+        $"tech-antenna-topics-{clock.GetUtcNow():yyyyMMdd-HHmm}.json");
+});
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

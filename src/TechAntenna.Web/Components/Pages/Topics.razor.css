@@ -222,6 +222,26 @@ details[open] > summary .caret::before {
     line-height: 1.7;
 }
 
+/* 持ち出し / 取り込みの節。説明の details(.score-help)と同じ見た目に、
+   フォームのぶんだけ行間を足す */
+.transfer p {
+    margin: 0.5rem 0;
+}
+
+.transfer input[type="file"] {
+    font-size: 0.86rem;
+}
+
+.import-result {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.import-error {
+    color: var(--danger);
+    font-weight: 600;
+}
+
 /* トピック名と、その後ろのかっこ書きの説明。
    **説明は1行に収めて溢れを … にする** —— 折り返させると 150 行の一覧が縦に伸び、
    話題度や日時を追いにくくなる(全文はツールチップで読める) */

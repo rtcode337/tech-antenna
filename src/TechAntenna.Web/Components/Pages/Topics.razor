@@ -1,12 +1,15 @@
 @page "/topics"
+@using System.Text.Json
 @using TechAntenna.Core
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Topics
+@using TechAntenna.Infrastructure.Topics
 @using TechAntenna.Web.Services
 @inject ITopicStore TopicStore
 @inject TopicCatalog Catalog
 @inject ITagStore TagStore
 @inject TopicReorganizationRunner ReorganizationRunner
+@inject TopicImporter Importer
 
 <PageTitle>トピック - tech-antenna</PageTitle>
 
@@ -143,6 +146,50 @@
 </details>
 
 <JobButton Runner="ReorganizationRunner" FormName="reorganize-topics" OnRun="Reorganize" />
+
+@* **語彙と仕分けをファイルで運ぶ。** LLM の仕分けは呼ぶたびに枠を使うので、本番で仕分けた
+   結果を開発サーバーへ持って行けるようにしてある(逆向き・バックアップにも使える)。
+   畳んであるのは、日々の操作ではないため *@
+<details class="score-help transfer">
+    <summary>ファイルで持ち出す / 取り込む</summary>
+    <p>
+        <strong>語彙(トピック)とタグの仕分けだけ</strong>を JSON で運びます。
+        <strong>件数・話題度は入りません</strong> —— それは各環境が集めたデータの話なので、
+        取り込んだ先では次の「トピックを再編成」が集め直します。
+        取り込みは<strong>足し込みで、この環境にしか無い語彙や仕分けは消しません</strong>。
+        <strong>画面から手で直した仕分けは守ります</strong>(ファイル側で上書きしません)。
+    </p>
+
+    <p><a class="btn btn-outline-primary btn-sm" href="/export/topics.json" download>JSON で書き出す</a></p>
+
+    @* ファイルの受け取りは HttpContext から読む(静的 SSR のフォームはファイルを束縛しない) *@
+    <form method="post" enctype="multipart/form-data" @formname="import-topics" @onsubmit="ImportAsync">
+        <AntiforgeryToken />
+        <p>
+            <input type="file" name="file" accept=".json,application/json" required
+                   aria-label="取り込むトピックのファイル" />
+        </p>
+        <p>
+            <label>
+                <input type="checkbox" name="import-selection" value="true" />
+                収集対象の選択も取り込む
+            </label>
+            <span class="text-muted">
+                （既定では取り込みません。イベントと書籍の検索語が黙って変わらないようにするためです）
+            </span>
+        </p>
+        <button type="submit" class="btn btn-outline-primary btn-sm">ファイルを取り込む</button>
+    </form>
+
+    @if (_importMessage is { Length: > 0 })
+    {
+        <p class="import-result">@_importMessage</p>
+    }
+    @if (_importError is { Length: > 0 })
+    {
+        <p class="import-error">@_importError</p>
+    }
+</details>
 
 @if (_topics is null)
 {
@@ -399,11 +446,66 @@ else
     [SupplyParameterFromForm(FormName = "save-topic-selection")]
     string[]? SelectedTopics { get; set; }
 
+    /// <summary>
+    /// 取り込むファイルを受け取るために要る。**静的 SSR のフォーム束縛はファイルを扱えない**ので、
+    /// アップロードは <c>HttpContext.Request.Form.Files</c> から直接読む。
+    /// </summary>
+    [CascadingParameter]
+    HttpContext? HttpContext { get; set; }
+
+    /// <summary>取り込むファイルの上限。持ち出したファイルは数百 KB なので、これで十分に広い。</summary>
+    const long MaxImportBytes = 8L * 1024 * 1024;
+
+    string? _importMessage;
+
+    string? _importError;
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     // ジョブはバックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
     void Reorganize() => ReorganizationRunner.StartInBackground(
         ct => ReorganizationRunner.RunOnceAsync(ct), JobMessage.Describe);
+
+    /// <summary>
+    /// ファイルから語彙と仕分けを取り込む。**ジョブ(バックグラウンド)にしない** ——
+    /// 外部へは出ず DB の数回の書き込みで終わるので、押した人がその場で結果を読めるほうがよい。
+    /// 取り込んだあとは一覧を読み直す(この時点では読み込み済みの古い一覧が入っている)。
+    /// </summary>
+    async Task ImportAsync()
+    {
+        _importMessage = null;
+        _importError = null;
+
+        var upload = HttpContext?.Request.Form.Files["file"];
+        if (upload is null || upload.Length == 0)
+        {
+            _importError = "ファイルが選ばれていません。";
+            return;
+        }
+
+        if (upload.Length > MaxImportBytes)
+        {
+            _importError = $"ファイルが大きすぎます（{upload.Length / 1024 / 1024} MB）。"
+                + "「JSON で書き出す」で作ったファイルをそのまま渡してください。";
+            return;
+        }
+
+        try
+        {
+            using var reader = new StreamReader(upload.OpenReadStream());
+            var file = TopicExportJson.Deserialize(await reader.ReadToEndAsync());
+            var withSelection = HttpContext!.Request.Form["import-selection"] == "true";
+
+            _importMessage = JobMessage.Describe(await Importer.ImportAsync(file, withSelection));
+        }
+        catch (JsonException error)
+        {
+            // **理由を画面に出す。** 黙って 0 件にすると「取り込んだのに増えない」で原因が分からない
+            _importError = $"ファイルを読めませんでした: {error.Message}";
+        }
+
+        await LoadAsync();
+    }
 
     // 画面に出すのはキー(生成ai)ではなくカタログの正式表記(生成AI)
     static string Label(Topic topic) => topic.Display is { Length: > 0 } display ? display : topic.Key;

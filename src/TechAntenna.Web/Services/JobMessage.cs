@@ -28,6 +28,38 @@ public static class JobMessage
         + (result.Described > 0 ? $" {result.Described} 件の用語に説明を付けました。" : "")
         + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : "");
 
+    /// <summary>
+    /// ファイル取り込みの結果。**ジョブではない**(その場で終わる)が、文言の作り方は
+    /// ほかの結果とそろえたいのでここに置く。
+    /// </summary>
+    public static string Describe(TopicImportResult result)
+    {
+        var message = $"語彙 {result.Topics} 件（新しく増えたのは {result.TopicsAdded} 件）、"
+            + $"タグの仕分け {result.Tags} 件（初めて見た語は {result.TagsAdded} 件）を取り込みました。";
+
+        if (result.Selected > 0)
+        {
+            message += $" 収集対象を {result.Selected} 件に置き換えました。";
+        }
+
+        if (result.KeptHuman > 0)
+        {
+            message += $" {result.KeptHuman} 件はこの環境で人が直した仕分けなので、そのまま残しました。";
+        }
+
+        if (result.DroppedParents > 0)
+        {
+            message += $" {result.DroppedParents} 件は親が見つからないので最上位にしました。";
+        }
+
+        if (result.DroppedAliases > 0)
+        {
+            message += $" {result.DroppedAliases} 件は寄せ先が見つからないので取り込みませんでした。";
+        }
+
+        return message + " 件数と話題度は「トピックを再編成」で集め直されます。";
+    }
+
     public static string Describe(SummaryRunResult result)
     {
         if (result == SummaryRunResult.Nothing)
