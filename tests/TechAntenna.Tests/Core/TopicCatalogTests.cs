@@ -23,6 +23,25 @@ public class TopicCatalogTests
     }
 
     [Fact]
+    public void 英語表記でもタイトルから見つける()
+    {
+        // 話題の論文(HF Daily Papers)のタイトルは全部英語。LLM が付けた英語表記は
+        // Aliases ではなく English に入るので、そちらでも当てないとタグがほぼ付かない
+        // (実測: 50 件中 3 件)
+        var catalog = new TopicCatalog(
+        [
+            new TopicCatalogEntry("強化学習", [], null, English: "reinforcement learning"),
+            new TopicCatalogEntry("生成AI", ["generative ai"], null),
+        ]);
+
+        Assert.Equal(
+            ["強化学習"],
+            catalog.FindIn("Self-Verifiable Reinforcement Learning for Robots"));
+        // 英語表記も KeywordMatcher を通る(単語の途中には当たらない)
+        Assert.Empty(catalog.FindIn("unreinforcement learnings"));
+    }
+
+    [Fact]
     public void 英数字に埋もれた語では誤爆しない()
     {
         // 単純な部分一致だと「AI」が「Rails」「email」に当たる

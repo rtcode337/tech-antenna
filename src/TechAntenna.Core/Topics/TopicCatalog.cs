@@ -177,7 +177,11 @@ public class TopicCatalog
         string.IsNullOrWhiteSpace(text)
             ? []
             : Entries
+                // **英語表記(English)でも当てる。** 話題の論文(HF Daily Papers)のタイトルは
+                // 全部英語で、正式表記と別名だけだと実測 50 件中 3 件にしかタグが付かなかった
+                // —— LLM が付けた英語表記は Aliases ではなく English に入るため
                 .Where(entry => entry.Aliases.Prepend(entry.Display)
+                    .Concat(entry.English is { Length: > 0 } english ? [english] : [])
                     .Any(term => KeywordMatcher.Contains(text, term)))
                 .Select(entry => entry.Display)
                 .ToList();
