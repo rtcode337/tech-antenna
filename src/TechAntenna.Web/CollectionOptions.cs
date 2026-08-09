@@ -267,6 +267,32 @@ public class DigestOptions
     public int EventWindowDays { get; set; } = 14;
 }
 
+/// <summary>
+/// ntfy(今日のサマリーの通知先)の設定。appsettings の Ntfy セクションから読む。
+/// **BaseUrl と Topic の両方があるときだけ通知する**(どちらも環境固有の値なので
+/// 実値はコミットせず、環境変数 Ntfy__BaseUrl / Ntfy__Topic で渡す)。
+/// </summary>
+public class NtfyOptions
+{
+    public const string SectionName = "Ntfy";
+
+    /// <summary>ntfy サーバーのベース URL(例: https://ntfy.sh やセルフホストのアドレス)。</summary>
+    public string BaseUrl { get; set; } = "";
+
+    /// <summary>通知を送るトピック名。</summary>
+    public string Topic { get; set; } = "";
+
+    /// <summary>アクセストークン(任意)。認証ありのサーバー・保護されたトピックのときだけ。</summary>
+    public string AccessToken { get; set; } = "";
+
+    /// <summary>通知をタップしたときに開く URL(任意。ホームの公開 URL を入れる)。</summary>
+    public string ClickUrl { get; set; } = "";
+
+    /// <summary>通知できる設定か。</summary>
+    public bool IsConfigured =>
+        !string.IsNullOrWhiteSpace(BaseUrl) && !string.IsNullOrWhiteSpace(Topic);
+}
+
 /// <summary>connpass API の設定。appsettings の Connpass セクションから読む。</summary>
 public class ConnpassOptions
 {

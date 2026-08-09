@@ -172,6 +172,15 @@ public class IntegrationCatalog(
             !string.IsNullOrWhiteSpace(anthropic.Value.ApiKey),
             "Claude Code のトークンが無いときの代わり。**両方とも未設定なら要約・翻訳・今日のサマリーのボタンが出ない**"));
 
+        // --- 通知 ---
+        var ntfy = Section<NtfyOptions>(NtfyOptions.SectionName);
+        integrations.Add(new Integration(
+            IntegrationAxis.Both, "今日のサマリーの通知", "ntfy", CredentialNeed.Optional,
+            "Ntfy__BaseUrl / Ntfy__Topic",
+            ntfy.IsConfigured,
+            "未設定ならサマリーは画面に出るだけで通知しない。BaseUrl と Topic の両方が要る"
+            + "(トークンは認証ありのサーバーのときだけ Ntfy__AccessToken)"));
+
         return integrations;
     }
 

@@ -8,6 +8,7 @@ using TechAntenna.Infrastructure;
 using TechAntenna.Infrastructure.Books;
 using TechAntenna.Infrastructure.Events;
 using TechAntenna.Infrastructure.Feeds;
+using TechAntenna.Infrastructure.Notifications;
 using TechAntenna.Infrastructure.Persistence;
 using TechAntenna.Infrastructure.Storage;
 using TechAntenna.Infrastructure.Summarization;
@@ -422,6 +423,24 @@ var digestOptions = builder.Configuration
 if (digestOptions.AutoRun && hasLlm)
 {
     builder.Services.AddHostedService<DigestWorker>();
+}
+
+// 今日のサマリーの ntfy 通知。BaseUrl と Topic の両方があるときだけ登録する
+// (未設定なら IDigestNotifier が空のまま = 通知なしで生成だけ動く)
+builder.Services.Configure<NtfyOptions>(
+    builder.Configuration.GetSection(NtfyOptions.SectionName));
+var ntfy = builder.Configuration
+    .GetSection(NtfyOptions.SectionName)
+    .Get<NtfyOptions>() ?? new NtfyOptions();
+if (ntfy.IsConfigured)
+{
+    builder.Services.AddHttpClient(NtfyDigestNotifier.HttpClientName, ConfigureFeedClient);
+    builder.Services.AddSingleton<IDigestNotifier>(sp => new NtfyDigestNotifier(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        ntfy.BaseUrl,
+        ntfy.Topic,
+        string.IsNullOrWhiteSpace(ntfy.AccessToken) ? null : ntfy.AccessToken,
+        string.IsNullOrWhiteSpace(ntfy.ClickUrl) ? null : ntfy.ClickUrl));
 }
 
 var app = builder.Build();

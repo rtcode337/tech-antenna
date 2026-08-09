@@ -9,7 +9,7 @@
 **開発初期。** 記事・ニュース・論文・イベント・書籍の収集と一覧表示、タグによる横断、
 PostgreSQL への保存、タグからのトピック一覧生成、LLM による要約と論文タイトルの和訳、
 ホームの「今日のサマリー」(収集した情報と興味トピックから LLM が押さえておくべき情報を
-まとめる。1日2回の自動生成にもできる)まで実装済み。
+まとめる。1日2回の自動生成と ntfy への通知にもできる)まで実装済み。
 
 ## 構成
 
@@ -229,6 +229,8 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
   動く)。外部 API や LLM の無料枠を意図せず使い切らないため。定期実行にするときは `.env` で
   `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` / `SUMMARY_AUTORUN` / `DIGEST_AUTORUN` を
   `true` にする(サマリーは 12 時間ごと = 1日2回)
+- 今日のサマリーは **ntfy へ通知できる**。`.env` の `NTFY_BASE_URL` と `NTFY_TOPIC` を
+  設定したときだけ送る(認証ありのサーバーは `NTFY_ACCESS_TOKEN` も)
 
 ## 開発環境
 

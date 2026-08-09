@@ -831,6 +831,20 @@ Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。�
   手動ボタンは `/settings`(トレンド側の LLM ジョブと同じ置き場)。
   材料が 1 件も無いときは LLM を呼ばずに止まり、ボタンの隣にそう出る
 
+生成したサマリーは **ntfy へ通知できる**(`NtfyDigestNotifier` / `IDigestNotifier`)。
+`Ntfy` セクションの **`BaseUrl` と `Topic` の両方があるときだけ** DI に登録され、
+未設定なら通知なしで生成だけ動く(実値は環境固有なのでコミットせず
+`Ntfy__BaseUrl` / `Ntfy__Topic`、認証ありなら `Ntfy__AccessToken` で渡す)。
+
+- **JSON publish(ベース URL への POST に topic を含める)を使う** —— タイトルを
+  ヘッダ(X-Title)で渡すと非 ASCII に RFC 2047 エンコードが要るため。JSON なら
+  日本語のタイトルをそのまま書ける
+- **通知の失敗で生成を失敗にしない**(保存の後に通知し、失敗はログと結果の文言に出す)——
+  通知先が落ちていることと、ダイジェストが作れたことは別の話
+- 本文は素のテキスト(導入 → 項目 → 出典 URL)で、ntfy のメッセージ上限
+  (既定 4096 バイト)に収まるよう `MaxMessageChars` で切る。
+  `Ntfy__ClickUrl`(任意)を設定すると、通知のタップでホームが開く
+
 ## 見た目(CSS)
 
 **Bootstrap は使っていない。** Blazor の雛形が入れた

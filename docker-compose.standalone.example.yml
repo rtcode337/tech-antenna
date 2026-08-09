@@ -76,6 +76,12 @@ x-app-env: &app-env
   # 従量課金ではなくサブスクリプションの枠を使う(`claude setup-token` で発行)
   CLAUDE_CODE_OAUTH_TOKEN: ""
 
+  # 今日のサマリーの ntfy 通知。BaseUrl と Topic の両方が無ければ通知しない
+  Ntfy__BaseUrl: ""
+  Ntfy__Topic: ""
+  Ntfy__AccessToken: ""
+  Ntfy__ClickUrl: ""
+
   # リバースプロキシ配下で X-Forwarded-* を信頼するときだけ true にする
   ASPNETCORE_FORWARDEDHEADERS_ENABLED: "false"
 

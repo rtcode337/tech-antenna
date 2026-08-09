@@ -45,14 +45,30 @@ public class DigestRunnerTests
         CollectedAt = Now.AddHours(-1),
     };
 
+    /// <summary>通知の呼び出しを記録する IDigestNotifier。fail=true なら失敗させる。</summary>
+    class StubNotifier(bool fail = false) : IDigestNotifier
+    {
+        public int CallCount { get; private set; }
+
+        public string Name => "スタブ通知";
+
+        public Task NotifyAsync(Digest digest, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return fail ? Task.FromException(new HttpRequestException("落ちた")) : Task.CompletedTask;
+        }
+    }
+
     static DigestRunner Runner(
         StubComposer? composer,
         InMemoryArticleStore articles,
         InMemoryEventStore events,
         InMemoryTopicStore topics,
         InMemoryDigestStore digests,
-        TopicCatalog catalog) =>
+        TopicCatalog catalog,
+        StubNotifier? notifier = null) =>
         new(composer is null ? [] : [composer],
+            notifier is null ? [] : [notifier],
             articles,
             events,
             topics,
@@ -115,6 +131,53 @@ public class DigestRunnerTests
         Assert.NotNull(await digests.GetLatestAsync());
         Assert.Contains(
             composer.Received!.TrendingArticles, article => article.Title == "話題の記事");
+    }
+
+    [Fact]
+    public async Task 生成できたら通知する()
+    {
+        var articles = new InMemoryArticleStore();
+        await articles.AddRangeAsync([Article("話題の記事", ArticleKind.Article)]);
+        var notifier = new StubNotifier();
+        var runner = Runner(
+            new StubComposer(), articles, new InMemoryEventStore(), new InMemoryTopicStore(),
+            new InMemoryDigestStore(), TopicCatalog.Empty, notifier);
+
+        var result = await runner.RunOnceAsync();
+
+        Assert.Equal(1, notifier.CallCount);
+        Assert.Equal(1, result.Notified);
+        Assert.Equal(0, result.NotifyFailed);
+    }
+
+    [Fact]
+    public async Task 通知に失敗しても生成は成功のまま保存される()
+    {
+        var articles = new InMemoryArticleStore();
+        await articles.AddRangeAsync([Article("話題の記事", ArticleKind.Article)]);
+        var digests = new InMemoryDigestStore();
+        var runner = Runner(
+            new StubComposer(), articles, new InMemoryEventStore(), new InMemoryTopicStore(),
+            digests, TopicCatalog.Empty, new StubNotifier(fail: true));
+
+        var result = await runner.RunOnceAsync();
+
+        Assert.True(result.Composed);
+        Assert.Equal(1, result.NotifyFailed);
+        Assert.NotNull(await digests.GetLatestAsync());
+    }
+
+    [Fact]
+    public async Task 材料が無ければ通知もしない()
+    {
+        var notifier = new StubNotifier();
+        var runner = Runner(
+            new StubComposer(), new InMemoryArticleStore(), new InMemoryEventStore(),
+            new InMemoryTopicStore(), new InMemoryDigestStore(), TopicCatalog.Empty, notifier);
+
+        await runner.RunOnceAsync();
+
+        Assert.Equal(0, notifier.CallCount);
     }
 
     [Fact]

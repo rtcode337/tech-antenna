@@ -8,13 +8,17 @@ namespace TechAntenna.Web.Services;
 /// <summary>ダイジェストを1回生成した結果。</summary>
 /// <param name="Composed">生成したか(材料が無ければ false)。</param>
 /// <param name="Items">生成した項目数。</param>
-public record DigestRunResult(bool Composed, int Items)
+/// <param name="Notified">通知した先の数。</param>
+/// <param name="NotifyFailed">通知に失敗した先の数(生成自体は成功のまま)。</param>
+public record DigestRunResult(bool Composed, int Items, int Notified = 0, int NotifyFailed = 0)
 {
     public static readonly DigestRunResult Nothing = new(false, 0);
 
     /// <summary>ボタンの隣に出す結果の文言。</summary>
     public string Describe() => Composed
         ? $"今日のサマリーを生成しました({Items} 項目)。"
+            + (Notified > 0 ? " ntfy へ通知しました。" : "")
+            + (NotifyFailed > 0 ? " 通知に失敗しました(詳細はログ)。" : "")
         : "材料がありません。先にトレンドの収集(と、あれば興味トピック側の収集)を実行してください。";
 }
 
@@ -26,6 +30,7 @@ public record DigestRunResult(bool Composed, int Items)
 /// </summary>
 public class DigestRunner(
     IEnumerable<IDigestComposer> composers,
+    IEnumerable<IDigestNotifier> notifiers,
     IArticleStore articleStore,
     IEventStore eventStore,
     ITopicStore topicStore,
@@ -36,6 +41,7 @@ public class DigestRunner(
     ILogger<DigestRunner> logger) : JobRunner
 {
     readonly IDigestComposer? _composer = composers.FirstOrDefault();
+    readonly IReadOnlyList<IDigestNotifier> _notifiers = notifiers.ToList();
 
     public override string Name => $"今日のサマリーの生成({_composer?.Name ?? "未設定"})";
 
@@ -61,7 +67,30 @@ public class DigestRunner(
         logger.LogInformation(
             "{Composer}: ダイジェストを生成({Items} 項目)", composer.Name, digest.Items.Count);
 
-        return new DigestRunResult(true, digest.Items.Count);
+        // 通知は保存の後・失敗しても生成は成功のまま —— 通知先(ntfy)が落ちていることと、
+        // ダイジェストが作れたことは別の話。失敗はログと結果の文言に出す
+        var notified = 0;
+        var notifyFailed = 0;
+        foreach (var notifier in _notifiers)
+        {
+            try
+            {
+                Progress = $"{notifier.Name} へ通知中…";
+                await notifier.NotifyAsync(digest, cancellationToken);
+                notified++;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                notifyFailed++;
+                logger.LogError(ex, "{Notifier} への通知に失敗", notifier.Name);
+            }
+        }
+
+        return new DigestRunResult(true, digest.Items.Count, notified, notifyFailed);
     }
 
     async Task<DigestMaterials> CollectMaterialsAsync(CancellationToken cancellationToken)

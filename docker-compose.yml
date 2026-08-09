@@ -89,6 +89,11 @@ services:
       # 変数名は claude CLI が直接読むもので、アプリは有無を見て方式を選ぶだけ
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       ClaudeCode__Model: ${CLAUDE_CODE_MODEL:-}
+      # 今日のサマリーの ntfy 通知。BaseUrl と Topic の両方が無ければ通知しない
+      Ntfy__BaseUrl: ${NTFY_BASE_URL:-}
+      Ntfy__Topic: ${NTFY_TOPIC:-}
+      Ntfy__AccessToken: ${NTFY_ACCESS_TOKEN:-}
+      Ntfy__ClickUrl: ${NTFY_CLICK_URL:-}
       # リバースプロキシ配下で X-Forwarded-* を信頼するときだけ true にする
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: ${FORWARDED_HEADERS_ENABLED:-false}
     ports:
