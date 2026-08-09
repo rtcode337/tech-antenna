@@ -86,6 +86,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
     builder.Services.AddSingleton<IBookStore, InMemoryBookStore>();
     builder.Services.AddSingleton<ITagStore, InMemoryTagStore>();
     builder.Services.AddSingleton<ITopicStore, InMemoryTopicStore>();
+    builder.Services.AddSingleton<IDigestStore, InMemoryDigestStore>();
 }
 else
 {
@@ -95,6 +96,7 @@ else
     builder.Services.AddSingleton<IBookStore, EfBookStore>();
     builder.Services.AddSingleton<ITagStore, EfTagStore>();
     builder.Services.AddSingleton<ITopicStore, EfTopicStore>();
+    builder.Services.AddSingleton<IDigestStore, EfDigestStore>();
 }
 
 var collection = builder.Configuration
@@ -333,6 +335,8 @@ builder.Services.Configure<AnthropicOptions>(
     builder.Configuration.GetSection(AnthropicOptions.SectionName));
 builder.Services.Configure<ClaudeCodeOptions>(
     builder.Configuration.GetSection(ClaudeCodeOptions.SectionName));
+builder.Services.Configure<DigestOptions>(
+    builder.Configuration.GetSection(DigestOptions.SectionName));
 
 var anthropic = builder.Configuration
     .GetSection(AnthropicOptions.SectionName)
@@ -373,6 +377,13 @@ if (hasClaudeCodeToken)
         sp => sp.GetRequiredService<ClaudeCodeTopicClassifier>());
     builder.Services.AddSingleton<ITopicMergeAdvisor>(
         sp => sp.GetRequiredService<ClaudeCodeTopicClassifier>());
+    // 今日のサマリー(ダイジェスト)も同じ方式・同じ CLI
+    builder.Services.AddSingleton<IDigestComposer>(sp => new ClaudeCodeDigestComposer(
+        sp.GetRequiredService<IProcessRunner>(),
+        claudeCode.ExecutablePath,
+        string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
+        TimeSpan.FromSeconds(claudeCode.TimeoutSeconds),
+        sp.GetRequiredService<TimeProvider>()));
 }
 else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
 {
@@ -384,6 +395,8 @@ else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
     builder.Services.AddSingleton<ITopicClassifier>(topicClassifier);
     builder.Services.AddSingleton<ITopicDescriber>(topicClassifier);
     builder.Services.AddSingleton<ITopicMergeAdvisor>(topicClassifier);
+    builder.Services.AddSingleton<IDigestComposer>(sp => new AnthropicDigestComposer(
+        anthropic.ApiKey, anthropic.Model, sp.GetRequiredService<TimeProvider>()));
 }
 
 // 応答を圧縮する。**トピックのツリーは全件(1000 行超)を出すので HTML が 1MB を超える** ——
@@ -395,10 +408,20 @@ builder.Services.AddResponseCompression();
 // 画面の手動ボタンからも呼ぶので、要約が未設定でも常に登録する(未設定なら何もしない)
 builder.Services.AddSingleton<SummaryRunner>();
 builder.Services.AddSingleton<TitleTranslationRunner>();
+builder.Services.AddSingleton<DigestRunner>();
 
-if (anthropic.AutoRun && (hasClaudeCodeToken || !string.IsNullOrWhiteSpace(anthropic.ApiKey)))
+var hasLlm = hasClaudeCodeToken || !string.IsNullOrWhiteSpace(anthropic.ApiKey);
+if (anthropic.AutoRun && hasLlm)
 {
     builder.Services.AddHostedService<SummaryWorker>();
+}
+
+var digestOptions = builder.Configuration
+    .GetSection(DigestOptions.SectionName)
+    .Get<DigestOptions>() ?? new DigestOptions();
+if (digestOptions.AutoRun && hasLlm)
+{
+    builder.Services.AddHostedService<DigestWorker>();
 }
 
 var app = builder.Build();

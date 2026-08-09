@@ -95,12 +95,26 @@ erDiagram
         timestamptz UpdatedAt
     }
 
+    Digests {
+        uuid Id PK
+        timestamptz GeneratedAt "最新の1件を選ぶキー"
+        text Lead "全体の導入（1〜2文）"
+        jsonb Items "項目の配列（title / body / url）"
+        text GeneratorName "Claude Code / Anthropic API"
+    }
+
     Tags }o..o{ Articles : "Articles.Tags に Key が含まれる"
     Tags }o..o{ Events : "Events.Tags に Key が含まれる"
     Tags }o..o{ Books : "Books.Tags に Key が含まれる"
     Topics |o--o{ Tags : "TopicKey"
     Topics |o--o{ Topics : "Parent"
 ```
+
+`Digests` はホームの「今日のサマリー」の生成履歴。**どのテーブルとも関係を持たない**
+(生成時点の記事・イベントから LLM が書いた文章のスナップショットで、元データが
+消えても読み返せることに意味がある)。`Items` を行に分けず `jsonb` 1 列で持つのは、
+項目単体を検索・集計する予定が無く、常にダイジェスト丸ごとで読み書きするため。
+画面に出すのは `GeneratedAt` が最新の1件だけ。
 
 **外部キーは1つも張っていない**(点線はそのため)。タグは `text[]` の中の文字列と突き合わせる
 緩い対応で、正規化の規則を変えると対応先が変わる。参照整合性を DB に持たせると、
@@ -137,6 +151,7 @@ erDiagram
 | Topics | `Parent` | ツリーの組み立て |
 | Tags | `Status` + `RetryAfter` | 「次に聞く語」の抽出 |
 | Tags | `TopicKey` | 語彙への合算 |
+| Digests | `GeneratedAt` | 最新の1件の取得 |
 
 ## タグ層(Tags)と語彙(Topics)
 

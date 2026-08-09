@@ -60,6 +60,7 @@ x-app-env: &app-env
   Collection__AutoRun: "false"
   Books__AutoRun: "false"
   Anthropic__AutoRun: "false"
+  Digest__AutoRun: "false"
 
   # 外部 API のキー。未設定ならその収集ジョブが動かないだけで起動はする
   Connpass__ApiKey: ""

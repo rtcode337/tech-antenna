@@ -71,6 +71,7 @@ services:
       Collection__AutoRun: ${COLLECTION_AUTORUN:-false}
       Books__AutoRun: ${BOOKS_AUTORUN:-false}
       Anthropic__AutoRun: ${SUMMARY_AUTORUN:-false}
+      Digest__AutoRun: ${DIGEST_AUTORUN:-false}
       # 外部 API のキー。未設定ならその収集ジョブが動かないだけで起動はする
       Connpass__ApiKey: ${CONNPASS_API_KEY:-}
       Doorkeeper__AccessToken: ${DOORKEEPER_ACCESS_TOKEN:-}

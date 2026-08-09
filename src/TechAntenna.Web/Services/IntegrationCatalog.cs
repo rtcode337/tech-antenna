@@ -163,14 +163,14 @@ public class IntegrationCatalog(
         // --- 要約・翻訳 ---
         var hasClaudeCode = !string.IsNullOrWhiteSpace(claudeCodeToken);
         integrations.Add(new Integration(
-            IntegrationAxis.Both, "要約・翻訳・語彙の仕分け", "Claude Code(サブスクの枠)", CredentialNeed.Optional, "CLAUDE_CODE_OAUTH_TOKEN",
+            IntegrationAxis.Both, "要約・翻訳・語彙の仕分け・今日のサマリー", "Claude Code(サブスクの枠)", CredentialNeed.Optional, "CLAUDE_CODE_OAUTH_TOKEN",
             hasClaudeCode,
             "`claude setup-token` で発行する。**設定されていると Anthropic API より優先**され、"
             + "従量課金ではなくサブスクリプションの枠を使う"));
         integrations.Add(new Integration(
-            IntegrationAxis.Both, "要約・翻訳・語彙の仕分け", "Anthropic API(従量課金)", CredentialNeed.Optional, "Anthropic__ApiKey",
+            IntegrationAxis.Both, "要約・翻訳・語彙の仕分け・今日のサマリー", "Anthropic API(従量課金)", CredentialNeed.Optional, "Anthropic__ApiKey",
             !string.IsNullOrWhiteSpace(anthropic.Value.ApiKey),
-            "Claude Code のトークンが無いときの代わり。**両方とも未設定なら要約と翻訳のボタンが出ない**"));
+            "Claude Code のトークンが無いときの代わり。**両方とも未設定なら要約・翻訳・今日のサマリーのボタンが出ない**"));
 
         return integrations;
     }

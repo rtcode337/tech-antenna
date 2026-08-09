@@ -235,6 +235,38 @@ public class ClaudeCodeOptions
     public int TimeoutSeconds { get; set; } = 300;
 }
 
+/// <summary>
+/// 今日のサマリー(ダイジェスト)の設定。appsettings の Digest セクションから読む。
+/// LLM の方式とキーは要約と共通(<see cref="AnthropicOptions"/> / <see cref="ClaudeCodeOptions"/>)。
+/// </summary>
+public class DigestOptions
+{
+    public const string SectionName = "Digest";
+
+    /// <summary>定期生成するか。既定(false = 手動のみ)の理由は
+    /// <see cref="CollectionOptions.AutoRun"/> と同じ。</summary>
+    public bool AutoRun { get; set; } = false;
+
+    /// <summary>自動生成の間隔(時間)。既定 12 = 1日2回。</summary>
+    public int IntervalHours { get; set; } = 12;
+
+    /// <summary>「直近の話題」として材料に入れる窓(時間)。生成間隔より広めに取り、
+    /// 窓の境目で取りこぼさないようにする。</summary>
+    public int WindowHours { get; set; } = 48;
+
+    /// <summary>話題度上位として渡す件数(ニュース・記事・話題の論文で等分)。</summary>
+    public int TrendingCount { get; set; } = 12;
+
+    /// <summary>興味トピックに当たる記事として渡す件数。</summary>
+    public int InterestCount { get; set; } = 10;
+
+    /// <summary>これからのイベントとして渡す件数。</summary>
+    public int EventCount { get; set; } = 8;
+
+    /// <summary>イベントを「近い」とみなす日数。</summary>
+    public int EventWindowDays { get; set; } = 14;
+}
+
 /// <summary>connpass API の設定。appsettings の Connpass セクションから読む。</summary>
 public class ConnpassOptions
 {

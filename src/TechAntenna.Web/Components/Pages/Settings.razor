@@ -3,6 +3,7 @@
 @inject ArticleCollectionRunner CollectionRunner
 @inject SummaryRunner SummaryRunner
 @inject TitleTranslationRunner TranslationRunner
+@inject DigestRunner DigestRunner
 
 <PageTitle>設定 - tech-antenna</PageTitle>
 
@@ -26,12 +27,16 @@
     <JobButton Runner="CollectionRunner" FormName="collect-articles" OnRun="Collect" />
     <JobButton Runner="SummaryRunner" FormName="summarize" OnRun="Summarize" />
     <JobButton Runner="TranslationRunner" FormName="translate-titles" OnRun="Translate" />
+    <JobButton Runner="DigestRunner" FormName="compose-digest" OnRun="ComposeDigest" />
 
     <p class="page-note text-muted">
         「トレンドの収集」で<strong>ニュース・記事・話題の論文</strong>(<a href="/recent">トレンド</a>の
         下にあるもの)をまとめて 1 巡します(ブックマーク数の補完も含みます)。
         「記事の要約」は要約がまだ無いものに LLM で要約を付け、
         「論文タイトルの翻訳」は英語タイトルの論文(話題の論文・arXiv)に訳題を付けます。
+        「今日のサマリーの生成」は、収集済みの情報と興味トピックから<strong>押さえておくべき
+        情報のダイジェスト</strong>を LLM で作り、<a href="/">ホーム</a>に出します
+        (<code>Digest__AutoRun=true</code> で 12 時間ごとの自動生成)。
         <strong>選んだトピックで検索して集めるもの</strong>は、それぞれのページにボタンがあります ——
         <a href="/papers">論文</a>・<a href="/events">イベント</a>・<a href="/books">書籍</a>、
         推薦本は<a href="/classics/books">定番 → 書籍</a>、
@@ -73,4 +78,7 @@
 
     void Summarize() =>
         SummaryRunner.StartInBackground(ct => SummaryRunner.RunOnceAsync(ct), JobMessage.Describe);
+
+    void ComposeDigest() =>
+        DigestRunner.StartInBackground(ct => DigestRunner.RunOnceAsync(ct), result => result.Describe());
 }

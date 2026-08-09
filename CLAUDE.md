@@ -47,6 +47,7 @@ docker run --rm -v "$PWD":/src -w /src -e HOME=/tmp mcr.microsoft.com/dotnet/sdk
 | 記事・ニュース・話題の論文の収集 | `Collection:AutoRun` | false | `/settings` |
 | ブックマーク数の補完 | (トレンドの収集に含まれる) | — | `/settings` |
 | 記事の要約 | `Anthropic:AutoRun` | false | `/settings` |
+| 今日のサマリーの生成 | `Digest:AutoRun` | false | `/settings` |
 | 論文(トピック検索)の収集 | `Collection:AutoRun` | false | `/papers` |
 | イベントの収集 | `Collection:AutoRun` | false | `/events` |
 | 書籍の収集 | `Books:AutoRun` | false | `/books` |
@@ -58,7 +59,7 @@ docker run --rm -v "$PWD":/src -w /src -e HOME=/tmp mcr.microsoft.com/dotnet/sdk
 **環境で分岐せず設定値にしている**ので、定期実行を有効にするときは
 `Collection__AutoRun=true` のように環境変数で効く(開発・本番で挙動が変わらない)。
 docker compose では `.env` の `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` /
-`SUMMARY_AUTORUN`(既定 false)がその環境変数に渡る。
+`SUMMARY_AUTORUN` / `DIGEST_AUTORUN`(既定 false)がその環境変数に渡る。
 
 実行の中身は `BackgroundService` ではなく **`JobRunner` の派生クラス**(`Services/`)に
 あり、**定期実行と画面のボタンが同じ経路を通る**。`JobRunner` が `SemaphoreSlim` で
@@ -809,6 +810,26 @@ Claude Code にログイン済みの端末で `claude setup-token` を実行し�
 Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。呼び出しの固定費が
 小さいので記事ごとに1リクエスト。モデルは既定で `claude-opus-5`、コストを抑えたいときは
 `Anthropic__Model` を `claude-haiku-4-5`(入力 $1 / 出力 $5 per MTok)に変えられる。
+
+## 今日のサマリー(ダイジェスト)
+
+ホームの「今日のサマリー」に、**収集済みの情報と興味トピックから LLM がまとめた
+ダイジェスト**(導入 + 数項目)を出す。方式の選び方・キーは要約と共通
+(`IDigestComposer` を `ClaudeCodeDigestComposer` / `AnthropicDigestComposer` が実装)。
+指示文・入力・スキーマ・応答の読み取りは `DigestPrompt` に集約。
+
+- **材料の選別は LLM ではなく `DigestRunner` がやる** —— 直近の話題(トレンドと同じ
+  「話題度の高い順」を種別ごとに数件)、興味トピック(配下込み)に当たる記事、
+  これからのイベントに絞って渡す。全量を渡すとトークンを浪費するうえ、選別の基準
+  (話題度・選択)はデータ側の知識なのでコードに置くほうが検証できる
+- **応答の URL は材料に含めたものしか通さない**(`DigestPrompt.Read`)。LLM が作った
+  URL を画面の `href` に出さないため(`WebUrl` と同じ発想の検証)。項目数も
+  `MaxItems` で打ち切る(指示だけに任せない)
+- **生成履歴は `Digests` テーブルに残し、ホームは最新の1件だけ出す**。生成時刻と方式を
+  画面に出す —— いつの状況のまとめか分からないと鵜呑みにできない
+- 定期生成は `Digest:AutoRun`(既定 false)+ `IntervalHours`(既定 12 = 1日2回)。
+  手動ボタンは `/settings`(トレンド側の LLM ジョブと同じ置き場)。
+  材料が 1 件も無いときは LLM を呼ばずに止まり、ボタンの隣にそう出る
 
 ## 見た目(CSS)
 

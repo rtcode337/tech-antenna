@@ -7,7 +7,9 @@
 ## 状態
 
 **開発初期。** 記事・ニュース・論文・イベント・書籍の収集と一覧表示、タグによる横断、
-PostgreSQL への保存、タグからのトピック一覧生成、LLM による要約と論文タイトルの和訳まで実装済み。
+PostgreSQL への保存、タグからのトピック一覧生成、LLM による要約と論文タイトルの和訳、
+ホームの「今日のサマリー」(収集した情報と興味トピックから LLM が押さえておくべき情報を
+まとめる。1日2回の自動生成にもできる)まで実装済み。
 
 ## 構成
 
@@ -223,9 +225,10 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
   コミットしない
 - TLS は前段のリバースプロキシで終端する前提(コンテナは HTTP のみ待ち受ける)。
   プロキシ配下に置くときは `.env` で `FORWARDED_HEADERS_ENABLED=true`
-- **収集と要約は既定では自動実行しない**(画面のボタンを押したときだけ動く)。
-  外部 API や LLM の無料枠を意図せず使い切らないため。定期実行にするときは `.env` で
-  `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` / `SUMMARY_AUTORUN` を `true` にする
+- **収集も要約も今日のサマリーも、既定では自動実行しない**(画面のボタンを押したときだけ
+  動く)。外部 API や LLM の無料枠を意図せず使い切らないため。定期実行にするときは `.env` で
+  `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` / `SUMMARY_AUTORUN` / `DIGEST_AUTORUN` を
+  `true` にする(サマリーは 12 時間ごと = 1日2回)
 
 ## 開発環境
 

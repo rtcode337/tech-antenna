@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -21,6 +22,8 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
     public DbSet<Tag> Tags => Set<Tag>();
 
     public DbSet<Topic> Topics => Set<Topic>();
+
+    public DbSet<Digest> Digests => Set<Digest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -123,6 +126,31 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
             topic.Property(t => t.DecidedBy).HasConversion<string>().IsRequired();
             topic.HasIndex(t => t.IsSelected);
             topic.HasIndex(t => t.Parent);
+        });
+
+        modelBuilder.Entity<Digest>(digest =>
+        {
+            digest.HasKey(d => d.Id);
+
+            digest.Property(d => d.Lead).IsRequired();
+            digest.Property(d => d.GeneratorName).IsRequired();
+
+            // 「最新の1件」を引くための索引
+            digest.HasIndex(d => d.GeneratedAt);
+
+            // 項目は行を分けず JSON 1 列で持つ。項目単体を検索・集計する予定が無く、
+            // 常にダイジェスト丸ごとで読み書きするため(正規化してもテーブルが増えるだけ)
+            digest.Property(d => d.Items)
+                .HasConversion(
+                    value => JsonSerializer.Serialize(value, (JsonSerializerOptions?)null),
+                    value => JsonSerializer.Deserialize<List<DigestItem>>(
+                        value, (JsonSerializerOptions?)null) ?? new List<DigestItem>(),
+                    new ValueComparer<IReadOnlyList<DigestItem>>(
+                        (a, b) => a != null && b != null && a.SequenceEqual(b),
+                        v => v.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
+                        v => v.ToList()))
+                .HasColumnType("jsonb")
+                .IsRequired();
         });
     }
 

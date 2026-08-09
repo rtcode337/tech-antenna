@@ -1,7 +1,9 @@
 @page "/"
 @using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Models
 @using TechAntenna.Core.Topics
 @inject ITopicStore TopicStore
+@inject IDigestStore DigestStore
 
 <PageTitle>tech-antenna</PageTitle>
 
@@ -19,12 +21,53 @@
                     <p class="eyebrow">DAILY SUMMARY</p>
                     <h2 id="summary-heading">今日のサマリー</h2>
                 </div>
-                <span class="status-pill">準備中</span>
+                @if (_digest is not null)
+                {
+                    @* 生成時刻を出す —— 自動生成(1日2回)でも手動でも、いつの状況の
+                       まとめなのかが分からないと鵜呑みにできない *@
+                    <span class="status-pill">@_digest.GeneratedAt.ToString("M/d HH:mm zzz") 生成</span>
+                }
+                else
+                {
+                    <span class="status-pill">未生成</span>
+                }
             </div>
-            <div class="summary-placeholder">
-                <span aria-hidden="true">✦</span>
-                <p>関心トピックに沿って、いま読むべき記事と近いイベントをここへ届けます。</p>
-            </div>
+            @if (_digest is null)
+            {
+                <div class="summary-placeholder">
+                    <span aria-hidden="true">✦</span>
+                    <p>
+                        収集した情報と興味トピックから、押さえておくべき情報を LLM がまとめます。
+                        <a href="/settings">設定</a>の「今日のサマリーの生成」で作れます
+                        (LLM の設定が必要です。<code>Digest__AutoRun=true</code> で1日2回の自動生成)。
+                    </p>
+                </div>
+            }
+            else
+            {
+                @if (_digest.Lead is { Length: > 0 })
+                {
+                    <p class="digest-lead">@_digest.Lead</p>
+                }
+                <ul class="digest-items list-unstyled">
+                    @foreach (var item in _digest.Items)
+                    {
+                        <li>
+                            <strong>@item.Title</strong>
+                            <p>
+                                @item.Body
+                                @if (item.Url is { Length: > 0 } url)
+                                {
+                                    <a href="@url" target="_blank" rel="noopener">出典 →</a>
+                                }
+                            </p>
+                        </li>
+                    }
+                </ul>
+                <p class="digest-meta">
+                    @_digest.GeneratorName で生成。再生成は<a href="/settings">設定</a>から。
+                </p>
+            }
         </section>
 
     </div>
@@ -65,8 +108,12 @@
 
 @code {
     IReadOnlyList<Topic>? _topics;
+    Digest? _digest;
+
     protected override async Task OnInitializedAsync()
     {
         _topics = (await TopicStore.GetAllAsync()).Take(10).ToList();
+        // 出すのは最新の1件だけ(履歴は保存してあるが、ホームは「いま」に答える場所)
+        _digest = await DigestStore.GetLatestAsync();
     }
 }
