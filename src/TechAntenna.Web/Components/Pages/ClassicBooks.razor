@@ -1,0 +1,87 @@
+@page "/classics/books"
+@using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Models
+@using TechAntenna.Web.Services
+@inject IBookStore BookStore
+@inject ClassicsCollectionRunner CollectionRunner
+
+@* 定番(第三の軸)の子ページ。中身は「読むべき技術書」を挙げた Qiita 記事から
+   名指しされた本を拾ったもの —— 親(/classics)は軸の入口で、一覧はこちらが受け持つ。
+   興味トピック側の /books と違い、**トピックの選択には依存しない** *@
+
+<PageTitle>定番の書籍 - tech-antenna</PageTitle>
+
+<h1>定番の書籍</h1>
+
+<p class="page-note text-muted">
+    「読むべき技術書」を挙げた Qiita 記事(ストック数の多いもの)から、
+    <strong>名指しされた本</strong>を拾います。<strong>トピックの選択には依存しません</strong>
+    —— 選んだトピックで検索して集める本は<a href="/books">興味トピック → 書籍</a>へ。
+</p>
+
+@* 収集はこのページから(トピック選択と無関係なので、書籍の収集とは別ボタン) *@
+<JobButton Runner="CollectionRunner" FormName="collect-classics" OnRun="Collect" />
+
+@if (_books is null)
+{
+    <p>読み込み中…</p>
+}
+else if (_books.Count == 0)
+{
+    <p>まだありません。上の「定番の収集」を実行してください。</p>
+}
+else
+{
+    <p class="text-muted">
+        並びは<strong>薦められている順</strong>(名指しした記事の数)。
+        <strong>@MinRecommendations 本以上の記事で名指しされた本</strong>だけを出します ——
+        1 本だけの推薦は、まとめ記事が網羅的に貼ったリンクも含まれて薄いため。
+    </p>
+
+    <ul class="list-unstyled">
+        @foreach (var book in _books)
+        {
+            <BookItem Book="book" />
+        }
+    </ul>
+
+    @if (_hasReviews)
+    {
+        @* 楽天ウェブサービスのレビューを出すときはクレジット表記が要る(利用規約 Article 13)。
+           指定の HTML は改変不可なので、テキスト版をそのまま置いている *@
+        <p class="credit">
+            <a href="https://developers.rakuten.com/" target="_blank">Supported by Rakuten Developers</a>
+        </p>
+    }
+}
+
+@code {
+    /// <summary>
+    /// 出す推薦記事数の下限(/books の「薦められている本」の強調と同じ理由・同じ値)。
+    /// </summary>
+    const int MinRecommendations = 2;
+
+    /// <summary>読み込む冊数。推薦本は多くても数百なので全量が入る。</summary>
+    const int Limit = 400;
+
+    IReadOnlyList<Book>? _books;
+    bool _hasReviews;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    // バックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
+    void Collect() =>
+        CollectionRunner.StartInBackground(ct => CollectionRunner.RunOnceAsync(ct), JobMessage.Describe);
+
+    async Task LoadAsync()
+    {
+        var books = await BookStore.GetRecentAsync(Limit);
+        // 並びは /books と同じ規則(推薦回数 → 読まれている度)
+        _books = books
+            .Where(book => book.RecommendationCount >= MinRecommendations)
+            .ByPopularity()
+            .ToList();
+        // クレジット表記は楽天のデータを実際に出しているときだけ置く
+        _hasReviews = _books.Any(book => book.ReviewCount is > 0);
+    }
+}

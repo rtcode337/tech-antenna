@@ -66,9 +66,10 @@ else
         </form>
         <p>
             チェックボックスで収集したいトピックを選び、「選択を保存」を押してください。
-            <strong>親を選ぶと配下もまとめて収集対象になります</strong>
-            （子だけを外すことはできません。イベント・書籍はトピック 1 つごとに
-            外部へ問い合わせるため、大きな親を選ぶとリクエスト数も増えます）。
+            <strong>外部へ検索しに行くのは選んだトピックだけ</strong>です
+            （イベント・書籍・論文はトピック 1 つごとに外部へ問い合わせるため、
+            配下までは検索しません）。親を選ぶと、<strong>配下のトピックは
+            興味トピック側の表示と一覧の強調に含まれます</strong>。
         </p>
     </div>
 
@@ -611,21 +612,20 @@ else
     }
 
     /// <summary>
-    /// 収集対象を保存する。**親を選んだら配下のトピックも選択に含める**
-    /// (`TopicCatalog.ExpandWithDescendants`)。画面側でも JS がチェックを配下へ広げるが、
-    /// **保存の正体はこちら** —— JS が動かない環境でも同じ結果になるようにしてある。
+    /// 収集対象を保存する。**チェックした分だけを保存し、配下へは広げない** ——
+    /// イベント・書籍・論文はトピック 1 つごとに外部へ問い合わせるので、配下まで広げると
+    /// 大きな親を選んだだけでリクエスト数が跳ねる。配下のトピックは収集ではなく
+    /// **表示側**(興味トピックの一覧・カードの強調)が `ExpandWithDescendants` で拾う。
     /// </summary>
     async Task SaveSelectionAsync()
     {
         var checkedTags = SelectedTopics ?? [];
-        var selected = Catalog.ExpandWithDescendants(checkedTags);
-        await TopicStore.UpdateSelectionAsync(selected);
+        await TopicStore.UpdateSelectionAsync(checkedTags);
 
-        var added = selected.Count - checkedTags.Length;
-        _selectionMessage = selected.Count == 0
+        _selectionMessage = checkedTags.Length == 0
             ? "収集対象を空にしました（このままでは何も集まりません）。"
-            : $"{selected.Count} 件のトピックを収集対象にしました。"
-                + (added > 0 ? $"（うち {added} 件は選んだ親の配下）" : "");
+            : $"{checkedTags.Length} 件のトピックを収集対象にしました"
+                + "（配下のトピックは検索せず、表示と強調にだけ含まれます）。";
         await LoadAsync();
     }
 }

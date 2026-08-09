@@ -1,8 +1,11 @@
 @page "/events"
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
+@using TechAntenna.Core.Topics
 @using TechAntenna.Web.Services
 @inject IEventStore EventStore
+@inject ITopicStore TopicStore
+@inject TopicCatalog Catalog
 @inject EventCollectionRunner CollectionRunner
 @inject TimeProvider Clock
 
@@ -19,10 +22,16 @@
 }
 else if (_events.Count == 0)
 {
-    <p>まだイベントがありません。connpass の API キーが設定されているか確認してください。</p>
+    <p>まだイベントがありません。<a href="/topics">設定 → トピック</a>でトピックを選んでいるか、
+        connpass の API キーが設定されているかを確認してください。</p>
 }
 else
 {
+    <p class="text-muted">
+        <strong>収集対象に選んだトピック（配下のトピックを含む）</strong>のイベントだけを、
+        開催日順に出しています。
+    </p>
+
     <ul class="list-unstyled">
         @foreach (var techEvent in _events)
         {
@@ -53,5 +62,15 @@ else
     void Collect() =>
         CollectionRunner.StartInBackground(ct => CollectionRunner.RunOnceAsync(ct), JobMessage.Describe);
 
-    async Task LoadAsync() => _events = await EventStore.GetUpcomingAsync(Clock.GetUtcNow(), 50);
+    async Task LoadAsync()
+    {
+        // 出すのは収集対象に選んだトピック(配下込み)のものだけ ——
+        // 選択を外したトピックで過去に集めたイベントは、消さずに表示から外れるだけ
+        var selected = Catalog
+            .ExpandWithDescendants((await TopicStore.GetSelectedAsync()).Select(topic => topic.Key))
+            .ToHashSet(StringComparer.Ordinal);
+        _events = (await EventStore.GetUpcomingAsync(Clock.GetUtcNow(), 50))
+            .Where(techEvent => techEvent.Tags.Any(selected.Contains))
+            .ToList();
+    }
 }

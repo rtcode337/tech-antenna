@@ -1,0 +1,45 @@
+/* 冒頭の説明文。本文より一段落として読み幅を抑える(他のページと同じ扱い) */
+.page-note {
+    max-width: 62rem;
+    font-size: 0.89rem;
+}
+
+/* 子ページへの入口。興味トピックのハブ(.interest-links)と同じ文法(面 + 左帯)でそろえる */
+.classic-links {
+    display: grid;
+    gap: 0.5rem;
+    max-width: 62rem;
+}
+
+.classic-links li {
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.classic-links li:hover {
+    border-color: var(--border-strong);
+    border-left-color: var(--accent);
+    box-shadow: var(--shadow);
+}
+
+.classic-links a {
+    display: block;
+    color: var(--text);
+    font-weight: 650;
+}
+
+.classic-links a:hover {
+    color: var(--accent);
+}
+
+.classic-links span {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 0.86rem;
+    line-height: 1.6;
+}

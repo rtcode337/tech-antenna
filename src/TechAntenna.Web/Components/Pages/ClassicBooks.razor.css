@@ -1,0 +1,12 @@
+/* 冒頭の説明(収集の前提)。本文より一段落として読み幅を抑える */
+.page-note {
+    max-width: 62rem;
+    margin-bottom: 1rem;
+    font-size: 0.89rem;
+}
+
+.credit {
+    margin-top: 1.5rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}

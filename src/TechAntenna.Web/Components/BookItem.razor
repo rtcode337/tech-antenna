@@ -2,9 +2,11 @@
 @using TechAntenna.Core.Topics
 @inject TopicCatalog Catalog
 
-@* 1冊分の表示。/books(トピックの折りたたみと「薦められている本」の枠)と
-   /classics(定番)で同じものを使う —— 別々に書くと本の見た目がページごとにずれる。
-   CurrentTag はその見出しのトピック(同じ名前をタグとして繰り返さないため)。
+@* 1冊分の表示。/books(トピックの折りたたみ)と /classics/books(定番の書籍)で
+   同じものを使う —— 別々に書くと本の見た目がページごとにずれる。
+   タグは全部出し、HighlightTags に入っているものだけ強調する(記事カードの
+   「選んだトピックのタグ」と同じ文法)—— /books は配下のトピックを親のグループへ
+   まとめるので、どのタグでそのグループに載ったのかがタグの帯から分かるようにする。
    EmphasizeRecommended はトピックの中で推薦本を目立たせるか ——
    推薦本だけを並べる枠では全冊が該当して意味を成さないので切る *@
 <li class="mb-3 d-flex gap-2 @(EmphasizeRecommended && Book.RecommendationCount > 0 ? "recommended-book" : "")">
@@ -47,9 +49,9 @@
                     <span class="text-muted">(@reviewCount 件)</span>
                 </span>
             }
-            @foreach (var tag in Book.Tags.Where(tag => tag != CurrentTag))
+            @foreach (var tag in Book.Tags)
             {
-                <span class="badge bg-light text-dark ms-1">@Catalog.DisplayOf(tag)</span>
+                <span class="badge ms-1 @(HighlightTags.Contains(tag) ? "bg-primary" : "bg-light text-dark")">@Catalog.DisplayOf(tag)</span>
             }
         </small>
     </div>
@@ -59,9 +61,12 @@
     [Parameter, EditorRequired]
     public Book Book { get; set; } = default!;
 
-    /// <summary>その見出しのトピック(タグの帯から除く)。枠がトピックでなければ空。</summary>
+    /// <summary>
+    /// 強調するタグ(正規化済みキー)。/books では「そのグループに反応したタグ」
+    /// (グループのトピック+配下)が入る。空なら全タグを控えめに出すだけ。
+    /// </summary>
     [Parameter]
-    public string CurrentTag { get; set; } = "";
+    public IReadOnlySet<string> HighlightTags { get; set; } = new HashSet<string>();
 
     /// <summary>推薦本を左帯 + 薄い面で目立たせるか。</summary>
     [Parameter]

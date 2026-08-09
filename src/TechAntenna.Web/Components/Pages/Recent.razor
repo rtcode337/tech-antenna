@@ -96,8 +96,9 @@ else
         }
 
         _sections = sections;
-        _selected = (await TopicStore.GetSelectedAsync())
-            .Select(topic => topic.Key)
+        // ★の判定は配下込み —— 親(AI)を選んだ人にとって、子(LLM・RAG)の記事も興味の範囲
+        _selected = Catalog
+            .ExpandWithDescendants((await TopicStore.GetSelectedAsync()).Select(topic => topic.Key))
             .ToHashSet(StringComparer.Ordinal);
     }
 

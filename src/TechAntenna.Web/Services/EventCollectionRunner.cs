@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using TechAntenna.Core.Abstractions;
+using TechAntenna.Core.Topics;
 
 namespace TechAntenna.Web.Services;
 
@@ -8,6 +9,7 @@ public class EventCollectionRunner(
     IEnumerable<IEventSource> sources,
     IEventStore store,
     ITopicStore topicStore,
+    TopicCatalog catalog,
     TagObserver tagObserver,
     IOptions<CollectionOptions> options,
     ILogger<EventCollectionRunner> logger) : JobRunner
@@ -27,9 +29,11 @@ public class EventCollectionRunner(
         // 収集先へ同時アクセスしないよう、並列化せず1本ずつ間隔を空けて読む
         var delay = TimeSpan.FromSeconds(options.Value.DelayBetweenSourcesSeconds);
         // connpass と Doorkeeper は選択トピックを検索語として自分で引くが、TECH PLAY の RSS は
-        // 検索できないため、ここで絞る。比べる相手はイベントの正規化済みタグなのでキーを使う
-        var selectedTags = (await topicStore.GetSelectedAsync(cancellationToken))
-            .Select(topic => topic.Key).ToList();
+        // 検索できないため、ここで絞る。比べる相手はイベントの正規化済みタグなのでキーを使う。
+        // **絞りは配下込み** —— 検索語を配下へ広げないのはリクエスト数の話で、巡回で
+        // 流れてきた分まで捨てると、表示対象(選んだトピック+配下)のイベントが入らなくなる
+        var selectedTags = catalog.ExpandWithDescendants(
+            (await topicStore.GetSelectedAsync(cancellationToken)).Select(topic => topic.Key));
         if (selectedTags.Count == 0)
         {
             return CollectionRunResult.Nothing;

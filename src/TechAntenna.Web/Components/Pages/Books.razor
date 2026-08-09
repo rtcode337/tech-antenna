@@ -4,6 +4,7 @@
 @using TechAntenna.Core.Topics
 @using TechAntenna.Web.Services
 @inject IBookStore BookStore
+@inject ITopicStore TopicStore
 @inject TopicCatalog Catalog
 @inject BookCollectionRunner CollectionRunner
 
@@ -20,18 +21,21 @@
 }
 else if (_groups.Count == 0)
 {
-    <p>まだ書籍がありません。「設定」でトピックを選んでから「書籍の収集」を実行してください。</p>
+    <p>まだ書籍がありません。<a href="/topics">設定 → トピック</a>でトピックを選んでから
+        「書籍の収集」を実行してください。</p>
 }
 else
 {
     <p class="text-muted">
-        トピックごとにまとめています。トピック名を押すと開きます。
+        <strong>収集対象に選んだトピックごと</strong>にまとめています。トピック名を押すと開きます。
+        <strong>配下のトピックの本は親のグループにまとめて</strong>出し、
+        タグのうち<strong>そのグループに反応したもの</strong>を青いバッジで強調しています。
         複数のトピックで見つかった本は、そのすべてに出ます。
         並びは<strong>薦められている順</strong>(記事で名指しされた回数)、次に
         <strong>読まれている順</strong>(レビュー件数と平均評価から算出)です。
         どちらも取れていない本は後ろに置いています。
         記事で薦められている本は、トピックの中でも<strong>強調</strong>しています
-        (トピックに関係なく薦められている定番は<a href="/classics">定番</a>のページへ)。
+        (トピックに関係なく薦められている定番は<a href="/classics/books">定番 → 書籍</a>へ)。
     </p>
 
     @* 記事で薦められた本の枠はここには無い —— 第三の軸として /classics(定番)へ移した。
@@ -47,7 +51,7 @@ else
             <ul class="list-unstyled">
                 @foreach (var book in group.Books)
                 {
-                    <BookItem Book="book" CurrentTag="@group.Tag" EmphasizeRecommended="true" />
+                    <BookItem Book="book" HighlightTags="group.Subtree" EmphasizeRecommended="true" />
                 }
             </ul>
         </details>
@@ -79,41 +83,43 @@ else
     async Task LoadAsync()
     {
         var books = await BookStore.GetRecentAsync(Limit);
-        _groups = Group(books);
+        _groups = Group(books, await TopicStore.GetSelectedAsync());
         // クレジット表記は楽天のデータを実際に出しているときだけ置く
-        _hasReviews = books.Any(book => book.ReviewCount is > 0);
+        _hasReviews = _groups.SelectMany(group => group.Books).Any(book => book.ReviewCount is > 0);
     }
 
     /// <summary>
-    /// 本をトピックごとに振り分ける。**1冊が複数のトピックに出る**(タグの数だけ重複して並ぶ)
-    /// —— 収集も「AI でも LLM でも当たる本」をどちらのタグでも持たせているため。
-    /// 中は<b>読まれている順</b>(<see cref="BookPopularity"/>)。タグが1つも無い本は
-    /// 最後の「トピックなし」にまとめる(取りこぼしを見えるようにする)。
+    /// 本をトピックごとに振り分ける。**グループは収集対象に選んだトピックの分だけ**で、
+    /// **配下のトピックのタグしか持たない本も親のグループへまとめる**(グループを
+    /// 配下のトピックごとに割ると、AI を選んだだけで LLM・RAG… と小さな見出しが並ぶ)。
+    /// どのタグで載ったのかは、本のタグの帯の強調(<see cref="BookItem.HighlightTags"/>)で分かる。
+    /// **1冊が複数のグループに出る**のは従来どおり(親と子を両方選んでいれば両方に出る)。
+    /// 中は<b>読まれている順</b>(<see cref="BookPopularity"/>)。選択を外したトピックで
+    /// 過去に集めた本や、タグの無い本(推薦で拾った本に多い)はこのページには出さない
+    /// (トピックに寄らない推薦は /classics/books の担当)。
     /// </summary>
-    IReadOnlyList<TopicGroup> Group(IReadOnlyList<Book> books)
-    {
-        var groups = books
-            .SelectMany(book => book.Tags.Select(tag => (Tag: tag, Book: book)))
-            .GroupBy(pair => pair.Tag, StringComparer.Ordinal)
-            .Select(g => new TopicGroup(
-                g.Key, Catalog.DisplayOf(g.Key), g.Select(pair => pair.Book).ByPopularity().ToList()))
+    IReadOnlyList<TopicGroup> Group(IReadOnlyList<Book> books, IReadOnlyList<SelectedTopic> selected) =>
+        selected
+            .Select(topic =>
+            {
+                // そのトピック自身 + 配下のキー。本のタグとの突き合わせにも、
+                // 「反応したタグ」の強調にも同じ集合を使う
+                var subtree = Catalog.DescendantKeysOf(topic.Key)
+                    .Prepend(topic.Key)
+                    .ToHashSet(StringComparer.Ordinal);
+
+                return new TopicGroup(
+                    topic.Key,
+                    Catalog.DisplayOf(topic.Key),
+                    subtree,
+                    books.Where(book => book.Tags.Any(subtree.Contains)).ByPopularity().ToList());
+            })
+            .Where(group => group.Books.Count > 0)
             .OrderByDescending(group => group.Books.Count)
             .ThenBy(group => group.Display, StringComparer.Ordinal)
             .ToList();
 
-        // 推薦で拾った本はタグを持たないことが多いが、あれは /classics(定番)の担当
-        var untagged = books
-            .Where(book => book.Tags.Count == 0 && book.RecommendationCount == 0)
-            .ByPopularity()
-            .ToList();
-        if (untagged.Count > 0)
-        {
-            groups.Add(new TopicGroup("", "トピックなし", untagged));
-        }
-
-        return groups;
-    }
-
-    /// <summary>トピック1つぶんの見出しと中身。</summary>
-    record TopicGroup(string Tag, string Display, IReadOnlyList<Book> Books);
+    /// <summary>トピック1つぶんの見出しと中身。Subtree はトピック自身+配下のキー。</summary>
+    record TopicGroup(
+        string Tag, string Display, IReadOnlySet<string> Subtree, IReadOnlyList<Book> Books);
 }

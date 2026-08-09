@@ -73,14 +73,23 @@ else if (_articles.Count == 0)
 else
 {
     <p class="text-muted">
-        新着順に並べています。流れてきたものはすべて保存しています。
-        @if (_selected.Count > 0)
+        @if (_kind == ArticleKind.Paper)
         {
-            <text>選んだトピック(@string.Join("・", _selected.Select(Catalog.DisplayOf)))のものは<strong>強調</strong>しています。</text>
+            <text>新着順に並べています。<strong>収集対象に選んだトピック（配下のトピックを
+                含む）のものだけ</strong>を出しています。</text>
         }
         else
         {
-            <text><a href="/topics">設定 → トピック</a>でトピックを選ぶと、そのトピックのものが強調されます。</text>
+            <text>新着順に並べています。流れてきたものはすべて保存しています。</text>
+            @if (_selectedDisplays.Count > 0)
+            {
+                <text>選んだトピック(@string.Join("・", _selectedDisplays))のものは、
+                    配下のトピックも含めて<strong>強調</strong>しています。</text>
+            }
+            else
+            {
+                <text><a href="/topics">設定 → トピック</a>でトピックを選ぶと、そのトピックのものが強調されます。</text>
+            }
         }
     </p>
 
@@ -99,6 +108,11 @@ else
     ArticleKind _kind = ArticleKind.Article;
     string _title = "記事";
     IReadOnlyList<Article>? _articles;
+
+    /// <summary>収集対象に<b>明示的に</b>選んだトピックの表記。文言で列挙する用(配下まで並べると読めない)。</summary>
+    IReadOnlyList<string> _selectedDisplays = [];
+
+    /// <summary>選んだトピック+その配下のキー。強調(★)と /papers の絞り込みに使う。</summary>
     HashSet<string> _selected = new(StringComparer.Ordinal);
 
     protected override async Task OnInitializedAsync()
@@ -123,15 +137,25 @@ else
 
     async Task LoadAsync()
     {
+        var selected = await TopicStore.GetSelectedAsync();
+        _selectedDisplays = selected.Select(topic => topic.Display).ToList();
+        // 強調と絞り込みは配下込み —— 親(AI)を選んだ人にとって、子(LLM・RAG)も興味の範囲
+        _selected = Catalog
+            .ExpandWithDescendants(selected.Select(topic => topic.Key))
+            .ToHashSet(StringComparer.Ordinal);
+
         // **種別ページは全部**新着順**で統一**(話題度は並びではなくカードの強調に出す)。
         // 「話題度の高い順」はトレンド(/recent)の担当 —— 同じ一覧が2つの並びを持つと、
         // どちらを見ているのか分からなくなる
-        _articles = await ArticleStore.GetRecentAsync(Limit, _kind);
-        _selected = (await TopicStore.GetSelectedAsync())
-            .Select(topic => topic.Key)
-            .ToHashSet(StringComparer.Ordinal);
+        var articles = await ArticleStore.GetRecentAsync(Limit, _kind);
+
+        // 興味トピック側(/papers)だけは選んだトピック(配下込み)のものに絞る ——
+        // トレンド側(/news・/articles・/trending-papers)は選択に関係なく全部出す
+        _articles = _kind == ArticleKind.Paper
+            ? articles.Where(article => article.Tags.Any(_selected.Contains)).ToList()
+            : articles;
     }
 
-    /// <summary>選んだトピックの記事か。強調するかどうかの判定にだけ使う(収集では絞らない)。</summary>
+    /// <summary>選んだトピック(配下込み)の記事か。強調するかどうかの判定にだけ使う(収集では絞らない)。</summary>
     bool IsSelected(Article article) => article.Tags.Any(_selected.Contains);
 }
