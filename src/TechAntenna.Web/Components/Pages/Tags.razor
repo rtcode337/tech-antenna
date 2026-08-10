@@ -331,7 +331,7 @@ else
 
         if (tag.Status == TagStatus.Unresolved && tag.RetryAfter is { } retry)
         {
-            parts.Add($"{retry.ToLocalTime():MM-dd HH:mm} に再挑戦");
+            parts.Add($"{JapanTime.FormatShort(retry)} に再挑戦");
         }
 
         return string.Join(" / ", parts);

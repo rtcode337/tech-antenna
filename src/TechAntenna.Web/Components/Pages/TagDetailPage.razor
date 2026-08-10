@@ -42,7 +42,7 @@ else if (_tag is { } tag)
                 }
             </dd>
             <dt>出どころ</dt>
-            <dd>@DecidedByLabel(tag.DecidedBy)@(tag.DecidedAt is { } at ? $"（{at.ToLocalTime():yyyy-MM-dd HH:mm}）" : "")</dd>
+            <dd>@DecidedByLabel(tag.DecidedBy)@(tag.DecidedAt is { } at ? $"（{JapanTime.FormatCompact(at)}）" : "")</dd>
             <dt>付いている件数</dt>
             <dd>記事 @tag.ArticleCount / イベント @tag.EventCount / 書籍 @tag.BookCount</dd>
             @if (tag.TrendScore > 0)
@@ -51,7 +51,7 @@ else if (_tag is { } tag)
                 <dd>@tag.TrendScore.ToString("0.0")（@tag.SourceCount ソース）</dd>
             }
             <dt>見かけた時期</dt>
-            <dd>@tag.FirstSeenAt.ToLocalTime().ToString("yyyy-MM-dd") 〜 @tag.LastSeenAt.ToLocalTime().ToString("yyyy-MM-dd")</dd>
+            <dd>@JapanTime.FormatDate(tag.FirstSeenAt) 〜 @JapanTime.FormatDate(tag.LastSeenAt)</dd>
         </dl>
 
         @if (tag.Status == TagStatus.Alias && tag.TopicKey is { Length: > 0 } aliasTarget)
@@ -72,7 +72,7 @@ else if (_tag is { } tag)
         else if (tag.Status == TagStatus.Unresolved && tag.RetryAfter is { } retry)
         {
             <p class="text-muted">
-                LLM が判断できなかった語です。@retry.ToLocalTime().ToString("yyyy-MM-dd") 以降の仕分けで
+                LLM が判断できなかった語です。@JapanTime.FormatDate(retry) 以降の仕分けで
                 もう一度聞きます。
             </p>
         }
@@ -131,7 +131,7 @@ else
                     <a href="@techEvent.Url" target="_blank" rel="noopener">@techEvent.Title</a>
                     <br />
                     <small class="text-muted">
-                        @techEvent.StartsAt.ToString("yyyy-MM-dd HH:mm zzz")
+                        @JapanTime.Format(techEvent.StartsAt)
                         — @(techEvent.IsOnline ? "オンライン" : techEvent.Venue ?? "会場未定")
                     </small>
                 </li>

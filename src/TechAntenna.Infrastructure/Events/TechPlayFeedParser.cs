@@ -26,7 +26,7 @@ public static class TechPlayFeedParser
     static readonly XNamespace Tp = "https://rss.techplay.jp/";
 
     /// <summary>tp: の日時には時差の表記が無く、日本時間で書かれている。</summary>
-    static readonly TimeSpan Jst = TimeSpan.FromHours(9);
+    static readonly TimeSpan Jst = JapanTime.Offset;
 
     /// <summary>tp: の日時に現れる形式。時刻が無い <c>eventDate</c> も同じ経路で読む。</summary>
     static readonly string[] DateTimeFormats =

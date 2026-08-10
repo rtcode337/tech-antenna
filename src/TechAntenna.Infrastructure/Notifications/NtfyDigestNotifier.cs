@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TechAntenna.Core;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Models;
 
@@ -55,7 +56,7 @@ public class NtfyDigestNotifier(
             Content = JsonContent.Create(new
             {
                 topic = target.Topic,
-                title = $"今日のサマリー({digest.GeneratedAt:M/d HH:mm} 生成)",
+                title = $"今日のサマリー({JapanTime.FormatShort(digest.GeneratedAt)} 生成)",
                 message = BuildMessage(digest),
                 tags = new[] { "newspaper" },
                 // click はホームの URL(設定されているときだけ)。アプリは自分の公開 URL を

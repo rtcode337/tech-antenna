@@ -55,8 +55,9 @@ public class DoorkeeperEventSource(
         {
             var keyword = activeKeywords[i];
 
-            // 過ぎたイベントを拾わないよう、今日以降に絞る
-            var since = collectedAt.UtcDateTime.ToString("yyyy-MM-dd");
+            // 過ぎたイベントを拾わないよう、今日以降に絞る(「今日」は開催地の日本時間で数える
+            // —— UTC の日付だと日本の朝 9 時までは前日として問い合わせることになる)
+            var since = JapanTime.FormatDate(collectedAt);
             var requestUri =
                 $"https://api.doorkeeper.jp/events?q={Uri.EscapeDataString(keyword)}"
                 + $"&since={since}&sort=starts_at";

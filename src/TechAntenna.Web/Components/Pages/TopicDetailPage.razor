@@ -1,4 +1,5 @@
 @page "/topics/{Tag}"
+@using TechAntenna.Core
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
 @using TechAntenna.Core.Topics
@@ -190,7 +191,7 @@ else
                     <a href="@techEvent.Url" target="_blank" rel="noopener">@techEvent.Title</a>
                     <br />
                     <small class="text-muted">
-                        @techEvent.StartsAt.ToString("yyyy-MM-dd HH:mm zzz")
+                        @JapanTime.Format(techEvent.StartsAt)
                         — @(techEvent.IsOnline ? "オンライン" : techEvent.Venue ?? "会場未定")
                     </small>
                 </li>

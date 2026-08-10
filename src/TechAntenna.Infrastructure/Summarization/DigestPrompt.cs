@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using TechAntenna.Core;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Models;
 
@@ -60,7 +61,8 @@ public static class DigestPrompt
             foreach (var techEvent in materials.UpcomingEvents)
             {
                 builder.AppendLine(
-                    $"- {techEvent.StartsAt:yyyy-MM-dd HH:mm} {techEvent.Title}"
+                    // 日時は JST で渡す(LLM が本文に書き写すので、UTC のままだと読者と 9 時間ずれる)
+                    $"- {JapanTime.Format(techEvent.StartsAt)} {techEvent.Title}"
                     + $"({(techEvent.IsOnline ? "オンライン" : techEvent.Venue ?? "会場未定")})"
                     + $" URL: {techEvent.Url}");
             }

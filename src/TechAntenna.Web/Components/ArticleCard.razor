@@ -1,3 +1,4 @@
+@using TechAntenna.Core
 @using TechAntenna.Core.Models
 
 @* 記事1件ぶんのカード。トレンド(/recent)と種別ごとの一覧(記事・ニュース・論文)で
@@ -43,7 +44,8 @@
         @Article.SourceName
         @if (Article.PublishedAt is { } publishedAt)
         {
-            <text> — @publishedAt.ToString("yyyy-MM-dd HH:mm zzz")</text>
+            @* 収集元によって時差がまちまちなので、表示は JapanTime で JST にそろえる *@
+            <text> — @JapanTime.Format(publishedAt)</text>
         }
         @* 興味のあるトピックのタグだけ色を変える(なぜ★が付いているかが分かるように) *@
         @foreach (var tag in Article.Tags)

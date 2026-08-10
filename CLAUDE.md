@@ -872,6 +872,28 @@ Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。�
   (既定 4096 バイト)に収まるよう `MaxMessageChars` で切る。
   `Ntfy__ClickUrl`(任意)を設定すると、通知のタップでホームが開く
 
+## 日時の表示(JST)
+
+**人に見せる日時はすべて日本時間**。保存と比較は UTC のままで、**表示の直前だけ
+`JapanTime`(Core)を通す**。`ToLocalTime()` と `DateTime.Now`、書式の直書きは使わない。
+
+- **収集元の `DateTimeOffset` は元の時差を持ったまま入ってくる。** そのまま書式化すると
+  1つの一覧に `+00:00` と `+09:00` と `-05:00` が混ざる(実際そうなっていた)
+- **`ToLocalTime()` は実行環境の TZ 次第**で、compose(`TZ=Asia/Tokyo`)と開発ホストで
+  表示がずれる。`TZ` はログを読みやすくするために渡しているだけで、**画面の正しさを
+  そこに依存させない**
+- 時差は `TimeZoneInfo` ではなく**固定の +09:00**(`JapanTime.Offset`)。JST に夏時間は無く、
+  タイムゾーン DB を引かないぶんコンテナに tzdata が無くても壊れない
+- 書式は `Format`(`2026-08-10 21:30 JST`)/ `FormatShort`(`8/10 21:30 JST`)/
+  `FormatDate` / `FormatCompact`(ゾーンの字を落とす。何百行と並ぶ表の列用)/
+  `FormatStamp`(ファイル名)。**`CultureInfo.InvariantCulture` で書式化する** ——
+  和暦の環境で同じ画面の日時が揃わなくなるため
+- **画面以外にも効く。** ntfy の通知タイトル、**LLM への入力**(`DigestPrompt` の
+  イベント日時。LLM は渡した時刻を本文に書き写すので、UTC のまま渡すと読者と 9 時間ずれる)、
+  語彙の持ち出しファイル名も JST
+- **「今日」の境界も JST で数える。** Doorkeeper の `since` は開催地の日付で問い合わせる
+  (UTC の日付だと日本の朝 9 時までは前日を指す)
+
 ## 見た目(CSS)
 
 **Bootstrap は使っていない。** Blazor の雛形が入れた

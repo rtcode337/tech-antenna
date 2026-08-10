@@ -135,7 +135,8 @@ erDiagram
 
 ## 横断的な決めごと
 
-- **日時はすべて `timestamp with time zone`(UTC で保存)**。画面に出すときだけローカルへ直す
+- **日時はすべて `timestamp with time zone`(UTC で保存)**。人に見せるときだけ
+  日本時間へ直す(`JapanTime`。実行環境の TZ には依存させない。CLAUDE.md「日時の表示」)
 - **`Tags` / `RawTags` / `Authors` / `RecommendedBy` は `text[]`**。C# の
   `IReadOnlyList<string>` と値変換でつないでいる。**この変換のせいで LINQ から翻訳できず、
   タグごとの件数集計だけ生 SQL**(PostgreSQL の `unnest`)で書いてある

@@ -1,4 +1,5 @@
 @page "/"
+@using TechAntenna.Core
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
 @using TechAntenna.Core.Topics
@@ -25,7 +26,7 @@
                 {
                     @* 生成時刻を出す —— 自動生成(1日2回)でも手動でも、いつの状況の
                        まとめなのかが分からないと鵜呑みにできない *@
-                    <span class="status-pill">@_digest.GeneratedAt.ToString("M/d HH:mm zzz") 生成</span>
+                    <span class="status-pill">@JapanTime.FormatShort(_digest.GeneratedAt) 生成</span>
                 }
                 else
                 {

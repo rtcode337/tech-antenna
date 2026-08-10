@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using TechAntenna.Core;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Topics;
 using TechAntenna.Infrastructure;
@@ -450,7 +451,7 @@ app.MapGet("/export/topics.json", async (
     return Results.File(
         json,
         "application/json",
-        $"tech-antenna-topics-{clock.GetUtcNow():yyyyMMdd-HHmm}.json");
+        $"tech-antenna-topics-{JapanTime.FormatStamp(clock.GetUtcNow())}.json");
 });
 
 app.MapRazorComponents<App>()
