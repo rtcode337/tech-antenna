@@ -4,6 +4,10 @@
 @inject SummaryRunner SummaryRunner
 @inject TitleTranslationRunner TranslationRunner
 @inject DigestRunner DigestRunner
+@inject PaperCollectionRunner PaperRunner
+@inject EventCollectionRunner EventRunner
+@inject BookCollectionRunner BookRunner
+@inject ClassicsCollectionRunner ClassicsRunner
 @inject ApiCredentials Credentials
 @inject Microsoft.Extensions.Options.IOptions<CollectionOptions> CollectionOptions
 @inject Microsoft.Extensions.Options.IOptions<BooksOptions> BooksOptions
@@ -18,9 +22,11 @@
    1ページに詰めると目的の操作へ辿り着けない)。ここは入口と、手動実行のボタンを持つ。
    サイドバーからも同じページへ直接行ける *@
 
-@* **トレンド側の収集はここに集める。** 一覧を見ている画面にジョブのボタンを置くと、
-   読みに来た人が押す場所と、集め直したい人が探す場所が混ざる。
-   興味トピック側(論文・イベント・書籍)は<b>トピックの選択と地続き</b>なので各ページに残す *@
+@* **ジョブのボタンはすべてここに集める。** 一覧を見ている画面にボタンを置くと、
+   読みに来た人が押す場所と、集めなおしたい人が探す場所が混ざる —— 各ページには
+   `CollectionHint` でここへの導線を出す。
+   並びは**サイドバーと同じ順**(ホーム → トレンド → 興味トピック → 定番)にして、
+   「どの画面のものを集めるボタンか」を見出しで引けるようにしてある *@
 <section class="jobs" aria-labelledby="jobs-heading">
     <h2 id="jobs-heading" class="h5">手動で集めなおす</h2>
     <p class="page-note text-muted">
@@ -29,22 +35,43 @@
         押すとバックグラウンドで走り、進捗がボタンの隣に出ます。
     </p>
 
+    <h3>ホーム</h3>
+    <JobButton Runner="DigestRunner" FormName="compose-digest" OnRun="ComposeDigest" />
+    <p class="page-note text-muted">
+        収集済みの情報と興味トピックから<strong>押さえておくべき情報のダイジェスト</strong>を
+        LLM で作り、<a href="/">ホーム</a>の「今日のサマリー」に出します。
+    </p>
+
+    <h3>トレンド</h3>
     <JobButton Runner="CollectionRunner" FormName="collect-articles" OnRun="Collect" />
     <JobButton Runner="SummaryRunner" FormName="summarize" OnRun="Summarize" />
     <JobButton Runner="TranslationRunner" FormName="translate-titles" OnRun="Translate" />
-    <JobButton Runner="DigestRunner" FormName="compose-digest" OnRun="ComposeDigest" />
-
     <p class="page-note text-muted">
         「トレンドの収集」で<strong>ニュース・記事・話題の論文</strong>(<a href="/recent">トレンド</a>の
         下にあるもの)をまとめて 1 巡します(ブックマーク数の補完も含みます)。
+        <strong>トピックの選択には依存しません</strong>。
         「記事の要約」は要約がまだ無いものに LLM で要約を付け、
         「論文タイトルの翻訳」は英語タイトルの論文(話題の論文・arXiv)に訳題を付けます。
-        「今日のサマリーの生成」は、収集済みの情報と興味トピックから<strong>押さえておくべき
-        情報のダイジェスト</strong>を LLM で作り、<a href="/">ホーム</a>に出します。
-        <strong>選んだトピックで検索して集めるもの</strong>は、それぞれのページにボタンがあります ——
-        <a href="/papers">論文</a>・<a href="/events">イベント</a>・<a href="/books">書籍</a>、
-        推薦本は<a href="/classics/books">定番 → 書籍</a>、
-        語彙の整理は<a href="/topics">トピック</a>の「話題度を取り直す」「タグを仕分けなおす」です。
+    </p>
+
+    <h3>興味トピック</h3>
+    <JobButton Runner="PaperRunner" FormName="collect-papers" OnRun="CollectPapers" />
+    <JobButton Runner="EventRunner" FormName="collect-events" OnRun="CollectEvents" />
+    <JobButton Runner="BookRunner" FormName="collect-books" OnRun="CollectBooks" />
+    <p class="page-note text-muted">
+        <strong>収集対象に選んだトピックを検索語</strong>にして外部へ問い合わせます ——
+        <a href="/topics">トピック</a>を選んでいないと<strong>1 件も集まりません</strong>。
+        集めたものは<a href="/papers">論文</a>・<a href="/events">イベント</a>・<a href="/books">書籍</a>に出ます。
+    </p>
+
+    <h3>定番</h3>
+    <JobButton Runner="ClassicsRunner" FormName="collect-classics" OnRun="CollectClassics" />
+    <p class="page-note text-muted">
+        「読むべき技術書」を挙げた Qiita 記事から<strong>名指しされた本</strong>を拾い、
+        <a href="/classics/books">定番 → 書籍</a>に出します。
+        こちらも<strong>トピックの選択には依存しません</strong>。
+        語彙の整理(「話題度を取り直す」「タグを仕分けなおす」)は
+        <a href="/topics">トピック</a>と<a href="/tags">タグ</a>にあります。
     </p>
 
     <h2 class="h5">定期実行</h2>
@@ -206,6 +233,20 @@
 
     void Collect() =>
         CollectionRunner.StartInBackground(ct => CollectionRunner.RunOnceAsync(ct), JobMessage.Describe);
+
+    void CollectPapers() => PaperRunner.StartInBackground(
+        ct => PaperRunner.RunOnceAsync(ct),
+        result => $"{result.Fetched} 件取得、うち {result.Added} 件を新規追加しました。"
+            + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : ""));
+
+    void CollectEvents() =>
+        EventRunner.StartInBackground(ct => EventRunner.RunOnceAsync(ct), JobMessage.Describe);
+
+    void CollectBooks() =>
+        BookRunner.StartInBackground(ct => BookRunner.RunOnceAsync(ct), JobMessage.Describe);
+
+    void CollectClassics() =>
+        ClassicsRunner.StartInBackground(ct => ClassicsRunner.RunOnceAsync(ct), JobMessage.Describe);
 
     void Translate() => TranslationRunner.StartInBackground(
         ct => TranslationRunner.RunOnceAsync(ct),

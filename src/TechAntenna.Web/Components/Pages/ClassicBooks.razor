@@ -3,7 +3,6 @@
 @using TechAntenna.Core.Models
 @using TechAntenna.Web.Services
 @inject IBookStore BookStore
-@inject ClassicsCollectionRunner CollectionRunner
 
 @* 定番(第三の軸)の子ページ。中身は「読むべき技術書」を挙げた Qiita 記事から
    名指しされた本を拾ったもの —— 親(/classics)は軸の入口で、一覧はこちらが受け持つ。
@@ -19,8 +18,8 @@
     —— 選んだトピックで検索して集める本は<a href="/books">興味トピック → 書籍</a>へ。
 </p>
 
-@* 収集はこのページから(トピック選択と無関係なので、書籍の収集とは別ボタン) *@
-<JobButton Runner="CollectionRunner" FormName="collect-classics" OnRun="Collect" />
+@* 収集のボタンは設定にある(トピック選択と無関係なので、書籍の収集とは別ボタン) *@
+<CollectionHint Job="定番の収集" />
 
 @if (_books is null)
 {
@@ -28,7 +27,7 @@
 }
 else if (_books.Count == 0)
 {
-    <p>まだありません。上の「定番の収集」を実行してください。</p>
+    <p>まだありません。<a href="/settings">設定</a>の「定番の収集」を実行してください。</p>
 }
 else
 {
@@ -70,9 +69,6 @@ else
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     // バックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
-    void Collect() =>
-        CollectionRunner.StartInBackground(ct => CollectionRunner.RunOnceAsync(ct), JobMessage.Describe);
-
     async Task LoadAsync()
     {
         var books = await BookStore.GetRecentAsync(Limit);

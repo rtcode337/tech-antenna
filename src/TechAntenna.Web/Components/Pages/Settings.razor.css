@@ -4,6 +4,15 @@
     font-size: 0.89rem;
 }
 
+/* ジョブのボタンを軸(画面)ごとにまとめる見出し。節の見出し(h2)より一段小さくし、
+   直後のボタンとの間は詰める —— ボタンと説明が1つの塊に見えるようにするため */
+.jobs h3 {
+    margin: 1.5rem 0 0.5rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-soft);
+}
+
 /* 定期実行のチェックと ntfy 通知のトグル。行ごとに縦へ並べる */
 .auto-run label,
 .ntfy-toggle label {

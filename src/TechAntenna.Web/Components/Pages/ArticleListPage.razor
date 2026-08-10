@@ -10,7 +10,6 @@
 @inject ITopicStore TopicStore
 @inject TopicCatalog Catalog
 @inject NavigationManager Navigation
-@inject PaperCollectionRunner PaperRunner
 
 @* 記事・ニュース・論文の一覧ページ。種別ごとの違いは「どの Kind を出すか」と
    論文だけにある翻訳ボタンだけなので、3ルートを1コンポーネントにまとめている。
@@ -28,7 +27,7 @@
 {
     @* 興味トピック側の論文。**収集を記事と分けてある**のは検索だから ——
        収集対象のトピックが無いと 1 件も集まらない(イベント・書籍と同じ性質) *@
-    <JobButton Runner="PaperRunner" FormName="collect-papers" OnRun="Collect" />
+    <CollectionHint Job="論文の収集" />
     <p class="page-note text-muted">
         <strong>収集対象に選んだトピックを検索語</strong>にして arXiv(英語)と
         J-STAGE(日本語)へ問い合わせます —— <a href="/topics">トピック</a>を選んでいないと
@@ -58,11 +57,11 @@ else if (_kind == ArticleKind.TrendingPaper)
 }
 else if (_articles.Count == 0)
 {
-    @* 空のときの行き先も種別で変える —— 論文は自分のページのボタン、
+    @* 空のときの行き先も種別で変える —— 論文は設定の「論文の収集」、
        ほかは設定の「トレンドの収集」で集まる *@
     @if (_kind == ArticleKind.Paper)
     {
-        <p>まだありません。上の「論文の収集」を実行してください
+        <p>まだありません。<a href="/settings">設定</a>の「論文の収集」を実行してください
             (<a href="/topics">トピック</a>を選んでいないと集まりません)。</p>
     }
     else
@@ -130,11 +129,6 @@ else
     }
 
     // バックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
-    void Collect() => PaperRunner.StartInBackground(
-        ct => PaperRunner.RunOnceAsync(ct),
-        result => $"{result.Fetched} 件取得、うち {result.Added} 件を新規追加しました。"
-            + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : ""));
-
     async Task LoadAsync()
     {
         var selected = await TopicStore.GetSelectedAsync();
