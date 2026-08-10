@@ -5,6 +5,12 @@ public static class JobMessage
 {
     public static string Describe(CollectionRunResult result)
     {
+        // 何も集まらなかった理由が分かっているならそれを出す(推測混じりの定型文より役に立つ)
+        if (result.Note is { Length: > 0 } note)
+        {
+            return note;
+        }
+
         if (result == CollectionRunResult.Nothing)
         {
             // 収集元が無いか、既に走っている最中に押された

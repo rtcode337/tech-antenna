@@ -23,6 +23,9 @@ public class ScheduleRunner(
     ApiCredentials credentials,
     ILogger<ScheduleRunner> logger) : JobRunner
 {
+    /// <summary>入口の名前(画面のボタンの value と、結果の文言を引くキー)。</summary>
+    public const string OperationName = "run-schedule";
+
     public override string Name => "定期実行を今すぐ実行";
 
     /// <summary>
@@ -80,13 +83,13 @@ public class ScheduleRunner(
             if (await job.RunAsync(cancellationToken))
             {
                 ran++;
-                logger.LogInformation("{Job}: {Message}", job.Name, job.Runner.LastMessage);
+                logger.LogInformation("{Job}: {Message}", job.Name, job.Runner.LastMessageOf(job.Key));
             }
             else
             {
                 // 失敗しても次のジョブへ進む(収集元が1つ落ちているだけでサマリーまで止めない)
                 failed++;
-                logger.LogError("{Job} に失敗: {Error}", job.Name, job.Runner.LastError);
+                logger.LogError("{Job} に失敗: {Error}", job.Name, job.Runner.LastErrorOf(job.Key));
             }
         }
 

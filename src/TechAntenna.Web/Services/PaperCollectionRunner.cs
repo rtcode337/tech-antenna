@@ -31,12 +31,12 @@ public class PaperCollectionRunner(
 
     async Task<CollectionRunResult> CollectAsync(CancellationToken cancellationToken)
     {
-        // 収集対象が空なら何も取りに行かない。**理由を文言にする** ——
-        // 0 件の結果だけ返すと、設定の問題なのか本当に無いのか分からない
+        // 収集対象が空なら何も取りに行かない。**理由を結果に載せる** ——
+        // 0 件の結果だけ返すと、設定の問題なのか本当に無いのか分からない。
+        // 例外にはしない(集まらないのは設定どおりの動作で、失敗ではない)
         if ((await topicStore.GetSelectedAsync(cancellationToken)).Count == 0)
         {
-            throw new InvalidOperationException(
-                "収集対象のトピックが選ばれていません（論文は選んだトピックを検索語にします）。");
+            return CollectionRunResult.NoTopics("論文");
         }
 
         var delay = TimeSpan.FromSeconds(options.Value.DelayBetweenSourcesSeconds);

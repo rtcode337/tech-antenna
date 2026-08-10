@@ -34,7 +34,7 @@
         @Name
     </button>
 
-    @if (Runner.IsRunning)
+    @if (Runner.IsRunningOperation(Key))
     {
         @* 実行中は 3 秒ごとに自動リロードして進捗を出す。URL を明示した GET にするのは、
            POST 応答の再読み込みでフォームが再送されるのを避けるため *@
@@ -50,11 +50,17 @@
             <a href="/integrations">外部連携</a>から設定できます。
         </span>
     }
-    else if (Runner.LastError is { Length: > 0 } error)
+    else if (Runner.IsRunning)
+    {
+        @* 同じ Runner の別の入口が走っている(トピックの整備は話題度と仕分けで1つ)。
+           ボタンが押せない理由を書いておく —— 黙って disabled だと壊れて見える *@
+        <span class="text-body-secondary">別の操作が実行中です。</span>
+    }
+    else if (Runner.LastErrorOf(Key) is { Length: > 0 } error)
     {
         <span class="text-danger">失敗: @error</span>
     }
-    else if (Runner.LastMessage is { Length: > 0 } message)
+    else if (Runner.LastMessageOf(Key) is { Length: > 0 } message)
     {
         <span class="text-body-secondary">@message</span>
     }
@@ -74,6 +80,16 @@
     /// <summary>押されたことを見分ける submit の value(ページ側が振り分ける)。</summary>
     [Parameter, EditorRequired]
     public string Action { get; set; } = "";
+
+    /// <summary>
+    /// 実行中・結果の文言を引く入口の名前(<see cref="JobRunner"/> に渡すもの)。
+    /// **1つの Runner に入口が2つある**ジョブで、片方を走らせたときにもう片方の行にも
+    /// 「実行中…」が出ないようにするために要る。省略すると <see cref="Action"/>。
+    /// </summary>
+    [Parameter]
+    public string? Operation { get; set; }
+
+    string Key => Operation ?? Action;
 
     /// <summary>
     /// 定期実行の設定キー。**null なら定期実行のチェックを出さない**

@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace TechAntenna.Web.Services;
 
 /// <summary>
@@ -5,6 +7,12 @@ namespace TechAntenna.Web.Services;
 ///
 /// **同時に走らないよう直列化する** —— 二重に走ると同じ収集先へ続けて叩きに行ったり、
 /// 同じ記事を二度要約して LLM の枠を無駄に使うことになる。
+///
+/// **1つの Runner に入口が2つあることがある**(トピックの整備 = 話題度の取り直し /
+/// タグの仕分け)。実行中の印と結果の文言は<b>入口ごと</b>に持つ —— Runner に1つだけ
+/// 持たせていたときは、仕分けを走らせると話題度のボタンの横にも「実行中…」が出ていた。
+/// 直列化(<see cref="IsRunning"/>)は Runner 全体のままにする —— 中身は同じ DB を
+/// 触るので、入口が違っても同時には走らせない。
 /// </summary>
 public abstract class JobRunner
 {
@@ -34,11 +42,26 @@ public abstract class JobRunner
     /// </summary>
     public string? Progress { get; protected set; }
 
-    /// <summary>直近の実行の結果の文言。画面が POST をまたいで結果を出すためにここへ持つ。</summary>
-    public string? LastMessage { get; private set; }
+    /// <summary>結果の文言。画面が POST をまたいで結果を出すため、入口ごとにここへ持つ。</summary>
+    readonly ConcurrentDictionary<string, string> _messages = new(StringComparer.Ordinal);
 
-    /// <summary>直近の実行が失敗したときの理由。成功したら null に戻る。</summary>
-    public string? LastError { get; private set; }
+    /// <summary>失敗の理由(入口ごと)。次にその入口が成功したら消える。</summary>
+    readonly ConcurrentDictionary<string, string> _errors = new(StringComparer.Ordinal);
+
+    /// <summary>最後に走り出した入口。実行中の表示をその行だけに出すために使う。</summary>
+    public string? RunningOperation { get; private set; }
+
+    /// <summary>その入口が今まさに走っているか(他の入口が走っているときは false)。</summary>
+    public bool IsRunningOperation(string operation) =>
+        IsRunning && RunningOperation == operation;
+
+    /// <summary>その入口の直近の結果の文言。</summary>
+    public string? LastMessageOf(string operation) =>
+        _messages.TryGetValue(operation, out var message) ? message : null;
+
+    /// <summary>その入口の直近の失敗の理由。</summary>
+    public string? LastErrorOf(string operation) =>
+        _errors.TryGetValue(operation, out var error) ? error : null;
 
     /// <summary>
     /// ジョブをバックグラウンドで1回実行する(既に実行中なら何もしない)。
@@ -49,7 +72,7 @@ public abstract class JobRunner
     /// 待たされる。開始だけして応答を返し、進捗は自動リロード(JobButton の
     /// meta refresh)で見せる。
     /// </summary>
-    public void StartInBackground(Func<CancellationToken, Task<bool>> run)
+    public void StartInBackground(string operation, Func<CancellationToken, Task<bool>> run)
     {
         if (!IsConfigured || IsRunning)
         {
@@ -57,8 +80,9 @@ public abstract class JobRunner
         }
 
         // 応答を返す時点で「実行中」に見せる(Task が走り出す前に画面が描画されても
-        // meta refresh が付くように、開始フラグは同期的に立てる)
+        // meta refresh が付くように、開始フラグと入口は同期的に立てる)
         _starting = true;
+        RunningOperation = operation;
 
         _ = Task.Run(async () =>
         {
@@ -82,6 +106,7 @@ public abstract class JobRunner
     /// 画面には手動で押したときと同じ文言が残る。
     /// </summary>
     public async Task<bool> RunAndRecordAsync<T>(
+        string operation,
         Func<CancellationToken, Task<T>> run,
         Func<T, string> describe,
         CancellationToken cancellationToken)
@@ -91,15 +116,16 @@ public abstract class JobRunner
             return false;
         }
 
-        LastError = null;
+        RunningOperation = operation;
+        _errors.TryRemove(operation, out _);
         try
         {
-            LastMessage = describe(await run(cancellationToken));
+            _messages[operation] = describe(await run(cancellationToken));
             return true;
         }
         catch (Exception ex)
         {
-            LastError = ex.Message;
+            _errors[operation] = ex.Message;
             return false;
         }
     }
@@ -134,7 +160,17 @@ public abstract class JobRunner
 /// <param name="Fetched">収集元から取得した件数。</param>
 /// <param name="Added">そのうち新規に追加した件数。</param>
 /// <param name="FailedSources">失敗した収集元の数。</param>
-public record CollectionRunResult(int Fetched, int Added, int FailedSources)
+/// <param name="Note">
+/// 何も集まらなかった理由が分かっているときの文言(例: トピックが未選択)。
+/// **例外にはしない** —— 集まらないのは設定どおりの動作であって失敗ではないし、
+/// 「失敗:」と出ると同じ状況の他のジョブと文言が食い違う。
+/// </param>
+public record CollectionRunResult(int Fetched, int Added, int FailedSources, string? Note = null)
 {
     public static readonly CollectionRunResult Nothing = new(0, 0, 0);
+
+    /// <summary>選んだトピックを検索語にするジョブ(論文・イベント・書籍)で、選択が空のとき。</summary>
+    public static CollectionRunResult NoTopics(string what) =>
+        new(0, 0, 0, $"収集対象のトピックが選ばれていません（{what}は選んだトピックを検索語にします）。"
+            + " 設定 → トピックで選んでください。");
 }

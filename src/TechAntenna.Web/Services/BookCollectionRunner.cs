@@ -35,7 +35,8 @@ public class BookCollectionRunner(
             .Select(topic => topic.Display).ToList();
         if (keywords.Count == 0)
         {
-            return CollectionRunResult.Nothing;
+            // 何も集まらない理由を文言にする(論文・イベントと同じ扱い)
+            return CollectionRunResult.NoTopics("書籍");
         }
         int found = 0, added = 0, failed = 0;
 

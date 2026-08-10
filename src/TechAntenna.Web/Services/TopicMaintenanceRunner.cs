@@ -77,6 +77,13 @@ public class TopicMaintenanceRunner(
 
     public override string Name => "トピックの整備";
 
+    /// <summary>
+    /// 仕分け(タグを仕分けなおす)のボタンに出す名前。**LLM を使う入口なので方式とモデルを出す**
+    /// —— 要約・翻訳・サマリーと同じ扱いで、いまどの枠を消費するのかがボタンから分かるように。
+    /// 話題度の取り直しは LLM を使わないので、そちらは名前を足さない。
+    /// </summary>
+    public string ClassificationName => $"タグを仕分けなおす({llm.Classifier?.Name ?? "未設定"})";
+
     // 語彙だけでも一覧は作れる(外部トレンドが無ければ話題度が 0 になるだけ)
     public override bool IsConfigured => true;
 

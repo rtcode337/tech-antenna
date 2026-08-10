@@ -83,7 +83,8 @@ public class ScheduleWorker(
         await MarkRanAsync(now, cancellationToken);
 
         // 結果の文言は Runner に残る(画面のボタンで押したときと同じ)
-        await runner.RunAndRecordAsync(runner.RunOnceAsync, JobMessage.Describe, cancellationToken);
+        await runner.RunAndRecordAsync(
+            ScheduleRunner.OperationName, runner.RunOnceAsync, JobMessage.Describe, cancellationToken);
     }
 
     DateTimeOffset? ReadLastRun() =>

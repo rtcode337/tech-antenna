@@ -36,7 +36,8 @@ public class EventCollectionRunner(
             (await topicStore.GetSelectedAsync(cancellationToken)).Select(topic => topic.Key));
         if (selectedTags.Count == 0)
         {
-            return CollectionRunResult.Nothing;
+            // 何も集まらない理由を文言にする(論文・書籍と同じ扱い)
+            return CollectionRunResult.NoTopics("イベント");
         }
         int fetched = 0, added = 0, failed = 0;
 

@@ -33,7 +33,8 @@ public record ScheduledJob(
 /// **順番には理由がある** —— 後ろのジョブは前のジョブが集めたものを材料にする:
 ///
 /// <list type="number">
-///   <item>収集(トレンド・論文・イベント・書籍・定番)—— 材料そのものを増やす</item>
+///   <item>収集(トレンド・書籍・イベント・論文・定番)—— 材料そのものを増やす。
+///     <b>収集どうしは互いに依存しない</b>ので、並びはサイドバーに合わせてある</item>
 ///   <item>話題度を取り直す —— 集まった記事のタグを観測して、次の仕分けの対象を決める</item>
 ///   <item>タグを仕分けなおす —— そこで溜まった語を LLM が語彙へ入れる</item>
 ///   <item>記事の要約・論文タイトルの翻訳 —— 集まった記事に要約と訳題を付ける</item>
@@ -64,39 +65,40 @@ public class ScheduledJobs(
     [
         new("trend-collection", trendCollection.Name, JobGroup.Trend, trendCollection,
             ct => trendCollection.RunAndRecordAsync(
-                trendCollection.RunOnceAsync, JobMessage.Describe, ct)),
-
-        new("paper-collection", paperCollection.Name, JobGroup.Interests, paperCollection,
-            ct => paperCollection.RunAndRecordAsync(
-                paperCollection.RunOnceAsync, JobMessage.Describe, ct)),
-
-        new("event-collection", eventCollection.Name, JobGroup.Interests, eventCollection,
-            ct => eventCollection.RunAndRecordAsync(
-                eventCollection.RunOnceAsync, JobMessage.Describe, ct)),
+                "trend-collection", trendCollection.RunOnceAsync, JobMessage.Describe, ct)),
 
         new("book-collection", bookCollection.Name, JobGroup.Interests, bookCollection,
             ct => bookCollection.RunAndRecordAsync(
-                bookCollection.RunOnceAsync, JobMessage.Describe, ct)),
+                "book-collection", bookCollection.RunOnceAsync, JobMessage.Describe, ct)),
+
+        new("event-collection", eventCollection.Name, JobGroup.Interests, eventCollection,
+            ct => eventCollection.RunAndRecordAsync(
+                "event-collection", eventCollection.RunOnceAsync, JobMessage.Describe, ct)),
+
+        new("paper-collection", paperCollection.Name, JobGroup.Interests, paperCollection,
+            ct => paperCollection.RunAndRecordAsync(
+                "paper-collection", paperCollection.RunOnceAsync, JobMessage.Describe, ct)),
 
         new("classics-collection", classicsCollection.Name, JobGroup.Classics, classicsCollection,
             ct => classicsCollection.RunAndRecordAsync(
-                classicsCollection.RunOnceAsync, JobMessage.Describe, ct)),
+                "classics-collection", classicsCollection.RunOnceAsync, JobMessage.Describe, ct)),
 
-        // 話題度と仕分けは Runner が同じ1つ(「トピックの整備」)なので、名前はここで書き分ける
+        // 話題度と仕分けは Runner が同じ1つ(「トピックの整備」)なので、名前はここで書き分ける。
+        // **仕分けだけ LLM を使う**ので、要約などと同じく方式とモデルを名前に出す
         new("trend-scores", "話題度を取り直す", JobGroup.Topics, maintenance,
             ct => maintenance.RunAndRecordAsync(
-                maintenance.RefreshTrendsAsync, JobMessage.Describe, ct)),
+                "trend-scores", maintenance.RefreshTrendsAsync, JobMessage.Describe, ct)),
 
-        new("tag-classification", "タグを仕分けなおす", JobGroup.Topics, maintenance,
+        new("tag-classification", maintenance.ClassificationName, JobGroup.Topics, maintenance,
             ct => maintenance.RunAndRecordAsync(
-                maintenance.ReclassifyTagsAsync, JobMessage.Describe, ct)),
+                "tag-classification", maintenance.ReclassifyTagsAsync, JobMessage.Describe, ct)),
 
         new("summary", summary.Name, JobGroup.Trend, summary,
-            ct => summary.RunAndRecordAsync(summary.RunOnceAsync, JobMessage.Describe, ct)),
+            ct => summary.RunAndRecordAsync("summary", summary.RunOnceAsync, JobMessage.Describe, ct)),
 
         new("translation", translation.Name, JobGroup.Trend, translation,
             ct => translation.RunAndRecordAsync(
-                translation.RunOnceAsync,
+                "translation", translation.RunOnceAsync,
                 result => result.Requested == 0
                     ? "訳題の付いていない論文はありません。"
                     : $"{result.Requested} 件中 {result.Translated} 件に訳題を付けました。",
@@ -104,7 +106,7 @@ public class ScheduledJobs(
 
         new("digest", digest.Name, JobGroup.Home, digest,
             ct => digest.RunAndRecordAsync(
-                digest.RunOnceAsync, result => result.Describe(), ct)),
+                "digest", digest.RunOnceAsync, result => result.Describe(), ct)),
     ];
 
     /// <summary>キーからジョブを引く(画面がボタンの value で押された行を見分けるのに使う)。</summary>

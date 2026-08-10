@@ -84,7 +84,7 @@
        **2つのボタンは Runner が同じ1つ**なので、片方が走っていればもう片方も実行中になり、
        二重には走らない *@
     <JobButton Runner="_trendScores.Runner" Name="@_trendScores.Name"
-               Action="@($"run:{_trendScores.Key}")"
+               Action="@($"run:{_trendScores.Key}")" Operation="@_trendScores.Key"
                ScheduleKey="@_trendScores.Key" Order="Jobs.OrderOf(_trendScores)"
                Enabled="ScheduleSettings.IsEnabled(Credentials, _trendScores.Key)">
         <button class="help-toggle" type="button" popovertarget="trend-help"
@@ -130,7 +130,7 @@
 
     @* 仕分けまちの中身とゴミの除外は<a href="/tags">タグ</a>の画面。ここは押す場所だけ持つ *@
     <JobButton Runner="_tagClassification.Runner" Name="@_tagClassification.Name"
-               Action="@($"run:{_tagClassification.Key}")"
+               Action="@($"run:{_tagClassification.Key}")" Operation="@_tagClassification.Key"
                ScheduleKey="@_tagClassification.Key" Order="Jobs.OrderOf(_tagClassification)"
                Enabled="ScheduleSettings.IsEnabled(Credentials, _tagClassification.Key)" />
 
@@ -299,7 +299,7 @@
             .Where(entry => entry.Job.Group == group))
         {
             <JobButton Runner="entry.Job.Runner" Name="@entry.Job.Name"
-                       Action="@($"run:{entry.Job.Key}")"
+                       Action="@($"run:{entry.Job.Key}")" Operation="@entry.Job.Key"
                        ScheduleKey="@entry.Job.Key" Order="entry.Order"
                        Enabled="ScheduleSettings.IsEnabled(Credentials, entry.Job.Key)" />
         }
@@ -353,8 +353,9 @@
         if (Action == "run-schedule")
         {
             ScheduleRunner.StartInBackground(
+                ScheduleRunner.OperationName,
                 ct => ScheduleRunner.RunAndRecordAsync(
-                    ScheduleRunner.RunOnceAsync, JobMessage.Describe, ct));
+                    ScheduleRunner.OperationName, ScheduleRunner.RunOnceAsync, JobMessage.Describe, ct));
             return;
         }
 
@@ -363,7 +364,7 @@
         if (Action.StartsWith("run:", StringComparison.Ordinal)
             && Jobs.ByKey(Action["run:".Length..]) is { } job)
         {
-            job.Runner.StartInBackground(job.RunAsync);
+            job.Runner.StartInBackground(job.Key, job.RunAsync);
         }
     }
 
