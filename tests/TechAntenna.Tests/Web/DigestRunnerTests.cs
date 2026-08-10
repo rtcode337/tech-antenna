@@ -52,10 +52,12 @@ public class DigestRunnerTests
 
         public string Name => "スタブ通知";
 
-        public Task NotifyAsync(Digest digest, CancellationToken cancellationToken = default)
+        public Task<bool> NotifyAsync(Digest digest, CancellationToken cancellationToken = default)
         {
             CallCount++;
-            return fail ? Task.FromException(new HttpRequestException("落ちた")) : Task.CompletedTask;
+            return fail
+                ? Task.FromException<bool>(new HttpRequestException("落ちた"))
+                : Task.FromResult(true);
         }
     }
 
@@ -67,7 +69,7 @@ public class DigestRunnerTests
         InMemoryDigestStore digests,
         TopicCatalog catalog,
         StubNotifier? notifier = null) =>
-        new(composer is null ? [] : [composer],
+        new(new StubLlmGateway(digestComposer: composer),
             notifier is null ? [] : [notifier],
             articles,
             events,

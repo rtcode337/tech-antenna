@@ -86,10 +86,6 @@ public class DoorkeeperOptions
 {
     public const string SectionName = "Doorkeeper";
 
-    /// <summary>Doorkeeper の Public API アクセストークン。空ならイベント収集を行わない。
-    /// 実値はコミットせず、環境変数(Doorkeeper__AccessToken)や user-secrets で渡す。</summary>
-    public string AccessToken { get; set; } = "";
-
     /// <summary>検索するキーワード。1つずつ問い合わせ、見つかったイベントのタグになる。</summary>
     public List<string> Keywords { get; set; } = [];
 }
@@ -118,10 +114,6 @@ public class BooksOptions
     /// <summary>1キーワードを検索してから次に移るまでの待ち時間(秒)。
     /// **検索語は設定ではなく選択中のトピック**(<c>ITopicStore.GetSelectedAsync</c>)から取る。</summary>
     public int DelayBetweenKeywordsSeconds { get; set; } = 2;
-
-    /// <summary>Google Books API キー。実質必須(未設定だと検索が常に 429 になる)。
-    /// 実値はコミットせず環境変数(Books__GoogleBooksApiKey)や user-secrets で渡す。</summary>
-    public string GoogleBooksApiKey { get; set; } = "";
 
     /// <summary>openBD で日本の書誌情報を補うか。</summary>
     public bool UseOpenBd { get; set; } = true;
@@ -168,9 +160,6 @@ public class QiitaOptions
     /// <summary>リクエストの間隔(秒)。無料でコミュニティに開かれている API のため空ける。</summary>
     public double DelaySeconds { get; set; } = 1;
 
-    /// <summary>アクセストークン(任意)。未設定でも動くが、上限が 60 → 1000 リクエスト/時になる。
-    /// 実値はコミットせず環境変数(Qiita__AccessToken)や user-secrets で渡す。</summary>
-    public string AccessToken { get; set; } = "";
 }
 
 /// <summary>
@@ -181,12 +170,6 @@ public class RakutenOptions
 {
     public const string SectionName = "Rakuten";
 
-    /// <summary>楽天ウェブサービスのアプリ ID。空ならレビューを取りに行かない。
-    /// 実値はコミットせず環境変数(Rakuten__ApplicationId)や user-secrets で渡す。</summary>
-    public string ApplicationId { get; set; } = "";
-
-    /// <summary>アプリ ID と一緒に発行されるアクセスキー。要る場合だけ設定する。</summary>
-    public string AccessKey { get; set; } = "";
 
     /// <summary>1 ISBN 引くごとに空ける間隔(秒)。ISBN の一括指定ができないため件数分のリクエストになる。</summary>
     public double DelaySeconds { get; set; } = 1;
@@ -196,10 +179,6 @@ public class RakutenOptions
 public class AnthropicOptions
 {
     public const string SectionName = "Anthropic";
-
-    /// <summary>Anthropic API キー。空でも Claude Code 方式が使えれば要約は動く。
-    /// 実値はコミットせず、環境変数(Anthropic__ApiKey)や user-secrets で渡す。</summary>
-    public string ApiKey { get; set; } = "";
 
     /// <summary>使用するモデル ID。コストを抑えるなら claude-haiku-4-5 に変更する。</summary>
     public string Model { get; set; } = "claude-opus-5";
@@ -218,8 +197,8 @@ public class AnthropicOptions
 
 /// <summary>
 /// Claude Code のヘッドレス実行で要約する場合の設定。appsettings の ClaudeCode セクションから読む。
-/// 認証トークン(<c>CLAUDE_CODE_OAUTH_TOKEN</c>)はここでは持たない —— CLI が環境変数を
-/// 直接読むので、アプリは有無を見て方式を選ぶだけ。
+/// 認証トークンはここでは持たない —— 画面(外部連携)から設定した値を、LlmGateway が
+/// 子プロセスの環境変数 <c>CLAUDE_CODE_OAUTH_TOKEN</c> として CLI に渡す。
 /// </summary>
 public class ClaudeCodeOptions
 {
@@ -269,38 +248,23 @@ public class DigestOptions
 
 /// <summary>
 /// ntfy(今日のサマリーの通知先)の設定。appsettings の Ntfy セクションから読む。
-/// **BaseUrl と Topic の両方があるときだけ通知する**(どちらも環境固有の値なので
-/// 実値はコミットせず、環境変数 Ntfy__BaseUrl / Ntfy__Topic で渡す)。
+/// 接続先(ベース URL・トピック名・トークン)は画面から設定する(NtfySettings 参照)ので、
+/// ここに残るのは ClickUrl だけ。
 /// </summary>
 public class NtfyOptions
 {
     public const string SectionName = "Ntfy";
 
-    /// <summary>ntfy サーバーのベース URL(例: https://ntfy.sh やセルフホストのアドレス)。</summary>
-    public string BaseUrl { get; set; } = "";
-
-    /// <summary>通知を送るトピック名。</summary>
-    public string Topic { get; set; } = "";
-
-    /// <summary>アクセストークン(任意)。認証ありのサーバー・保護されたトピックのときだけ。</summary>
-    public string AccessToken { get; set; } = "";
-
-    /// <summary>通知をタップしたときに開く URL(任意。ホームの公開 URL を入れる)。</summary>
+    /// <summary>通知をタップしたときに開く URL(任意。ホームの公開 URL を入れる)。
+    /// 接続先(BaseUrl / Topic / トークン)は画面から設定するのでここには無い ——
+    /// これだけは「この環境の公開 URL」というデプロイ側の事実なので環境変数に残す。</summary>
     public string ClickUrl { get; set; } = "";
-
-    /// <summary>通知できる設定か。</summary>
-    public bool IsConfigured =>
-        !string.IsNullOrWhiteSpace(BaseUrl) && !string.IsNullOrWhiteSpace(Topic);
 }
 
 /// <summary>connpass API の設定。appsettings の Connpass セクションから読む。</summary>
 public class ConnpassOptions
 {
     public const string SectionName = "Connpass";
-
-    /// <summary>connpass API v2 の API キー。空ならイベント収集を行わない。
-    /// 実値はコミットせず、環境変数(Connpass__ApiKey)や user-secrets で渡す。</summary>
-    public string ApiKey { get; set; } = "";
 
     /// <summary>いずれかに一致するイベントを収集するキーワード。</summary>
     public List<string> Keywords { get; set; } = [];

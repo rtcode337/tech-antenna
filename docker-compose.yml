@@ -72,27 +72,13 @@ services:
       Books__AutoRun: ${BOOKS_AUTORUN:-false}
       Anthropic__AutoRun: ${SUMMARY_AUTORUN:-false}
       Digest__AutoRun: ${DIGEST_AUTORUN:-false}
-      # 外部 API のキー。未設定ならその収集ジョブが動かないだけで起動はする
-      Connpass__ApiKey: ${CONNPASS_API_KEY:-}
-      Doorkeeper__AccessToken: ${DOORKEEPER_ACCESS_TOKEN:-}
-      Books__GoogleBooksApiKey: ${GOOGLE_BOOKS_API_KEY:-}
-      # 書籍のレビュー(読まれている度合い)。未設定なら読まれている順に並べられないだけ
-      Rakuten__ApplicationId: ${RAKUTEN_APPLICATION_ID:-}
-      Rakuten__AccessKey: ${RAKUTEN_ACCESS_KEY:-}
-      # 推薦本(Qiita)。未設定でも動く(API の上限が下がるだけ)
-      Qiita__AccessToken: ${QIITA_ACCESS_TOKEN:-}
-      Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
+      # **外部 API のキーはここでは渡せない**(画面の「設定 → 外部連携」から入れる。
+      # 暗号化して DB に保存され、再起動なしで効く)。渡すのはキー以外の設定だけ
       # 既定は appsettings.json と同じ。コストを抑えるなら claude-haiku-4-5 を指定する
       Anthropic__Model: ${ANTHROPIC_MODEL:-claude-opus-5}
-      # Claude Code のヘッドレス実行で要約する場合のトークン(`claude setup-token` で発行)。
-      # 設定されていると API キーより優先され、従量課金ではなくサブスクリプションの枠を使う。
-      # 変数名は claude CLI が直接読むもので、アプリは有無を見て方式を選ぶだけ
-      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       ClaudeCode__Model: ${CLAUDE_CODE_MODEL:-}
-      # 今日のサマリーの ntfy 通知。BaseUrl と Topic の両方が無ければ通知しない
-      Ntfy__BaseUrl: ${NTFY_BASE_URL:-}
-      Ntfy__Topic: ${NTFY_TOPIC:-}
-      Ntfy__AccessToken: ${NTFY_ACCESS_TOKEN:-}
+      # 今日のサマリーの ntfy 通知。接続先(URL・トピック・トークン)は画面から設定する。
+      # タップで開く URL だけは「この環境の公開 URL」というデプロイ側の事実なのでここに残す
       Ntfy__ClickUrl: ${NTFY_CLICK_URL:-}
       # リバースプロキシ配下で X-Forwarded-* を信頼するときだけ true にする
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: ${FORWARDED_HEADERS_ENABLED:-false}

@@ -151,8 +151,20 @@ docker compose では `.env` の `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` /
 連携先とキーの状態は `/integrations`(設定 → 外部連携)にまとめて出す。一覧は
 `IntegrationCatalog` に**手で並べてある** —— 「未設定だと何が起きるか」は設定値には書いて
 いないし、キーの要否は収集元ごとの事情(申請の要不要・無料枠)で決まるため自動生成できない。
-**外部 API を足したらここにも1行足すこと。** 画面に出すのは**キーの有無だけ**で、
-値は長さも先頭数文字も出さない。
+**外部 API を足したらここにも1行足すこと**(キーがあるなら `EditableSecrets` にも)。
+画面に出すのは**キーの有無だけ**で、値は長さも先頭数文字も出さない。
+
+**キーの設定の入口は同じ画面の「キーの設定」列だけ**(`ApiCredentials`)。値は Data
+Protection で暗号化して DB の `Secrets` へ保存し(平文は置かない。詳細は
+[docs/database.md](docs/database.md))、**再起動なしで反映される** —— 各収集元・LLM は
+キーを起動時に固定せず、実行のたびに `ApiCredentials` から解決するため。
+**環境変数・.env・user-secrets ではキーを渡せない**(かつてはフォールバックとして
+読んでいたが、入口が 2 つあると「どちらの値が効いているのか」の説明を画面が持ち続ける
+ことになるためやめた。Options クラスからもキーのプロパティは消してある)。
+`AutoRun`・接続文字列・モデル名など、**キー以外の設定は今までどおり環境変数**。
+キー未設定の収集元は**その収集元だけスキップ**され、ジョブのボタンは消えずに残る。
+ntfy の接続先(ベース URL・トピック名・トークン)も同じ画面から設定する
+(`Ntfy__ClickUrl` だけは「この環境の公開 URL」というデプロイ側の事実なので環境変数)。
 
 画面は**軸で2節に分ける**(トレンドで使う / 興味トピックで使う)。節の中は用途
 (記事・書籍など)でまとめる。どの軸で使うかは `Integration.Axis`
@@ -165,12 +177,11 @@ docker compose では `.env` の `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` /
 収集対象のフィードと巡回間隔は `src/TechAntenna.Web/appsettings.json` の
 `Collection` セクションで設定する。
 
-connpass は API v2(`X-API-Key` と `User-Agent` が必須)。API キーと検索キーワードは
-`Connpass` セクションで設定し、**キーの実値はコミットせず**環境変数
-(`Connpass__ApiKey`)や user-secrets で渡す。キー未設定ならイベント収集は動かない。
+connpass は API v2(`X-API-Key` と `User-Agent` が必須)。キーは外部連携の画面から設定する。
+キー未設定なら connpass からは収集しない(他の収集元は動く)。
 
-Doorkeeper は `Authorization: Bearer` にアクセストークンが必要。`Doorkeeper` セクションで
-設定し、トークンの実値はコミットしない(`Doorkeeper__AccessToken`)。レート制限は
+Doorkeeper は `Authorization: Bearer` にアクセストークンが必要(外部連携の画面から設定)。
+レート制限は
 認証済みで 300 リクエスト / 300 秒。**API は alpha 扱いで破壊的変更が予期されている**ため、
 レスポンス形式が変わりうる前提で読むこと。
 
@@ -435,7 +446,7 @@ EF 版のタグ関連クエリだけ生 SQL にしている。`Tags` 列には�
 入り、`/tags` の「仕分けまち」にも出る)—— 候補集め(語彙)と話題度(鮮度)は
 性質が別で、候補のために外部へ聞きに行く必要はない。同義語・粒度の違いの判定は語の意味を知らないとできないため、
 機械的な正規化やカタログでは扱えない領域をここが受け持つ。方式は要約と同じ 2 つ
-(`CLAUDE_CODE_OAUTH_TOKEN` 優先、無ければ `Anthropic__ApiKey`。両方無ければ分類なしで
+(Claude Code のトークン優先、無ければ Anthropic API キー。両方無ければ分類なしで
 収集だけ動く)。指示文とスキーマは `TopicClassificationPrompt` に集約。
 
 - 1 語ごとに **alias(既存トピックの同義語)/ new(親付きの新トピック)/
@@ -733,8 +744,8 @@ null で上書きはしない)。
 実際に踏んだ)。
 
 設定は `Books` セクション(`IntervalHours` / `DelayBetweenKeywordsSeconds` /
-`GoogleBooksApiKey` / `UseOpenBd` / `MinReviewCount`)と `Rakuten` セクション
-(`ApplicationId` / `AccessKey` / `DelaySeconds`。**実値はコミットしない**)。
+`UseOpenBd` / `MinReviewCount`)と `Rakuten` セクション(`DelaySeconds`)。
+**キー(Google Books の API キー・楽天のアプリ ID)は設定ではなく外部連携の画面から入れる。**
 `MinReviewCount` の足切りは**レビューが取れた本だけが対象**で、取れていない本は落とさない
 —— アプリ ID の無い環境で 1 冊も保存されなくなるため。`GoogleBooksApiKey` が空でもジョブは登録する
 (検索は毎回 429 で失敗する)。**ボタンごと消すより 429 の理由を画面に出すほうが打つ手が
@@ -764,13 +775,18 @@ URL のリンクにとどめる。
 
 ## LLM 要約
 
-要約の実装(`ISummarizer`)は2つあり、`Program.cs` が**環境変数を見て選ぶ**。両方無ければ
-要約ジョブを登録しない。**キー・トークンの実値はコミットせず**環境変数か user-secrets で渡す。
+要約の実装(`ISummarizer`)は2つあり、**実行のたびに `LlmGateway` がキーの状態から選ぶ**
+(かつては起動時に環境変数を見て DI 登録を分岐していたが、それだと画面からキーを設定しても
+再起動するまで効かない)。**キー・トークンは外部連携の画面から設定する**(環境変数では
+渡せない)。**両方未設定でもジョブのボタンは消えず、disabled + 理由付きで出る**
+(`JobButton` / `JobRunner.NotConfiguredReason`)—— 消すと機能の存在ごと画面から見えなくなる。
+AutoRun のワーカーもキーの有無を見ずに登録し、未設定の周回は何もしない(キーを入れた
+次の周回から動き出す)。
 
-| 方式 | 選ばれる条件 | 課金 |
+| 方式 | 選ばれる条件(キーはどちらも画面から設定) | 課金 |
 |---|---|---|
-| `ClaudeCodeSummarizer` | `CLAUDE_CODE_OAUTH_TOKEN` がある(**優先**) | サブスクリプションの枠 |
-| `AnthropicSummarizer` | `Anthropic__ApiKey` がある | API の従量課金 |
+| `ClaudeCodeSummarizer` | Claude Code の OAuth トークンがある(**優先**) | サブスクリプションの枠 |
+| `AnthropicSummarizer` | Anthropic API キーがある | API の従量課金 |
 
 共通の設定は `Anthropic` セクション(`AutoRun` / `IntervalMinutes` / `BatchSize`)。指示文は
 `SummaryPrompt` に集約し、方式を切り替えても要約の口調が変わらないようにしている。
@@ -779,9 +795,11 @@ URL のリンクにとどめる。
 ### Claude Code 方式(`claude -p`)
 
 Claude Code にログイン済みの端末で `claude setup-token` を実行して得た長期 OAuth トークンを
-`CLAUDE_CODE_OAUTH_TOKEN` で渡す。**ホストの `~/.claude` はマウントしない。**
-トークンは CLI が環境変数から直接読むので、アプリ側は有無を見て方式を選ぶだけ
-(`ClaudeCodeOptions` にトークンは持たせない)。設定は `ClaudeCode` セクション
+外部連携の画面から設定する。**ホストの `~/.claude` はマウントしない。**
+トークンは CLI が環境変数 `CLAUDE_CODE_OAUTH_TOKEN` から読む仕様なので、
+**画面で設定した値を `LlmGateway` が子プロセスの環境変数として注入する**
+(`SystemProcessRunner` の environmentProvider。アプリ自身の環境変数は書き換えない)。
+`ClaudeCodeOptions` にトークンは持たせない。設定は `ClaudeCode` セクション
 (`ExecutablePath` / `Model` / `TimeoutSeconds`)。
 
 **呼び出し1回の固定費が大きい。** 記事1件だけ渡しても Claude Code のハーネスが毎回入力に乗る
@@ -832,9 +850,13 @@ Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。�
   材料が 1 件も無いときは LLM を呼ばずに止まり、ボタンの隣にそう出る
 
 生成したサマリーは **ntfy へ通知できる**(`NtfyDigestNotifier` / `IDigestNotifier`)。
-`Ntfy` セクションの **`BaseUrl` と `Topic` の両方があるときだけ** DI に登録され、
-未設定なら通知なしで生成だけ動く(実値は環境固有なのでコミットせず
-`Ntfy__BaseUrl` / `Ntfy__Topic`、認証ありなら `Ntfy__AccessToken` で渡す)。
+接続先(ベース URL・トピック名・トークン)は**外部連携の画面から設定**し、通知は
+**トピック名があるときだけ**送る —— ベース URL は未設定なら `https://ntfy.sh` が既定
+(`NtfySettings.DefaultBaseUrl`)。通知先は送信のたびに解決するので DI には常に登録され、
+未設定なら送らずに済ませる(`NotifyAsync` が false を返し、結果の「通知しました」に
+数えない)。**通知のオン/オフは接続先とは独立**で、設定画面(`/settings`)の
+チェックボックスで切り替える(`Ntfy:Enabled`。既定は有効・接続先を消さずに止められる)。
+`Ntfy__ClickUrl`(通知タップで開くホームの URL)だけは環境変数で渡す。
 
 - **JSON publish(ベース URL への POST に topic を含める)を使う** —— タイトルを
   ヘッダ(X-Title)で渡すと非 ASCII に RFC 2047 エンコードが要るため。JSON なら

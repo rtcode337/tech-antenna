@@ -38,9 +38,24 @@
         }
     </form>
 }
+else
+{
+    @* 未設定でも**ボタンは消さずに disabled で出す** —— 消すと「そういう機能がある」
+       こと自体が画面から分からず、何を設定すれば使えるのかへも辿り着けない *@
+    <div class="mb-3">
+        <button type="button" class="btn btn-outline-primary btn-sm" disabled>
+            @(Label is { Length: > 0 } label ? label : Runner.Name)
+        </button>
+        <span class="ms-2 text-body-secondary">
+            @(Runner.NotConfiguredReason ?? "設定が足りないため実行できません。")
+            <a href="/integrations">外部連携</a>から設定できます。
+        </span>
+    </div>
+}
 
 @code {
-    /// <summary>ボタンが動かすジョブ。未設定(IsConfigured=false)ならボタンごと出さない。</summary>
+    /// <summary>ボタンが動かすジョブ。未設定(IsConfigured=false)なら disabled で出し、
+    /// 理由(NotConfiguredReason)と外部連携への導線を添える。</summary>
     [Parameter, EditorRequired]
     public JobRunner Runner { get; set; } = default!;
 

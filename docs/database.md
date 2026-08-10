@@ -103,12 +103,25 @@ erDiagram
         text GeneratorName "Claude Code / Anthropic API"
     }
 
+    Secrets {
+        text Name PK "設定パス（例 Connpass-ApiKey）"
+        text Value "Data Protection で暗号化した値"
+        timestamptz UpdatedAt
+    }
+
     Tags }o..o{ Articles : "Articles.Tags に Key が含まれる"
     Tags }o..o{ Events : "Events.Tags に Key が含まれる"
     Tags }o..o{ Books : "Books.Tags に Key が含まれる"
     Topics |o--o{ Tags : "TopicKey"
     Topics |o--o{ Topics : "Parent"
 ```
+
+`Secrets` は画面(外部連携)から設定した API キー・トークン。**どのテーブルとも関係を
+持たない**。`Name` は設定パスの形(例 `Connpass:ApiKey`)。**キーの設定の入口はこの
+テーブル(= 画面)だけ**で、環境変数では渡せない。`Value` は Web 層が Data Protection(鍵は `DataProtection__KeysDirectory`)
+で暗号化した文字列 —— **平文は DB に入らない**ので、DB のバックアップだけを持ち出しても
+キーは読めない。裏返しに、**鍵ディレクトリを失うと値は戻せない**(アプリは復号できない行を
+「未設定」として扱い、画面から入れ直してもらう。行は消さない —— 鍵を戻せば読める可能性を残す)。
 
 `Digests` はホームの「今日のサマリー」の生成履歴。**どのテーブルとも関係を持たない**
 (生成時点の記事・イベントから LLM が書いた文章のスナップショットで、元データが
@@ -152,6 +165,8 @@ erDiagram
 | Tags | `Status` + `RetryAfter` | 「次に聞く語」の抽出 |
 | Tags | `TopicKey` | 語彙への合算 |
 | Digests | `GeneratedAt` | 最新の1件の取得 |
+
+`Secrets` は主キー(`Name`)だけで足りる(数件しか入らない)。
 
 ## タグ層(Tags)と語彙(Topics)
 

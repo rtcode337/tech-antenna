@@ -16,7 +16,7 @@ public class GoogleBooksCatalogTests
     static GoogleBooksCatalog Catalog(string? apiKey) => new(
         new StubHttpClientFactory(TooManyRequests, HttpStatusCode.TooManyRequests),
         Clock(),
-        apiKey);
+        () => apiKey);
 
     [Fact]
     public async Task キー未設定で429ならキーが要ると分かるメッセージになる()
@@ -25,7 +25,7 @@ public class GoogleBooksCatalogTests
             () => Catalog(apiKey: "").SearchAsync("C#"));
 
         Assert.Contains("API キーが未設定", ex.Message);
-        Assert.Contains("Books__GoogleBooksApiKey", ex.Message);
+        Assert.Contains("外部連携", ex.Message);
     }
 
     [Fact]

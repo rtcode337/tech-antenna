@@ -29,7 +29,7 @@ public record DigestRunResult(bool Composed, int Items, int Notified = 0, int No
 /// 選別の基準は LLM ではなくデータ側の知識(話題度・選択)だから。
 /// </summary>
 public class DigestRunner(
-    IEnumerable<IDigestComposer> composers,
+    LlmGateway llm,
     IEnumerable<IDigestNotifier> notifiers,
     IArticleStore articleStore,
     IEventStore eventStore,
@@ -40,16 +40,22 @@ public class DigestRunner(
     TimeProvider clock,
     ILogger<DigestRunner> logger) : JobRunner
 {
-    readonly IDigestComposer? _composer = composers.FirstOrDefault();
     readonly IReadOnlyList<IDigestNotifier> _notifiers = notifiers.ToList();
 
-    public override string Name => $"今日のサマリーの生成({_composer?.Name ?? "未設定"})";
+    public override string Name => $"今日のサマリーの生成({llm.DigestComposer?.Name ?? "未設定"})";
 
-    public override bool IsConfigured => _composer is not null;
+    public override bool IsConfigured => llm.IsConfigured;
 
-    public Task<DigestRunResult> RunOnceAsync(CancellationToken cancellationToken = default) =>
-        RunExclusiveAsync(() => ComposeAsync(_composer!, cancellationToken),
-            DigestRunResult.Nothing, cancellationToken);
+    public override string? NotConfiguredReason => LlmGateway.NotConfiguredReason;
+
+    public Task<DigestRunResult> RunOnceAsync(CancellationToken cancellationToken = default)
+    {
+        var composer = llm.DigestComposer;
+        return composer is null
+            ? Task.FromResult(DigestRunResult.Nothing)
+            : RunExclusiveAsync(() => ComposeAsync(composer, cancellationToken),
+                DigestRunResult.Nothing, cancellationToken);
+    }
 
     async Task<DigestRunResult> ComposeAsync(
         IDigestComposer composer, CancellationToken cancellationToken)
@@ -76,8 +82,11 @@ public class DigestRunner(
             try
             {
                 Progress = $"{notifier.Name} へ通知中…";
-                await notifier.NotifyAsync(digest, cancellationToken);
-                notified++;
+                // 未設定・無効の通知先は false を返す(送っていないので数えない)
+                if (await notifier.NotifyAsync(digest, cancellationToken))
+                {
+                    notified++;
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {

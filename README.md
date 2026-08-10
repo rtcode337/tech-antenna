@@ -37,6 +37,8 @@ PostgreSQL への保存、タグからのトピック一覧生成、LLM によ�
 どこにキーが要るのか、設定できているのかは画面の**「設定 → 外部連携」**(`/integrations`)で
 一覧できる。**「トレンドで使う」と「興味トピックで使う」の2節**に分かれ、その中は用途ごとに
 並ぶ(両方で使う連携は両方の節に出る。**キーの値そのものは表示しない**。有無だけを見る)。
+**キーの設定も同じ画面から**行う(暗号化して DB に保存・再起動なしで反映)。
+環境変数や `.env` ではキーを渡せない。
 
 ## トピックの整備
 
@@ -165,7 +167,7 @@ openBD で書誌情報を補ってから保存する。**検索語は設定で�
   (アプリ ID は `RAKUTEN_APPLICATION_ID`。未設定ならレビュー無しで動く)
 - Google Books の `ratingsCount` は日本語書籍にほぼ入っていない(実測 20 件中 0 件)ため使わない
 - **Google Books の API キーは実質必須。** キー無しのリクエストは Google 共有の匿名プロジェクトの
-  枠に入り、その枠は 1 日あたり 0 件なので最初の 1 回から 429 になる(`Books__GoogleBooksApiKey`)
+  枠に入り、その枠は 1 日あたり 0 件なので最初の 1 回から 429 になる(キーは外部連携の画面から設定)
 - 検索条件は `langRestrict=ja`(日本語の技術書を拾うため)だけで、**並びは既定の関連度順**。
   1 キーワードにつき 20 件、キーワードの間は 2 秒空ける。`orderBy=newest` を使わないのは、
   新刊が欲しいわけではないうえに取りこぼしが大きいため(実測で `機械学習` は新着順だと 0 件、
@@ -200,9 +202,12 @@ openBD で書誌情報を補ってから保存する。**検索語は設定で�
 docker compose で動かす。ホストに .NET も Postgres も要らない。
 
 ```bash
-cp .env.example .env   # 使う外部 API のキーを入れる
+cp .env.example .env   # AutoRun など必要な設定を入れる
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
+
+外部 API のキーは、起動後に画面の**「設定 → 外部連携」**の「キーの設定」列から入れる
+(`.env` では渡せない)。
 
 `http://<ホスト>:7020` で開く(`.env` の `PORT` で変更可)。データはリポジトリ直下の
 `data/`(Postgres は `data/postgres`、Data Protection の鍵は `data/keys`)に入る ——
@@ -229,8 +234,9 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
   動く)。外部 API や LLM の無料枠を意図せず使い切らないため。定期実行にするときは `.env` で
   `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` / `SUMMARY_AUTORUN` / `DIGEST_AUTORUN` を
   `true` にする(サマリーは 12 時間ごと = 1日2回)
-- 今日のサマリーは **ntfy へ通知できる**。`.env` の `NTFY_BASE_URL` と `NTFY_TOPIC` を
-  設定したときだけ送る(認証ありのサーバーは `NTFY_ACCESS_TOKEN` も)
+- 今日のサマリーは **ntfy へ通知できる**。接続先(ベース URL・トピック名)は画面の
+  「設定 → 外部連携」から設定し、トピック名があるときだけ送る(ベース URL の既定は
+  https://ntfy.sh )。通知のオン/オフは「設定」のチェックボックスで切り替えられる
 
 ## 開発環境
 

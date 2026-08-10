@@ -33,7 +33,7 @@ public class RakutenBooksEnricherTests
     };
 
     static RakutenBooksEnricher NewEnricher(StubHttpClientFactory factory) =>
-        new(factory, "test-app-id", delayBetweenRequests: TimeSpan.Zero);
+        new(factory, () => "test-app-id", delayBetweenRequests: TimeSpan.Zero);
 
     [Fact]
     public async Task レビュー件数と平均評価を補う()
@@ -76,7 +76,7 @@ public class RakutenBooksEnricherTests
     public async Task アプリIDが無ければ問い合わせない()
     {
         var factory = new StubHttpClientFactory(Response);
-        var enricher = new RakutenBooksEnricher(factory, "", delayBetweenRequests: TimeSpan.Zero);
+        var enricher = new RakutenBooksEnricher(factory, () => "", delayBetweenRequests: TimeSpan.Zero);
 
         var book = Assert.Single(await enricher.EnrichAsync([NewBook("9784123456789")]));
 

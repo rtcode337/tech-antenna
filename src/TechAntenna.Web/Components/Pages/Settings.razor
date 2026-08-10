@@ -4,6 +4,7 @@
 @inject SummaryRunner SummaryRunner
 @inject TitleTranslationRunner TranslationRunner
 @inject DigestRunner DigestRunner
+@inject ApiCredentials Credentials
 
 <PageTitle>設定 - tech-antenna</PageTitle>
 
@@ -42,6 +43,31 @@
         推薦本は<a href="/classics/books">定番 → 書籍</a>、
         語彙の整理は<a href="/topics">トピック</a>の「話題度を取り直す」「タグを仕分けなおす」です。
     </p>
+
+    @* 通知のオン/オフは接続先の設定(外部連携)とは独立に持つ ——
+       接続先を消さなくても一時的に通知だけ止められるようにするため。
+       チェックボックスは未チェックだと POST に乗らないので、hidden の印(Submitted)で
+       「保存が押されたのに値が無い = オフにした」を見分ける *@
+    <form method="post" @formname="ntfy-toggle" @onsubmit="SaveNtfyToggleAsync" class="ntfy-toggle">
+        <AntiforgeryToken />
+        <input type="hidden" name="Submitted" value="true" />
+        <label>
+            <input type="checkbox" name="NotifyEnabled" value="true"
+                   checked="@NtfySettings.IsEnabled(Credentials)" />
+            今日のサマリーを ntfy へ通知する
+        </label>
+        <button type="submit" class="btn btn-outline-primary btn-sm ms-2">保存</button>
+        @if (_ntfyMessage is { Length: > 0 })
+        {
+            <span class="ms-2 text-body-secondary">@_ntfyMessage</span>
+        }
+        else if (!NtfySettings.IsConfigured(Credentials))
+        {
+            <span class="ms-2 text-body-secondary">
+                通知先が未設定です(<a href="/integrations">外部連携</a>で ntfy のトピック名を設定すると届きます)。
+            </span>
+        }
+    </form>
 </section>
 
 <h2 class="h5">設定のページ</h2>
@@ -67,6 +93,35 @@
 </ul>
 
 @code {
+    string? _ntfyMessage;
+
+    [SupplyParameterFromForm(FormName = "ntfy-toggle", Name = "Submitted")]
+    public string? NtfyToggleSubmitted { get; set; }
+
+    [SupplyParameterFromForm(FormName = "ntfy-toggle", Name = "NotifyEnabled")]
+    public string? NotifyEnabled { get; set; }
+
+    async Task SaveNtfyToggleAsync()
+    {
+        if (NtfyToggleSubmitted is null)
+        {
+            return;
+        }
+
+        // 有効が既定なので、オンは行を消す(= 既定に戻す)、オフだけ "false" を書く
+        var enable = NotifyEnabled == "true";
+        if (enable)
+        {
+            await Credentials.RemoveAsync(NtfySettings.EnabledName);
+        }
+        else
+        {
+            await Credentials.SetAsync(NtfySettings.EnabledName, "false");
+        }
+
+        _ntfyMessage = enable ? "通知を有効にしました。" : "通知を無効にしました(接続先の設定は残ります)。";
+    }
+
     void Collect() =>
         CollectionRunner.StartInBackground(ct => CollectionRunner.RunOnceAsync(ct), JobMessage.Describe);
 

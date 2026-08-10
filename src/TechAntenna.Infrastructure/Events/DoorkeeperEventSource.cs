@@ -10,13 +10,18 @@ namespace TechAntenna.Infrastructure.Events;
 /// アクセストークン(Authorization: Bearer)が必須で、ホスト側の
 /// HttpClient 登録(<see cref="HttpClientName"/>)で設定する。
 /// </summary>
+/// <param name="accessTokenProvider">
+/// トークンの実行時解決(画面から設定できるので起動時の値を固定しない)。
+/// null なら常に設定済みとみなす(テスト用)。トークンが無ければこの収集元だけスキップする。
+/// </param>
 public class DoorkeeperEventSource(
     IHttpClientFactory httpClientFactory,
     TimeProvider timeProvider,
     IReadOnlyList<string> keywords,
     TimeSpan? delayBetweenKeywords = null,
     ITopicStore? topicStore = null,
-    TopicCatalog? catalog = null) : IEventSource
+    TopicCatalog? catalog = null,
+    Func<string?>? accessTokenProvider = null) : IEventSource
 {
     public const string HttpClientName = "doorkeeper";
 
@@ -27,6 +32,12 @@ public class DoorkeeperEventSource(
 
     public async Task<IReadOnlyList<TechEvent>> FetchAsync(CancellationToken cancellationToken = default)
     {
+        // トークン未設定ならこの収集元だけスキップ(他のソースの収集は続く)
+        if (accessTokenProvider is not null && string.IsNullOrWhiteSpace(accessTokenProvider()))
+        {
+            return [];
+        }
+
         using var client = httpClientFactory.CreateClient(HttpClientName);
 
         var collectedAt = timeProvider.GetUtcNow();

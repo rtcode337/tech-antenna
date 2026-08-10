@@ -5,7 +5,13 @@ using TechAntenna.Core.Abstractions;
 namespace TechAntenna.Infrastructure;
 
 /// <summary><see cref="Process"/> で外部プロセスを実行する既定の実装。</summary>
-public class SystemProcessRunner : IProcessRunner
+/// <param name="environmentProvider">
+/// 子プロセスに上書きで渡す環境変数(起動のたびに評価する)。Claude Code の CLI は
+/// <c>CLAUDE_CODE_OAUTH_TOKEN</c> を環境変数から読むので、画面で設定したトークンは
+/// ここを通して子プロセスへ渡す(アプリ自身の環境変数は変えない)。
+/// </param>
+public class SystemProcessRunner(
+    Func<IReadOnlyDictionary<string, string>?>? environmentProvider = null) : IProcessRunner
 {
     public async Task<ProcessResult> RunAsync(
         string fileName,
@@ -25,6 +31,14 @@ public class SystemProcessRunner : IProcessRunner
         {
             // ArgumentList を使うとシェルを介さずに渡るので、引数のクオートを自前で組まなくてよい
             startInfo.ArgumentList.Add(argument);
+        }
+        var environment = environmentProvider?.Invoke();
+        if (environment is not null)
+        {
+            foreach (var (name, value) in environment)
+            {
+                startInfo.Environment[name] = value;
+            }
         }
 
         using var process = Process.Start(startInfo)

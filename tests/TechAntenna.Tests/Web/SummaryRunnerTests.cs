@@ -43,8 +43,8 @@ public class SummaryRunnerTests
         CollectedAt = new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero),
     };
 
-    static SummaryRunner Runner(IEnumerable<ISummarizer> summarizers, IArticleStore store) =>
-        new(summarizers,
+    static SummaryRunner Runner(ISummarizer? summarizer, IArticleStore store) =>
+        new(new StubLlmGateway(summarizer: summarizer),
             store,
             Options.Create(new AnthropicOptions { BatchSize = 20 }),
             NullLogger<SummaryRunner>.Instance);
@@ -59,7 +59,7 @@ public class SummaryRunnerTests
     [Fact]
     public async Task 要約が未設定なら実行しない()
     {
-        var runner = Runner([], await StoreWith(Article("一つ目")));
+        var runner = Runner(null, await StoreWith(Article("一つ目")));
 
         Assert.False(runner.IsConfigured);
         Assert.Equal(SummaryRunResult.Nothing, await runner.RunOnceAsync());
@@ -73,7 +73,7 @@ public class SummaryRunnerTests
             articles.Select(a => new SummaryResult(a.Id, $"{a.Title}の要約")).ToList());
         summarizer.Release.SetResult();
 
-        var result = await Runner([summarizer], store).RunOnceAsync();
+        var result = await Runner(summarizer, store).RunOnceAsync();
 
         Assert.Equal(2, result.Requested);
         Assert.Equal(2, result.Summarized);
@@ -90,7 +90,7 @@ public class SummaryRunnerTests
             articles => articles.Select(a => new SummaryResult(a.Id, null)).ToList());
         summarizer.Release.SetResult();
 
-        var result = await Runner([summarizer], store).RunOnceAsync();
+        var result = await Runner(summarizer, store).RunOnceAsync();
 
         Assert.Equal(0, result.Summarized);
         // 空でも確定させるので、次回また挑むことはない
@@ -106,7 +106,7 @@ public class SummaryRunnerTests
             articles => [new SummaryResult(articles[0].Id, "要約")]);
         summarizer.Release.SetResult();
 
-        var result = await Runner([summarizer], store).RunOnceAsync();
+        var result = await Runner(summarizer, store).RunOnceAsync();
 
         Assert.Equal(1, result.Skipped);
         Assert.Single(await store.GetUnsummarizedAsync(10));
@@ -119,7 +119,7 @@ public class SummaryRunnerTests
         var store = await StoreWith(Article("一つ目"));
         var summarizer = new StubSummarizer(
             articles => articles.Select(a => new SummaryResult(a.Id, "要約")).ToList());
-        var runner = Runner([summarizer], store);
+        var runner = Runner(summarizer, store);
 
         var first = runner.RunOnceAsync();
         await summarizer.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));

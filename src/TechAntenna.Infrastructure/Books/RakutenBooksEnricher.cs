@@ -17,8 +17,8 @@ namespace TechAntenna.Infrastructure.Books;
 /// </summary>
 public class RakutenBooksEnricher(
     IHttpClientFactory httpClientFactory,
-    string applicationId,
-    string accessKey = "",
+    Func<string?> applicationIdProvider,
+    Func<string?>? accessKeyProvider = null,
     TimeSpan? delayBetweenRequests = null) : IBookEnricher
 {
     public const string HttpClientName = "rakutenbooks";
@@ -33,7 +33,9 @@ public class RakutenBooksEnricher(
         IReadOnlyList<Book> books,
         CancellationToken cancellationToken = default)
     {
-        if (applicationId.Length == 0)
+        // アプリ ID は画面から設定できるので、起動時ではなく実行のたびに解決する
+        var applicationId = applicationIdProvider();
+        if (string.IsNullOrWhiteSpace(applicationId))
         {
             return books;
         }
@@ -55,7 +57,8 @@ public class RakutenBooksEnricher(
 
         for (var i = 0; i < isbns.Count; i++)
         {
-            var json = await client.GetStringAsync(RequestUri(isbns[i]), cancellationToken);
+            var json = await client.GetStringAsync(
+                RequestUri(isbns[i], applicationId), cancellationToken);
             foreach (var review in RakutenBooksResponseParser.Parse(json))
             {
                 byIsbn[review.Isbn] = review;
@@ -71,12 +74,15 @@ public class RakutenBooksEnricher(
         return books.Select(book => Apply(book, byIsbn)).ToList();
     }
 
-    string RequestUri(string isbn)
+    string RequestUri(string isbn, string applicationId)
     {
         var uri = $"{Endpoint}?format=json&applicationId={Uri.EscapeDataString(applicationId)}"
             + $"&isbn={Uri.EscapeDataString(isbn)}";
 
-        return accessKey.Length > 0 ? uri + $"&accessKey={Uri.EscapeDataString(accessKey)}" : uri;
+        var accessKey = accessKeyProvider?.Invoke();
+        return string.IsNullOrWhiteSpace(accessKey)
+            ? uri
+            : uri + $"&accessKey={Uri.EscapeDataString(accessKey)}";
     }
 
     static Book Apply(Book book, IReadOnlyDictionary<string, RakutenReview> byIsbn)

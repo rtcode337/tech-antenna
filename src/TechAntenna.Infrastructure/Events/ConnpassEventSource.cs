@@ -10,13 +10,18 @@ namespace TechAntenna.Infrastructure.Events;
 /// API キー(X-API-Key)と User-Agent が必須で、これらはホスト側の
 /// HttpClient 登録(<see cref="HttpClientName"/>)で設定する。
 /// </summary>
+/// <param name="apiKeyProvider">
+/// API キーの実行時解決(画面から設定できるので起動時の値を固定しない)。
+/// null なら常に設定済みとみなす(テスト用)。キーが無ければこの収集元だけスキップする。
+/// </param>
 public class ConnpassEventSource(
     IHttpClientFactory httpClientFactory,
     TimeProvider timeProvider,
     IReadOnlyList<string> keywords,
     TimeSpan? delayBetweenKeywords = null,
     ITopicStore? topicStore = null,
-    TopicCatalog? catalog = null) : IEventSource
+    TopicCatalog? catalog = null,
+    Func<string?>? apiKeyProvider = null) : IEventSource
 {
     public const string HttpClientName = "connpass";
 
@@ -30,6 +35,12 @@ public class ConnpassEventSource(
 
     public async Task<IReadOnlyList<TechEvent>> FetchAsync(CancellationToken cancellationToken = default)
     {
+        // キー未設定ならこの収集元だけスキップ(他のソースの収集は続く)
+        if (apiKeyProvider is not null && string.IsNullOrWhiteSpace(apiKeyProvider()))
+        {
+            return [];
+        }
+
         using var client = httpClientFactory.CreateClient(HttpClientName);
 
         var collectedAt = timeProvider.GetUtcNow();

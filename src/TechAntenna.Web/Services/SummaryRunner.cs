@@ -12,22 +12,29 @@ public record SummaryRunResult(int Requested, int Summarized, int Skipped)
     public static readonly SummaryRunResult Nothing = new(0, 0, 0);
 }
 
-/// <summary>未要約の記事を1バッチ分だけ要約する。</summary>
+/// <summary>未要約の記事を1バッチ分だけ要約する。方式(Claude Code / Anthropic API)は
+/// 実行のたびに LlmGateway がキーの状態から選ぶ —— 画面で設定した直後から効く。</summary>
 public class SummaryRunner(
-    IEnumerable<ISummarizer> summarizers,
+    LlmGateway llm,
     IArticleStore store,
     IOptions<AnthropicOptions> options,
     ILogger<SummaryRunner> logger) : JobRunner
 {
-    readonly ISummarizer? _summarizer = summarizers.FirstOrDefault();
+    public override string Name => $"記事の要約({llm.Summarizer?.Name ?? "未設定"})";
 
-    public override string Name => $"記事の要約({_summarizer?.Name ?? "未設定"})";
+    public override bool IsConfigured => llm.IsConfigured;
 
-    public override bool IsConfigured => _summarizer is not null;
+    public override string? NotConfiguredReason => LlmGateway.NotConfiguredReason;
 
-    public Task<SummaryRunResult> RunOnceAsync(CancellationToken cancellationToken = default) =>
-        RunExclusiveAsync(() => SummarizeBatchAsync(_summarizer!, cancellationToken),
-            SummaryRunResult.Nothing, cancellationToken);
+    public Task<SummaryRunResult> RunOnceAsync(CancellationToken cancellationToken = default)
+    {
+        // 実行中にキーが変わっても1回の実行内では同じ実装を使い続けるよう、先に掴む
+        var summarizer = llm.Summarizer;
+        return summarizer is null
+            ? Task.FromResult(SummaryRunResult.Nothing)
+            : RunExclusiveAsync(() => SummarizeBatchAsync(summarizer, cancellationToken),
+                SummaryRunResult.Nothing, cancellationToken);
+    }
 
     async Task<SummaryRunResult> SummarizeBatchAsync(
         ISummarizer summarizer, CancellationToken cancellationToken)

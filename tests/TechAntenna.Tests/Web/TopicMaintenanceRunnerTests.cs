@@ -76,8 +76,7 @@ public class TopicMaintenanceRunnerTests
                 tagStore, topicStore, refresher, NullLogger<TopicMerger>.Instance, TimeProvider.System),
             NullLogger<TopicMaintenanceRunner>.Instance,
             TimeProvider.System,
-            classifier,
-            mergeAdvisor: mergeAdvisor);
+            new StubLlmGateway(classifier: classifier, mergeAdvisor: mergeAdvisor));
     }
 
     [Fact]

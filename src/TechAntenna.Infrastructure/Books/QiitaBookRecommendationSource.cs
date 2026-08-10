@@ -29,7 +29,7 @@ public partial class QiitaBookRecommendationSource(
     IHttpClientFactory httpClientFactory,
     IReadOnlyList<string> queries,
     int maxArticlesPerQuery = 200,
-    string accessToken = "",
+    Func<string?>? accessTokenProvider = null,
     TimeSpan? delayBetweenRequests = null) : IBookRecommendationSource
 {
     public const string HttpClientName = "qiita";
@@ -61,6 +61,8 @@ public partial class QiitaBookRecommendationSource(
         }
 
         using var client = httpClientFactory.CreateClient(HttpClientName);
+        // トークンは任意(上限が 60 → 1000 リクエスト/時に上がる)。画面から設定できるので実行時に解決する
+        var accessToken = accessTokenProvider?.Invoke();
         if (!string.IsNullOrWhiteSpace(accessToken))
         {
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);

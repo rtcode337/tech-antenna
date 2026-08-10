@@ -7,20 +7,28 @@ using TechAntenna.Core.Models;
 
 namespace TechAntenna.Infrastructure.Notifications;
 
+/// <summary>ntfy の通知先(送信のたびに解決される)。</summary>
+/// <param name="BaseUrl">ntfy サーバーのベース URL。</param>
+/// <param name="Topic">通知を送るトピック名。</param>
+/// <param name="AccessToken">Bearer 認証のトークン(認証なしのサーバーでは null)。</param>
+/// <param name="ClickUrl">通知をタップしたときに開く URL(未設定なら null)。</param>
+public record NtfyTarget(string BaseUrl, string Topic, string? AccessToken, string? ClickUrl);
+
 /// <summary>
 /// ダイジェストを ntfy へ送る。**JSON publish**(ベース URL への POST に topic を含める)を
 /// 使うのは、タイトルをヘッダ(X-Title)で渡すと非 ASCII に RFC 2047 エンコードが要るため ——
 /// JSON ボディなら日本語のタイトルをそのまま書ける。
 ///
 /// 認証はアクセストークンがあるときだけ Bearer で送る(セルフホストの ntfy は
-/// 認証なしのことも多い)。トークンの実値はコミットせず環境変数で渡す。
+/// 認証なしのことも多い)。
+///
+/// **通知先は送信のたびに <paramref name="targetProvider"/> から解決する** —— 接続先は
+/// 画面から設定でき、通知のオン/オフも独立に切り替えられるため、起動時の値を固定しない。
+/// null が返ったら(未設定・無効)送らずに false を返す。
 /// </summary>
 public class NtfyDigestNotifier(
     IHttpClientFactory httpClientFactory,
-    string baseUrl,
-    string topic,
-    string? accessToken,
-    string? clickUrl) : IDigestNotifier
+    Func<NtfyTarget?> targetProvider) : IDigestNotifier
 {
     public const string HttpClientName = "ntfy";
 
@@ -32,34 +40,41 @@ public class NtfyDigestNotifier(
 
     public string Name => "ntfy";
 
-    public async Task NotifyAsync(Digest digest, CancellationToken cancellationToken = default)
+    public async Task<bool> NotifyAsync(Digest digest, CancellationToken cancellationToken = default)
     {
+        var target = targetProvider();
+        if (target is null)
+        {
+            return false;
+        }
+
         using var client = httpClientFactory.CreateClient(HttpClientName);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, baseUrl)
+        using var request = new HttpRequestMessage(HttpMethod.Post, target.BaseUrl)
         {
             Content = JsonContent.Create(new
             {
-                topic,
+                topic = target.Topic,
                 title = $"今日のサマリー({digest.GeneratedAt:M/d HH:mm} 生成)",
                 message = BuildMessage(digest),
                 tags = new[] { "newspaper" },
                 // click はホームの URL(設定されているときだけ)。アプリは自分の公開 URL を
                 // 知らないので、設定から渡してもらう
-                click = string.IsNullOrWhiteSpace(clickUrl) ? null : clickUrl,
+                click = string.IsNullOrWhiteSpace(target.ClickUrl) ? null : target.ClickUrl,
             }, options: new JsonSerializerOptions
             {
                 // 未設定の click を "click": null で送らない(値のあるキーだけにする)
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             }),
         };
-        if (!string.IsNullOrWhiteSpace(accessToken))
+        if (!string.IsNullOrWhiteSpace(target.AccessToken))
         {
-            request.Headers.Authorization = new("Bearer", accessToken);
+            request.Headers.Authorization = new("Bearer", target.AccessToken);
         }
 
         var response = await client.SendAsync(request, cancellationToken);
         response.EnsureSuccessStatusCode();
+        return true;
     }
 
     /// <summary>

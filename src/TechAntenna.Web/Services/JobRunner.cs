@@ -16,8 +16,14 @@ public abstract class JobRunner
     /// <summary>ジョブの名前(画面とログに出す)。</summary>
     public abstract string Name { get; }
 
-    /// <summary>実行できる状態か。収集元やキーが未設定なら false(画面にボタンを出さない)。</summary>
+    /// <summary>実行できる状態か。収集元やキーが未設定なら false(画面のボタンが disabled になる)。</summary>
     public abstract bool IsConfigured { get; }
+
+    /// <summary>
+    /// 未設定(<see cref="IsConfigured"/> が false)のとき、ボタンの隣に出す理由。
+    /// 何を設定すれば使えるようになるかを書く(JobButton が外部連携への導線を添える)。
+    /// </summary>
+    public virtual string? NotConfiguredReason => null;
 
     /// <summary>今まさに実行中か(バックグラウンド開始の直後も含む)。</summary>
     public bool IsRunning => _running || _starting;

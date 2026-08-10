@@ -1,6 +1,7 @@
 @page "/integrations"
 @using TechAntenna.Web.Services
 @inject IntegrationCatalog Catalog
+@inject ApiCredentials Credentials
 
 <PageTitle>外部連携 - tech-antenna</PageTitle>
 
@@ -9,18 +10,38 @@
 <p class="text-muted">
     どこから何を集めていて、キーが要るのか・設定できているのかをまとめています。
     <strong>キーの値そのものは表示しません</strong>(有無だけを見ています)。
-    設定は環境変数か user-secrets で渡します —— 実値はリポジトリに置きません。
+    キーは各表の<strong>「キーの設定」列</strong>から入れます —— 暗号化して DB に保存され、
+    再起動なしですぐ効きます。<strong>設定の入口はこの画面だけ</strong>で、
+    環境変数や .env では渡せません(実値をリポジトリや設定ファイルに置かないため)。
 </p>
+
+@if (_secretError is { Length: > 0 })
+{
+    <p class="text-danger">@_secretError</p>
+}
+else if (_secretMessage is { Length: > 0 })
+{
+    <p class="text-body-secondary">@_secretMessage</p>
+}
 
 @* **画面と同じ3軸で分ける。** 「トレンドが動かない」「興味トピックが動かない」
    「定番が動かない」で見る場所が変わるので、どちらの軸で使う連携なのかを先に示す。
-   **複数の軸で使うものは、その全部の節に出す**(片方だけに置くと、もう片方から辿れない) *@
-@AxisSection(IntegrationAxis.Trending, "トレンドで使う",
-    "トピックの選択に関係なく集めるもの(ニュース・記事・話題の論文)。")
-@AxisSection(IntegrationAxis.Interests, "興味トピックで使う",
-    "選んだトピックを検索語にして集めるもの(書籍・イベント・論文)。")
-@AxisSection(IntegrationAxis.Classics, "定番で使う",
-    "時間が経っても薦められ続けるもの(推薦本)。トピックの選択には依存しない。")
+   **複数の軸で使うものは、その全部の節に出す**(片方だけに置くと、もう片方から辿れない)
+
+   キーの入力は各行の「キーの設定」列。**フォームはページ全体で1つ**にして、押した
+   ボタンの value(save:<節>:<キー> / clear:<節>:<キー>)で行を見分ける(タグの画面と
+   同じ流儀 —— 行ごとにフォームを作ると @@formname が数十個になる)。同じ連携が複数の節に
+   出るぶん input の name が重複しないよう、節(軸)の番号を名前に含めている ——
+   重複すると Request.Form が複数の値をカンマで連結し、保存した値が壊れる *@
+<form method="post" @formname="secrets" @onsubmit="HandleSecretAsync">
+    <AntiforgeryToken />
+    @AxisSection(IntegrationAxis.Trending, "トレンドで使う",
+        "トピックの選択に関係なく集めるもの(ニュース・記事・話題の論文)。")
+    @AxisSection(IntegrationAxis.Interests, "興味トピックで使う",
+        "選んだトピックを検索語にして集めるもの(書籍・イベント・論文)。")
+    @AxisSection(IntegrationAxis.Classics, "定番で使う",
+        "時間が経っても薦められ続けるもの(推薦本)。トピックの選択には依存しない。")
+</form>
 
 @* 用途ごとの表。1つの軸の中を用途で束ねる *@
 @{
@@ -40,11 +61,11 @@
         @foreach (var group in _all.Where(i => i.Axis.HasFlag(axis))
             .GroupBy(integration => integration.Purpose))
         {
-            @PurposeTable(group)
+            @PurposeTable(axis, group)
         }
     </text>;
 
-    RenderFragment PurposeTable(IGrouping<string, Integration> group) =>
+    RenderFragment PurposeTable(IntegrationAxis axis, IGrouping<string, Integration> group) =>
     @<text>
         <h3 class="purpose">@group.Key</h3>
     <table class="table align-middle">
@@ -52,9 +73,9 @@
             <tr>
                 <th scope="col">連携先</th>
                 <th scope="col">キー</th>
-                <th scope="col">状態</th>
-                <th scope="col">設定する環境変数</th>
                 <th scope="col">未設定・無効のとき</th>
+                <th scope="col">状態</th>
+                <th scope="col">キーの設定</th>
             </tr>
         </thead>
         <tbody>
@@ -63,18 +84,46 @@
                 <tr>
                     <td>@integration.Name</td>
                     <td>@NeedLabel(integration.Need)</td>
+                    <td class="text-muted effect">@integration.Effect</td>
+                    @* 状態はキーの設定の隣に置く —— 「未設定を見つける → その場で入れる」が
+                       視線の移動なしにつながるようにするため *@
                     <td><span class="badge @StatusClass(integration)">@StatusLabel(integration)</span></td>
-                    <td>
-                        @if (integration.SettingKey is { } key)
+                    <td class="secret-cell">
+                        @if (integration.SecretNames is { Count: > 0 } secretNames)
                         {
-                            <code>@key</code>
+                            @* ほとんどの連携はキー 1 つだが、ntfy は接続先一式で複数持つ。
+                               複数のときはどの欄か分かるようラベルを添えて縦に並べる *@
+                            @foreach (var secretName in secretNames)
+                            {
+                                var editable = IntegrationCatalog.EditableSecrets
+                                    .First(secret => secret.SecretName == secretName);
+                                <div class="secret-row">
+                                    @if (secretNames.Count > 1)
+                                    {
+                                        <span class="secret-label text-muted">@editable.Label</span>
+                                    }
+                                    @* 値は入力欄に受けるだけで画面に残さない。ブラウザにも覚えさせない。
+                                       秘匿値でないもの(URL 等)は打った値が見えるほうが打ち間違いに気づける *@
+                                    <input type="@(editable.Sensitive ? "password" : "text")"
+                                           name="value-@((int)axis)-@secretName"
+                                           autocomplete="@(editable.Sensitive ? "new-password" : "off")"
+                                           placeholder="@(editable.Hint ?? "新しい値")"
+                                           aria-label="@editable.Label" />
+                                    <button type="submit" name="Action" value="save:@((int)axis):@secretName"
+                                            class="btn btn-outline-primary btn-sm">保存</button>
+                                    @if (Credentials.Has(secretName))
+                                    {
+                                        <button type="submit" name="Action" value="clear:@((int)axis):@secretName"
+                                                class="btn btn-outline-secondary btn-sm">削除</button>
+                                    }
+                                </div>
+                            }
                         }
                         else
                         {
                             <span class="text-muted">—</span>
                         }
                     </td>
-                    <td class="text-muted">@integration.Effect</td>
                 </tr>
             }
         </tbody>
@@ -85,13 +134,69 @@
 @code {
     IReadOnlyList<Integration> _all = [];
 
+    string? _secretMessage;
+    string? _secretError;
+
+    [CascadingParameter]
+    HttpContext? HttpContext { get; set; }
+
+    /// <summary>押されたボタンの値(save:&lt;節&gt;:&lt;キー&gt; / clear:&lt;節&gt;:&lt;キー&gt;)。</summary>
+    [SupplyParameterFromForm(FormName = "secrets")]
+    public string? Action { get; set; }
+
     protected override void OnInitialized() =>
         // 並びは収集の流れ(記事 → ニュース → 話題の論文 → 書籍 → …)のまま出す
         _all = Catalog.GetAll();
 
+    async Task HandleSecretAsync()
+    {
+        if (Action is null)
+        {
+            return;
+        }
+
+        // "save:2:Connpass:ApiKey" → 動詞・節(軸)の番号・設定パス。
+        // パスにもコロンが入るので 3 分割まで(3つ目以降はパスとして丸ごと残す)
+        var parts = Action.Split(':', 3);
+        var name = parts.Length > 2 ? parts[2] : "";
+        var editable = IntegrationCatalog.EditableSecrets
+            .FirstOrDefault(secret => secret.SecretName == name);
+        if (editable is null)
+        {
+            _secretError = "不明なキーです。";
+            return;
+        }
+
+        if (parts[0] == "save")
+        {
+            // 値の束縛はせず HttpContext から読む —— [SupplyParameterFromForm] のプロパティを
+            // キーごとに生やさないため。値をモデルに持たないので、再描画で画面に漏れることもない。
+            // 節の番号まで含めた name で引くので、他の節にある同じキーの空欄と混ざらない
+            var value = HttpContext?.Request.Form[$"value-{parts[1]}-{name}"].ToString();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                _secretError = $"{editable.Label}: 値が空です。";
+                return;
+            }
+
+            await Credentials.SetAsync(name, value);
+            _secretMessage = $"{editable.Label} を保存しました。再起動なしで反映されます。";
+        }
+        else
+        {
+            await Credentials.RemoveAsync(name);
+            _secretMessage = $"{editable.Label} の画面設定を削除しました。";
+        }
+
+        _secretError = null;
+        // 状態の列にも今の状態を映す
+        _all = Catalog.GetAll();
+    }
+
     static string NeedLabel(CredentialNeed need) => need switch
     {
         CredentialNeed.Required => "必須",
+        CredentialNeed.EitherRequired => "どちらか必須",
         CredentialNeed.Optional => "任意",
         _ => "不要",
     };
@@ -103,8 +208,11 @@
         { Enabled: false } => "無効",
         { Need: CredentialNeed.NotNeeded } => "キー不要",
         { Configured: true } => "設定済み",
-        { Need: CredentialNeed.Required } => "未設定（動かない）",
-        _ => "未設定（一部だけ）",
+        // 「どちらか必須」は、もう一方が設定済みなら未設定でも困っていない
+        { Need: CredentialNeed.EitherRequired, AlternativeConfigured: true } => "未設定（もう一方で動作）",
+        { Need: CredentialNeed.Required or CredentialNeed.EitherRequired } => "未設定（動かない）",
+        // 任意キーが未設定 = この連携はキー無しでも動く(上限・機能が増えないだけ)
+        _ => "未設定（無くても動く）",
     };
 
     static string StatusClass(Integration integration) => integration switch
@@ -112,7 +220,9 @@
         { Enabled: false } => "bg-secondary",
         { Need: CredentialNeed.NotNeeded } => "bg-success",
         { Configured: true } => "bg-success",
-        { Need: CredentialNeed.Required } => "bg-danger",
+        // 「もう一方で動作」は問題の印ではないので、警告色ではなく控えめな色
+        { Need: CredentialNeed.EitherRequired, AlternativeConfigured: true } => "bg-secondary",
+        { Need: CredentialNeed.Required or CredentialNeed.EitherRequired } => "bg-danger",
         _ => "bg-warning text-dark",
     };
 }

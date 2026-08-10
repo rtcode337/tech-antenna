@@ -88,6 +88,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
     builder.Services.AddSingleton<ITagStore, InMemoryTagStore>();
     builder.Services.AddSingleton<ITopicStore, InMemoryTopicStore>();
     builder.Services.AddSingleton<IDigestStore, InMemoryDigestStore>();
+    builder.Services.AddSingleton<ISecretStore, InMemorySecretStore>();
 }
 else
 {
@@ -98,7 +99,12 @@ else
     builder.Services.AddSingleton<ITagStore, EfTagStore>();
     builder.Services.AddSingleton<ITopicStore, EfTopicStore>();
     builder.Services.AddSingleton<IDigestStore, EfDigestStore>();
+    builder.Services.AddSingleton<ISecretStore, EfSecretStore>();
 }
+
+// 外部 API のキー・トークンの実行時解決。**設定の入口は画面(外部連携)だけ**で、
+// 暗号化して DB に保存する。各収集元・LLM は実行のたびに引くので、設定した直後に効く
+builder.Services.AddSingleton<ApiCredentials>();
 
 var collection = builder.Configuration
     .GetSection(CollectionOptions.SectionName)
@@ -171,39 +177,47 @@ builder.Services.AddSingleton<BookmarkCountRefresher>();
 builder.Services.AddSingleton<ArticleCollectionRunner>();
 
 // --- イベント収集(connpass)---
+// **キーの有無で登録を分岐しない**(画面から実行時に設定できるため)。キーは
+// クライアント生成のたびに ApiCredentials から解決し、無ければソース側がスキップする
 var connpass = builder.Configuration
     .GetSection(ConnpassOptions.SectionName)
     .Get<ConnpassOptions>() ?? new ConnpassOptions();
-if (!string.IsNullOrWhiteSpace(connpass.ApiKey))
+builder.Services.AddHttpClient(ConnpassEventSource.HttpClientName, (sp, client) =>
 {
-    builder.Services.AddHttpClient(ConnpassEventSource.HttpClientName, client =>
+    // v2 は X-API-Key と User-Agent が必須。連絡先はリポジトリ URL のみ
+    var apiKey = sp.GetRequiredService<ApiCredentials>().Get("Connpass:ApiKey");
+    if (!string.IsNullOrWhiteSpace(apiKey))
     {
-        // v2 は X-API-Key と User-Agent が必須。連絡先はリポジトリ URL のみ
-        client.DefaultRequestHeaders.Add("X-API-Key", connpass.ApiKey);
-        client.DefaultRequestHeaders.UserAgent.ParseAdd(
-            "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
-        client.Timeout = TimeSpan.FromSeconds(30);
-        client.MaxResponseContentBufferSize = MaxResponseBytes;
-    });
+        client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+    }
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(
+        "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.MaxResponseContentBufferSize = MaxResponseBytes;
+});
 
-    builder.Services.AddSingleton<IEventSource>(sp => new ConnpassEventSource(
-        sp.GetRequiredService<IHttpClientFactory>(),
-        sp.GetRequiredService<TimeProvider>(),
-        connpass.Keywords,
-        topicStore: sp.GetRequiredService<ITopicStore>(),
-        catalog: topicCatalog));
-}
+builder.Services.AddSingleton<IEventSource>(sp => new ConnpassEventSource(
+    sp.GetRequiredService<IHttpClientFactory>(),
+    sp.GetRequiredService<TimeProvider>(),
+    connpass.Keywords,
+    topicStore: sp.GetRequiredService<ITopicStore>(),
+    catalog: topicCatalog,
+    apiKeyProvider: () => sp.GetRequiredService<ApiCredentials>().Get("Connpass:ApiKey")));
 
 // --- イベント収集(Doorkeeper)---
 var doorkeeper = builder.Configuration
     .GetSection(DoorkeeperOptions.SectionName)
     .Get<DoorkeeperOptions>() ?? new DoorkeeperOptions();
-if (!string.IsNullOrWhiteSpace(doorkeeper.AccessToken) && doorkeeper.Keywords.Count > 0)
+if (doorkeeper.Keywords.Count > 0)
 {
-    builder.Services.AddHttpClient(DoorkeeperEventSource.HttpClientName, client =>
+    builder.Services.AddHttpClient(DoorkeeperEventSource.HttpClientName, (sp, client) =>
     {
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", doorkeeper.AccessToken);
+        var accessToken = sp.GetRequiredService<ApiCredentials>().Get("Doorkeeper:AccessToken");
+        if (!string.IsNullOrWhiteSpace(accessToken))
+        {
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", accessToken);
+        }
         client.DefaultRequestHeaders.UserAgent.ParseAdd(
             "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
         client.Timeout = TimeSpan.FromSeconds(30);
@@ -215,7 +229,9 @@ if (!string.IsNullOrWhiteSpace(doorkeeper.AccessToken) && doorkeeper.Keywords.Co
         sp.GetRequiredService<TimeProvider>(),
         doorkeeper.Keywords,
         topicStore: sp.GetRequiredService<ITopicStore>(),
-        catalog: topicCatalog));
+        catalog: topicCatalog,
+        accessTokenProvider: () =>
+            sp.GetRequiredService<ApiCredentials>().Get("Doorkeeper:AccessToken")));
 }
 
 // --- イベント収集(TECH PLAY の RSS)---
@@ -258,7 +274,7 @@ builder.Services.AddHttpClient(GoogleBooksCatalog.HttpClientName, ConfigureBookC
 builder.Services.AddSingleton<IBookCatalog>(sp => new GoogleBooksCatalog(
     sp.GetRequiredService<IHttpClientFactory>(),
     sp.GetRequiredService<TimeProvider>(),
-    books.GoogleBooksApiKey,
+    () => sp.GetRequiredService<ApiCredentials>().Get("Books:GoogleBooksApiKey"),
     catalog: topicCatalog));
 
 // openBD はキーワード検索を持たないため、検索結果を補う後段として使う
@@ -268,22 +284,20 @@ if (books.UseOpenBd)
     builder.Services.AddSingleton<IBookEnricher, OpenBdEnricher>();
 }
 
-// 楽天ブックスはレビュー(読まれている度合い)専用の後段。アプリ ID が無ければ登録しない
+// 楽天ブックスはレビュー(読まれている度合い)専用の後段。アプリ ID は画面から
+// 実行時に設定できるので常に登録し、無ければエンリッチャ側が何もしない
 builder.Services.Configure<RakutenOptions>(
     builder.Configuration.GetSection(RakutenOptions.SectionName));
 
 var rakuten = builder.Configuration
     .GetSection(RakutenOptions.SectionName)
     .Get<RakutenOptions>() ?? new RakutenOptions();
-if (rakuten.ApplicationId.Length > 0)
-{
-    builder.Services.AddHttpClient(RakutenBooksEnricher.HttpClientName, ConfigureBookClient);
-    builder.Services.AddSingleton<IBookEnricher>(sp => new RakutenBooksEnricher(
-        sp.GetRequiredService<IHttpClientFactory>(),
-        rakuten.ApplicationId,
-        rakuten.AccessKey,
-        TimeSpan.FromSeconds(rakuten.DelaySeconds)));
-}
+builder.Services.AddHttpClient(RakutenBooksEnricher.HttpClientName, ConfigureBookClient);
+builder.Services.AddSingleton<IBookEnricher>(sp => new RakutenBooksEnricher(
+    sp.GetRequiredService<IHttpClientFactory>(),
+    () => sp.GetRequiredService<ApiCredentials>().Get("Rakuten:ApplicationId"),
+    () => sp.GetRequiredService<ApiCredentials>().Get("Rakuten:AccessKey"),
+    TimeSpan.FromSeconds(rakuten.DelaySeconds)));
 
 if (books.AutoRun)
 {
@@ -301,7 +315,7 @@ if (qiita.Enabled && qiita.Queries.Count > 0)
         sp.GetRequiredService<IHttpClientFactory>(),
         qiita.Queries,
         qiita.MaxArticles,
-        qiita.AccessToken,
+        () => sp.GetRequiredService<ApiCredentials>().Get("Qiita:AccessToken"),
         TimeSpan.FromSeconds(qiita.DelaySeconds)));
 }
 
@@ -330,8 +344,11 @@ builder.Services.AddSingleton<IntegrationCatalog>();
 
 // --- LLM 要約 ---
 // 方式は2つあり、Claude Code(サブスクリプションの枠)を優先する。両方未設定なら要約しない。
-//  1. Claude Code のヘッドレス実行: CLAUDE_CODE_OAUTH_TOKEN があるとき。従量課金にならない
-//  2. Anthropic API: Anthropic__ApiKey があるとき。呼び出しの固定費が小さい
+//  1. Claude Code のヘッドレス実行: OAuth トークンがあるとき。従量課金にならない
+//  2. Anthropic API: API キーがあるとき。呼び出しの固定費が小さい
+// キーはどちらも画面(外部連携)から設定する
+// **どちらを使うかは起動時ではなく実行のたびに LlmGateway が決める** —— キーは画面
+// (外部連携)から設定でき、再起動なしで効かせるため。未設定でもボタンは disabled で出る
 builder.Services.Configure<AnthropicOptions>(
     builder.Configuration.GetSection(AnthropicOptions.SectionName));
 builder.Services.Configure<ClaudeCodeOptions>(
@@ -339,66 +356,7 @@ builder.Services.Configure<ClaudeCodeOptions>(
 builder.Services.Configure<DigestOptions>(
     builder.Configuration.GetSection(DigestOptions.SectionName));
 
-var anthropic = builder.Configuration
-    .GetSection(AnthropicOptions.SectionName)
-    .Get<AnthropicOptions>() ?? new AnthropicOptions();
-var claudeCode = builder.Configuration
-    .GetSection(ClaudeCodeOptions.SectionName)
-    .Get<ClaudeCodeOptions>() ?? new ClaudeCodeOptions();
-
-// トークンは CLI が環境変数から直接読む。アプリは有無だけを見る
-var hasClaudeCodeToken = !string.IsNullOrWhiteSpace(
-    builder.Configuration["CLAUDE_CODE_OAUTH_TOKEN"]);
-
-if (hasClaudeCodeToken)
-{
-    builder.Services.AddSingleton<IProcessRunner, SystemProcessRunner>();
-    builder.Services.AddSingleton<ISummarizer>(sp => new ClaudeCodeSummarizer(
-        sp.GetRequiredService<IProcessRunner>(),
-        claudeCode.ExecutablePath,
-        string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
-        TimeSpan.FromSeconds(claudeCode.TimeoutSeconds)));
-    // 論文タイトルの翻訳も同じ方式を使う(要約と同じ枠・同じ CLI)
-    builder.Services.AddSingleton<ITitleTranslator>(sp => new ClaudeCodeTitleTranslator(
-        sp.GetRequiredService<IProcessRunner>(),
-        claudeCode.ExecutablePath,
-        string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
-        TimeSpan.FromSeconds(claudeCode.TimeoutSeconds)));
-    // カタログに無いタグの分類と、用語の一言説明も同じ方式(どちらも仕分けの中で動く)。
-    // 1 つのインスタンスを 2 つの抽象として配る —— 分類の応答に説明を相乗りさせるので、
-    // 実装も設定も分ける理由が無い
-    builder.Services.AddSingleton(sp => new ClaudeCodeTopicClassifier(
-        sp.GetRequiredService<IProcessRunner>(),
-        claudeCode.ExecutablePath,
-        string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
-        TimeSpan.FromSeconds(claudeCode.TimeoutSeconds)));
-    builder.Services.AddSingleton<ITopicClassifier>(
-        sp => sp.GetRequiredService<ClaudeCodeTopicClassifier>());
-    builder.Services.AddSingleton<ITopicDescriber>(
-        sp => sp.GetRequiredService<ClaudeCodeTopicClassifier>());
-    builder.Services.AddSingleton<ITopicMergeAdvisor>(
-        sp => sp.GetRequiredService<ClaudeCodeTopicClassifier>());
-    // 今日のサマリー(ダイジェスト)も同じ方式・同じ CLI
-    builder.Services.AddSingleton<IDigestComposer>(sp => new ClaudeCodeDigestComposer(
-        sp.GetRequiredService<IProcessRunner>(),
-        claudeCode.ExecutablePath,
-        string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model,
-        TimeSpan.FromSeconds(claudeCode.TimeoutSeconds),
-        sp.GetRequiredService<TimeProvider>()));
-}
-else if (!string.IsNullOrWhiteSpace(anthropic.ApiKey))
-{
-    builder.Services.AddSingleton<ISummarizer>(
-        new AnthropicSummarizer(anthropic.ApiKey, anthropic.Model));
-    builder.Services.AddSingleton<ITitleTranslator>(
-        new AnthropicTitleTranslator(anthropic.ApiKey, anthropic.Model));
-    var topicClassifier = new AnthropicTopicClassifier(anthropic.ApiKey, anthropic.Model);
-    builder.Services.AddSingleton<ITopicClassifier>(topicClassifier);
-    builder.Services.AddSingleton<ITopicDescriber>(topicClassifier);
-    builder.Services.AddSingleton<ITopicMergeAdvisor>(topicClassifier);
-    builder.Services.AddSingleton<IDigestComposer>(sp => new AnthropicDigestComposer(
-        anthropic.ApiKey, anthropic.Model, sp.GetRequiredService<TimeProvider>()));
-}
+builder.Services.AddSingleton<LlmGateway>();
 
 // 応答を圧縮する。**トピックのツリーは全件(1000 行超)を出すので HTML が 1MB を超える** ——
 // 素のままだとスマホや外出先の回線で待たされる(Kestrel は既定で圧縮しない)。
@@ -411,8 +369,12 @@ builder.Services.AddSingleton<SummaryRunner>();
 builder.Services.AddSingleton<TitleTranslationRunner>();
 builder.Services.AddSingleton<DigestRunner>();
 
-var hasLlm = hasClaudeCodeToken || !string.IsNullOrWhiteSpace(anthropic.ApiKey);
-if (anthropic.AutoRun && hasLlm)
+// AutoRun だけで登録する(キーの有無は見ない —— 実行時に Runner が未設定なら何もしない。
+// キーを画面から入れた時点で、再起動なしに次の周回から動き出す)
+var anthropic = builder.Configuration
+    .GetSection(AnthropicOptions.SectionName)
+    .Get<AnthropicOptions>() ?? new AnthropicOptions();
+if (anthropic.AutoRun)
 {
     builder.Services.AddHostedService<SummaryWorker>();
 }
@@ -420,28 +382,38 @@ if (anthropic.AutoRun && hasLlm)
 var digestOptions = builder.Configuration
     .GetSection(DigestOptions.SectionName)
     .Get<DigestOptions>() ?? new DigestOptions();
-if (digestOptions.AutoRun && hasLlm)
+if (digestOptions.AutoRun)
 {
     builder.Services.AddHostedService<DigestWorker>();
 }
 
-// 今日のサマリーの ntfy 通知。BaseUrl と Topic の両方があるときだけ登録する
-// (未設定なら IDigestNotifier が空のまま = 通知なしで生成だけ動く)
+// 今日のサマリーの ntfy 通知。**接続先(BaseUrl / Topic / トークン)は画面から実行時に
+// 設定できるので常に登録し**、送信のたびに解決する —— 未設定・無効なら送らないだけ。
+// 通知のオン/オフ(Ntfy:Enabled)は接続先とは独立の設定(設定画面のチェックボックス)。
+// ClickUrl(通知タップで開くホームの公開 URL)だけはデプロイ側の事実なので環境変数のまま
 builder.Services.Configure<NtfyOptions>(
     builder.Configuration.GetSection(NtfyOptions.SectionName));
 var ntfy = builder.Configuration
     .GetSection(NtfyOptions.SectionName)
     .Get<NtfyOptions>() ?? new NtfyOptions();
-if (ntfy.IsConfigured)
-{
-    builder.Services.AddHttpClient(NtfyDigestNotifier.HttpClientName, ConfigureFeedClient);
-    builder.Services.AddSingleton<IDigestNotifier>(sp => new NtfyDigestNotifier(
-        sp.GetRequiredService<IHttpClientFactory>(),
-        ntfy.BaseUrl,
-        ntfy.Topic,
-        string.IsNullOrWhiteSpace(ntfy.AccessToken) ? null : ntfy.AccessToken,
-        string.IsNullOrWhiteSpace(ntfy.ClickUrl) ? null : ntfy.ClickUrl));
-}
+builder.Services.AddHttpClient(NtfyDigestNotifier.HttpClientName, ConfigureFeedClient);
+builder.Services.AddSingleton<IDigestNotifier>(sp => new NtfyDigestNotifier(
+    sp.GetRequiredService<IHttpClientFactory>(),
+    () =>
+    {
+        var credentials = sp.GetRequiredService<ApiCredentials>();
+        if (!NtfySettings.IsEnabled(credentials)
+            || credentials.Get(NtfySettings.TopicName) is not { } topic)
+        {
+            return null;
+        }
+
+        return new NtfyTarget(
+            credentials.Get(NtfySettings.BaseUrlName) ?? NtfySettings.DefaultBaseUrl,
+            topic,
+            credentials.Get(NtfySettings.AccessTokenName),
+            string.IsNullOrWhiteSpace(ntfy.ClickUrl) ? null : ntfy.ClickUrl);
+    }));
 
 var app = builder.Build();
 
@@ -460,6 +432,8 @@ if (!string.IsNullOrWhiteSpace(connectionString))
 {
     await app.Services.GetRequiredService<TopicSeeder>().SeedAsync(seedEntries);
     await app.Services.GetRequiredService<TopicCatalogRefresher>().RefreshAsync();
+    // 画面から設定した API キーを DB から読み込む(マイグレーション適用後に呼ぶ)
+    await app.Services.GetRequiredService<ApiCredentials>().RefreshAsync();
 }
 
 if (!app.Environment.IsDevelopment())

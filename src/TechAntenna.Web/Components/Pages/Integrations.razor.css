@@ -31,10 +31,41 @@
 }
 
 /* 「未設定・無効のとき」は補足なので、幅を取りすぎないようにする */
-td:last-child {
+td.effect {
     font-size: 0.85rem;
-    max-width: 34rem;
+    max-width: 30rem;
     color: var(--text-muted);
+}
+
+/* キーの設定(行内フォーム)。入力とボタンを1行に収め、折り返して縦に崩れないようにする。
+   複数キーの連携(ntfy)は .secret-row が縦に並ぶ */
+td.secret-cell {
+    white-space: nowrap;
+}
+
+td.secret-cell .secret-row + .secret-row {
+    margin-top: 0.35rem;
+}
+
+td.secret-cell .secret-label {
+    display: inline-block;
+    min-width: 9rem;
+    font-size: 0.8rem;
+}
+
+td.secret-cell input {
+    width: 9rem;
+    padding: 0.25rem 0.5rem;
+    margin-right: 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: inherit;
+    font-size: 0.85rem;
+}
+
+td.secret-cell button + button {
+    margin-left: 0.35rem;
 }
 
 code {

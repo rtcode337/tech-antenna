@@ -62,24 +62,11 @@ x-app-env: &app-env
   Anthropic__AutoRun: "false"
   Digest__AutoRun: "false"
 
-  # 外部 API のキー。未設定ならその収集ジョブが動かないだけで起動はする
-  Connpass__ApiKey: ""
-  Doorkeeper__AccessToken: ""
-  Books__GoogleBooksApiKey: ""
-  # 書籍のレビュー(読まれている度合い)。未設定なら読まれている順に並べられないだけ
-  Rakuten__ApplicationId: ""
-  Rakuten__AccessKey: ""
-  # 推薦本(Qiita)。未設定でも動く(API の上限が下がるだけ)
-  Qiita__AccessToken: ""
-  Anthropic__ApiKey: ""
-  # 記事の要約。CLAUDE_CODE_OAUTH_TOKEN があれば API キーより優先され、
-  # 従量課金ではなくサブスクリプションの枠を使う(`claude setup-token` で発行)
-  CLAUDE_CODE_OAUTH_TOKEN: ""
+  # **外部 API のキーはここでは渡せない**(画面の「設定 → 外部連携」から入れる。
+  # 暗号化して DB に保存され、再起動なしで効く)。渡すのはキー以外の設定だけ
 
-  # 今日のサマリーの ntfy 通知。BaseUrl と Topic の両方が無ければ通知しない
-  Ntfy__BaseUrl: ""
-  Ntfy__Topic: ""
-  Ntfy__AccessToken: ""
+  # 今日のサマリーの ntfy 通知。接続先(URL・トピック・トークン)は画面から設定する。
+  # タップで開く URL だけは「この環境の公開 URL」というデプロイ側の事実なのでここに残す
   Ntfy__ClickUrl: ""
 
   # リバースプロキシ配下で X-Forwarded-* を信頼するときだけ true にする

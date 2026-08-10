@@ -57,9 +57,7 @@ public class TopicMaintenanceRunner(
     TopicMerger merger,
     ILogger<TopicMaintenanceRunner> logger,
     TimeProvider clock,
-    ITopicClassifier? classifier = null,
-    ITopicDescriber? describer = null,
-    ITopicMergeAdvisor? mergeAdvisor = null) : JobRunner
+    LlmGateway llm) : JobRunner
 {
     /// <summary>
     /// 1回の実行で LLM に渡すタグの上限(呼び出し回数の暴走を防ぐ枠)。
@@ -215,6 +213,7 @@ public class TopicMaintenanceRunner(
     async Task<(int Asked, int Effective)> ClassifyPendingAsync(
         DateTimeOffset now, CancellationToken cancellationToken)
     {
+        var classifier = llm.Classifier;
         if (classifier is null)
         {
             // 前回の値が残らないように空にする(画面が「前回聞いた語」に使う)
@@ -296,6 +295,7 @@ public class TopicMaintenanceRunner(
     /// </summary>
     async Task<int> MergeDuplicatesAsync(CancellationToken cancellationToken)
     {
+        var mergeAdvisor = llm.MergeAdvisor;
         if (mergeAdvisor is null)
         {
             return 0;
@@ -381,6 +381,7 @@ public class TopicMaintenanceRunner(
     /// </summary>
     async Task<int> DescribeMissingAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
+        var describer = llm.Describer;
         if (describer is null)
         {
             return 0;

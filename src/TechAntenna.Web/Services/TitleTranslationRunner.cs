@@ -19,20 +19,25 @@ public record TitleTranslationResult(int Requested, int Translated, int Skipped)
 /// 除外して残しておくと、毎回「未処理」として取り出され続けてしまう。
 /// </summary>
 public class TitleTranslationRunner(
-    IEnumerable<ITitleTranslator> translators,
+    LlmGateway llm,
     IArticleStore store,
     IOptions<AnthropicOptions> options,
     ILogger<TitleTranslationRunner> logger) : JobRunner
 {
-    readonly ITitleTranslator? _translator = translators.FirstOrDefault();
+    public override string Name => $"論文タイトルの翻訳({llm.TitleTranslator?.Name ?? "未設定"})";
 
-    public override string Name => $"論文タイトルの翻訳({_translator?.Name ?? "未設定"})";
+    public override bool IsConfigured => llm.IsConfigured;
 
-    public override bool IsConfigured => _translator is not null;
+    public override string? NotConfiguredReason => LlmGateway.NotConfiguredReason;
 
-    public Task<TitleTranslationResult> RunOnceAsync(CancellationToken cancellationToken = default) =>
-        RunExclusiveAsync(() => TranslateBatchAsync(_translator!, cancellationToken),
-            TitleTranslationResult.Nothing, cancellationToken);
+    public Task<TitleTranslationResult> RunOnceAsync(CancellationToken cancellationToken = default)
+    {
+        var translator = llm.TitleTranslator;
+        return translator is null
+            ? Task.FromResult(TitleTranslationResult.Nothing)
+            : RunExclusiveAsync(() => TranslateBatchAsync(translator, cancellationToken),
+                TitleTranslationResult.Nothing, cancellationToken);
+    }
 
     async Task<TitleTranslationResult> TranslateBatchAsync(
         ITitleTranslator translator, CancellationToken cancellationToken)

@@ -69,10 +69,11 @@ public class NtfyDigestNotifierTests
         var handler = new RecordingHandler();
         var notifier = new NtfyDigestNotifier(
             new SingleClientFactory(handler),
-            "https://ntfy.example.com",
-            "tech-antenna",
-            accessToken: "token-123",
-            clickUrl: "https://home.example.com/");
+            () => new NtfyTarget(
+                "https://ntfy.example.com",
+                "tech-antenna",
+                AccessToken: "token-123",
+                ClickUrl: "https://home.example.com/"));
 
         await notifier.NotifyAsync(Digest(new DigestItem("見出し", "本文。", null)));
 
@@ -91,11 +92,22 @@ public class NtfyDigestNotifierTests
     {
         var handler = new RecordingHandler();
         var notifier = new NtfyDigestNotifier(
-            new SingleClientFactory(handler), "https://ntfy.example.com", "t",
-            accessToken: null, clickUrl: null);
+            new SingleClientFactory(handler),
+            () => new NtfyTarget("https://ntfy.example.com", "t", null, null));
 
         await notifier.NotifyAsync(Digest(new DigestItem("見出し", "本文。", null)));
 
         Assert.Null(handler.Request!.Headers.Authorization);
+    }
+
+    [Fact]
+    public async Task 通知先が無ければ送らずにfalseを返す()
+    {
+        // 接続先未設定・通知オフのとき provider は null を返す。リクエストを出さないこと
+        var handler = new RecordingHandler();
+        var notifier = new NtfyDigestNotifier(new SingleClientFactory(handler), () => null);
+
+        Assert.False(await notifier.NotifyAsync(Digest(new DigestItem("見出し", "本文。", null))));
+        Assert.Null(handler.Request);
     }
 }

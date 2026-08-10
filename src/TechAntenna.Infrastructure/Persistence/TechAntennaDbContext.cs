@@ -25,6 +25,8 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
 
     public DbSet<Digest> Digests => Set<Digest>();
 
+    public DbSet<Secret> Secrets => Set<Secret>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Article>(article =>
@@ -151,6 +153,15 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
                         v => v.ToList()))
                 .HasColumnType("jsonb")
                 .IsRequired();
+        });
+
+        modelBuilder.Entity<Secret>(secret =>
+        {
+            // 設定キー(例 "Connpass:ApiKey")がそのまま主キー。1 キー 1 行
+            secret.HasKey(s => s.Name);
+
+            // 値は Web 層が Data Protection で暗号化した文字列(平文は入らない)
+            secret.Property(s => s.Value).IsRequired();
         });
     }
 

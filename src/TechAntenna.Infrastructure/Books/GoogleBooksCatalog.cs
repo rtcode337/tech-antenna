@@ -14,7 +14,7 @@ namespace TechAntenna.Infrastructure.Books;
 public class GoogleBooksCatalog(
     IHttpClientFactory httpClientFactory,
     TimeProvider timeProvider,
-    string? apiKey,
+    Func<string?> apiKeyProvider,
     int maxResults = 20,
     TopicCatalog? catalog = null) : IBookCatalog
 {
@@ -24,6 +24,9 @@ public class GoogleBooksCatalog(
 
     public async Task<IReadOnlyList<Book>> SearchAsync(string keyword, CancellationToken cancellationToken = default)
     {
+        // キーは画面から設定できるので、起動時ではなく検索のたびに解決する
+        var apiKey = apiKeyProvider();
+
         using var client = httpClientFactory.CreateClient(HttpClientName);
 
         // 日本語の技術書を拾いたいので言語を絞る。
@@ -46,7 +49,7 @@ public class GoogleBooksCatalog(
             throw new HttpRequestException(string.IsNullOrWhiteSpace(apiKey)
                 ? "Google Books API が 429 を返した。API キーが未設定のため("
                   + "キー無しのリクエストは共有の匿名プロジェクト扱いで1日あたりの上限が 0)。"
-                  + "Books__GoogleBooksApiKey を設定する"
+                  + "外部連携の画面で設定する"
                 : "Google Books API が 429 を返した。1日あたりの上限に達したか、短時間に送りすぎている");
         }
 
