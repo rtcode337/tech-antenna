@@ -116,41 +116,8 @@ tr.match > td {
     box-shadow: inset 3px 0 0 var(--accent);
 }
 
-/* ツリー/ランキングの切り替え。リンクだけのタブ(JS 不要) */
-/* 表示の切り替え。**タブの見た目**にする —— 下線を1本敷き、選択中のタブだけ
-   面とつなげて浮かせる(ただのボタン2つだと「いまどちらを見ているか」が読めない) */
-.view-switch {
-    display: flex;
-    gap: 0.25rem;
-    margin-bottom: 0.9rem;
-    border-bottom: 2px solid var(--border-strong);
-}
-
-.view-switch a {
-    padding: 0.45rem 1.1rem;
-    /* 下線に 2px 重ねて、選択中のタブが線を「切る」ようにする */
-    margin-bottom: -2px;
-    border: 1px solid transparent;
-    border-bottom: 2px solid transparent;
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    color: var(--text-muted);
-    font-size: 0.9rem;
-    text-decoration: none;
-}
-
-.view-switch a:hover {
-    color: var(--text);
-    background: var(--surface-sunken);
-}
-
-.view-switch a.active {
-    border-color: var(--border-strong);
-    /* 下辺だけページの地の色にして、線がタブの中でつながって見えるようにする */
-    border-bottom-color: var(--bg);
-    background: var(--surface);
-    color: var(--accent);
-    font-weight: 650;
-}
+/* ツリー/ランキングの切り替えタブ(.view-switch)は、記事一覧の並び替えと同じ見た目なので
+   app.css に置いてある(片方だけ直して食い違うのを避けるため) */
 
 /* トピックのツリー。子を持つノードは details/summary で折りたためる。
    見た目は以前のテーブル型に合わせる —— 各行を同じ列構成のグリッドにして列を縦にそろえ、

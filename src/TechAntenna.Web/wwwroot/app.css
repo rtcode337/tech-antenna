@@ -304,6 +304,43 @@ hr {
     background: transparent;
 }
 
+/* 同じ一覧の見方を切り替えるタブ(トピックのツリー/ランキング、記事一覧の新着順/話題度順)。
+   中身はリンクなので静的 SSR のまま動く。**複数のページで使うので app.css に置く** ——
+   scoped CSS(*.razor.css)に置くと、同じ見た目を画面ごとに書き写すことになる。
+   下線を1本敷き、選択中のタブだけ面とつなげて「いまどちらを見ているか」を出す */
+.view-switch {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.9rem;
+    border-bottom: 2px solid var(--border-strong);
+}
+
+.view-switch a {
+    padding: 0.45rem 1.1rem;
+    /* 下線に 2px 重ねて、選択中のタブが線を「切る」ようにする */
+    margin-bottom: -2px;
+    border: 1px solid transparent;
+    border-bottom: 2px solid transparent;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    text-decoration: none;
+}
+
+.view-switch a:hover {
+    color: var(--text);
+    background: var(--surface-sunken);
+}
+
+.view-switch a.active {
+    border-color: var(--border-strong);
+    /* 下辺だけページの地の色にして、線がタブの中でつながって見えるようにする */
+    border-bottom-color: var(--bg);
+    background: var(--surface);
+    color: var(--accent);
+    font-weight: 650;
+}
+
 /* 表。罫線は横線だけにして、縦線は引かない */
 .table {
     width: 100%;
