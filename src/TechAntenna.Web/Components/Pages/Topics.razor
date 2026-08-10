@@ -8,7 +8,6 @@
 @inject ITopicStore TopicStore
 @inject TopicCatalog Catalog
 @inject ITagStore TagStore
-@inject TopicMaintenanceRunner MaintenanceRunner
 @inject TopicImporter Importer
 
 <PageTitle>Tech Antenna — トピック</PageTitle>
@@ -158,58 +157,14 @@ else
     </form>
 }
 
-@* ボタンの行: ボタン / 説明チップの ? / 副作用の注意。**一覧より下に置く** ——
-   毎回押すものではなく(押すのは鮮度が気になったとき)、一覧より先に目に入ると
-   「まず押すもの」に見えてしまう。持ち出し/取り込みも同じ理由でこの下。
-   説明は details ではなく **? を押して出すチップ(HTML 標準の popover)** —— 一覧の
-   説明チップと同じ流儀で、JS を使わずに「押して出す・外を押して閉じる」が成り立つ。
-   手順と話題度の算出方法をチップ1つにまとめてある(実装は TopicMaintenanceRunner と
-   FetchTrendsAsync。説明を変えるときはそちらと揃えること)。
-   仕分け(LLM)側のボタンと説明はタグの画面 —— Runner は同じ1つなので、あちらで
-   仕分けが走っていればこのボタンも実行中になって二重には走らない *@
-<div class="job-row">
-    <JobButton Runner="MaintenanceRunner" FormName="refresh-trends"
-               Label="話題度を取り直す" OnRun="RefreshTrends" />
-    <button class="help-toggle" type="button" popovertarget="trend-help"
-            aria-label="「話題度を取り直す」の説明">?</button>
-    @* 副作用(仕分けまちが増える)はチップの中に隠さない —— 押す前に知っておくべき話 *@
-    <span class="job-note text-muted">
-        外部トレンドで見つかった新しい語が、仕分けまち(<a href="/tags">タグ</a>)に増えることがあります。
-    </span>
-    <div class="help-popover" id="trend-help" popover>
-        <strong>「話題度を取り直す」は何をしている?</strong>
-        <p>
-            外部トレンドを引いて鮮度を更新します。<strong>LLM は使いません</strong>。
-            新しく現れた語は<strong>仕分けまち</strong>として
-            <a href="/tags">タグ</a>の画面に溜まり、そこの「タグを仕分けなおす」で語彙に入ります。
-        </p>
-        <ol>
-            <li><strong>話題度を取得</strong> —— Qiita の新着記事と、はてなブックマークの
-                人気エントリーを<strong>押した時点でその場から</strong>取得します
-                (トレンドの収集をいつ回したかには依存しません)</li>
-            <li><strong>タグを観測</strong> —— 保存済みの記事・イベント・書籍に付いたタグの件数と、
-                取ってきた話題度を書き込みます。<strong>ここで次の仕分けの対象が決まります</strong>
-                (<a href="/tags">タグ</a>の画面の「仕分けまち」がその一覧です)</li>
-            <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
-                トピック一覧を書き込みます。話題度は親へも合算します</li>
-        </ol>
-        <strong>話題度はどう算出している?</strong>
-        <ul>
-            <li>材料は2つ、どちらも<strong>押した時点でその場から取得</strong>します。
-                <strong>Qiita の新着記事(直近 7 日)</strong>は「いいね数」を、
-                <strong>はてなブックマークの人気エントリー</strong>は「ブックマーク数」を
-                重み(どちらも最低 1)として、記事に付いているタグとタイトルに出てくる
-                トピックへ加算します</li>
-            <li>別名(<code>人工知能</code> など)は正式表記(<code>AI</code>)へ寄せてから数えます</li>
-            <li>材料ごとに<strong>合計を 100 とした割合</strong>に直してから足し合わせます
-                (数値の桁が違う材料どうしを混ぜられるように。1 材料あたり最大 100)</li>
-            <li><strong>ツリー表示の値は配下のトピックも合算</strong>した話題度、
-                <strong>ランキング表示はその用語単体</strong>の話題度です</li>
-            <li>このボタンを押した時点の値で、自動では更新されません
-                (「タグを仕分けなおす」でも変わりません)</li>
-        </ul>
-    </div>
-</div>
+@* 整備のボタン(話題度の取り直し・タグの仕分け)は**設定に集めてある** ——
+   ジョブのボタンは1か所に置き、この画面は「何を集めるかを選ぶ」に専念させる。
+   行き先だけはここに書いておく(押し場所を探して迷わないように) *@
+<p class="page-note text-muted">
+    話題度が古いと感じたら、<a href="/settings">設定</a>の「話題度を取り直す」で取り直せます
+    (外部トレンドをその場から引き直します。<strong>LLM は使いません</strong>)。
+    未仕分けの語を語彙へ入れるのは、同じく設定の「タグを仕分けなおす」です。
+</p>
 
 @* **語彙と仕分けをファイルで運ぶ。** LLM の仕分けは呼ぶたびに枠を使うので、本番で仕分けた
    結果を開発サーバーへ持って行けるようにしてある(逆向き・バックアップにも使える)。
@@ -408,9 +363,6 @@ else
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     // ジョブはバックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
-    void RefreshTrends() => MaintenanceRunner.StartInBackground(
-        ct => MaintenanceRunner.RefreshTrendsAsync(ct), JobMessage.Describe);
-
     /// <summary>
     /// ファイルから語彙と仕分けを取り込む。**ジョブ(バックグラウンド)にしない** ——
     /// 外部へは出ず DB の数回の書き込みで終わるので、押した人がその場で結果を読めるほうがよい。

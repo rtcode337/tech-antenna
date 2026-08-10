@@ -8,6 +8,7 @@
 @inject EventCollectionRunner EventRunner
 @inject BookCollectionRunner BookRunner
 @inject ClassicsCollectionRunner ClassicsRunner
+@inject TopicMaintenanceRunner MaintenanceRunner
 @inject ApiCredentials Credentials
 @inject Microsoft.Extensions.Options.IOptions<CollectionOptions> CollectionOptions
 @inject Microsoft.Extensions.Options.IOptions<BooksOptions> BooksOptions
@@ -70,9 +71,102 @@
         「読むべき技術書」を挙げた Qiita 記事から<strong>名指しされた本</strong>を拾い、
         <a href="/classics/books">定番 → 書籍</a>に出します。
         こちらも<strong>トピックの選択には依存しません</strong>。
-        語彙の整理(「話題度を取り直す」「タグを仕分けなおす」)は
-        <a href="/topics">トピック</a>と<a href="/tags">タグ</a>にあります。
     </p>
+
+    <h3>トピック(語彙の整備)</h3>
+    <p class="page-note text-muted">
+        収集で見かけた語を<strong>語彙(トピックのツリー)へ入れていく</strong>ジョブです。
+        中身の確認と手直しは<a href="/topics">トピック</a>と<a href="/tags">タグ</a>の画面で。
+    </p>
+
+    @* ボタンの行: ボタン / 説明チップの ? / 副作用の注意。
+       説明は details ではなく **? を押して出すチップ(HTML 標準の popover)** —— 手順と
+       話題度の算出方法をチップ1つにまとめてある(実装は TopicMaintenanceRunner と
+       FetchTrendsAsync。説明を変えるときはそちらと揃えること)。
+       **2つのボタンは Runner が同じ1つ**なので、片方が走っていればもう片方も実行中になり、
+       二重には走らない *@
+    <div class="job-row">
+        <JobButton Runner="MaintenanceRunner" FormName="refresh-trends"
+                   Label="話題度を取り直す" OnRun="RefreshTrends" />
+        <button class="help-toggle" type="button" popovertarget="trend-help"
+                aria-label="「話題度を取り直す」の説明">?</button>
+        @* 副作用(仕分けまちが増える)はチップの中に隠さない —— 押す前に知っておくべき話 *@
+        <span class="job-note text-muted">
+            外部トレンドで見つかった新しい語が、仕分けまち(<a href="/tags">タグ</a>)に増えることがあります。
+        </span>
+        <div class="help-popover" id="trend-help" popover>
+            <strong>「話題度を取り直す」は何をしている?</strong>
+            <p>
+                外部トレンドを引いて鮮度を更新します。<strong>LLM は使いません</strong>。
+                新しく現れた語は<strong>仕分けまち</strong>として
+                <a href="/tags">タグ</a>の画面に溜まり、そこの「タグを仕分けなおす」で語彙に入ります。
+            </p>
+            <ol>
+                <li><strong>話題度を取得</strong> —— Qiita の新着記事と、はてなブックマークの
+                    人気エントリーを<strong>押した時点でその場から</strong>取得します
+                    (トレンドの収集をいつ回したかには依存しません)</li>
+                <li><strong>タグを観測</strong> —— 保存済みの記事・イベント・書籍に付いたタグの件数と、
+                    取ってきた話題度を書き込みます。<strong>ここで次の仕分けの対象が決まります</strong>
+                    (<a href="/tags">タグ</a>の画面の「仕分けまち」がその一覧です)</li>
+                <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
+                    トピック一覧を書き込みます。話題度は親へも合算します</li>
+            </ol>
+            <strong>話題度はどう算出している?</strong>
+            <ul>
+                <li>材料は2つ、どちらも<strong>押した時点でその場から取得</strong>します。
+                    <strong>Qiita の新着記事(直近 7 日)</strong>は「いいね数」を、
+                    <strong>はてなブックマークの人気エントリー</strong>は「ブックマーク数」を
+                    重み(どちらも最低 1)として、記事に付いているタグとタイトルに出てくる
+                    トピックへ加算します</li>
+                <li>別名(<code>人工知能</code> など)は正式表記(<code>AI</code>)へ寄せてから数えます</li>
+                <li>材料ごとに<strong>合計を 100 とした割合</strong>に直してから足し合わせます
+                    (数値の桁が違う材料どうしを混ぜられるように。1 材料あたり最大 100)</li>
+                <li><strong>ツリー表示の値は配下のトピックも合算</strong>した話題度、
+                    <strong>ランキング表示はその用語単体</strong>の話題度です</li>
+                <li>このボタンを押した時点の値で、自動では更新されません
+                    (「タグを仕分けなおす」でも変わりません)</li>
+            </ul>
+        </div>
+    </div>
+
+    @* 仕分けまちの中身とゴミの除外は<a href="/tags">タグ</a>の画面。ここは押す場所だけ持つ *@
+    <JobButton Runner="MaintenanceRunner" FormName="reclassify-tags"
+               Label="タグを仕分けなおす" OnRun="ReclassifyTags" />
+
+    @* 挙動が画面から分かるようにしておく(説明は TopicMaintenanceRunner の実装と揃えること) *@
+    <details class="score-help">
+        <summary>「タグを仕分けなおす」は何をしている?</summary>
+        <p class="text-muted">
+            <strong>外部トレンドは引かない</strong>ので、押しても仕分けまちは増えません ——
+            押すぶんだけ減り、いつか空になります。話題度も動きません
+            (取り直すのは上の「話題度を取り直す」)。
+        </p>
+        <ol class="text-muted">
+            <li><strong>タグを作り直す(1 回目)</strong> —— 保存済みの記事・イベント・書籍のタグを
+                生タグとカタログから組み直します。<strong>仕分けの前に走らせるのが要点</strong> ——
+                正規化の規則やカタログを変えると、そこで初めて現れる語があり、
+                後段だけで回すとその語は次に押すまで仕分けられません</li>
+            <li><strong>仕分けまちの語を LLM が分類</strong> —— <a href="/tags">タグ</a>の
+                「仕分けまち」の一覧をそのまま渡します(件数での足切りはしません。目立つ順に 1 回
+                @TopicMaintenanceRunner.MaxTagsPerClassification 語まで、残りは次の回に続きから)。
+                既存トピックと同じ意味なら<strong>別名として吸収</strong>、
+                粒度が違う語なら<strong>親付きの新トピック</strong>としてツリーへ、
+                トピックでない語(メディア名・一般語)は<strong>除外</strong>します。
+                判断できなかった語は 1 週間おいて再挑戦します。
+                LLM が未設定ならこの手順は飛ばします(語は仕分けまちのまま残る)</li>
+            <li><strong>同義のトピックを寄せる</strong> —— <code>AI</code> と <code>人工知能</code> が
+                別々にできてしまった場合に、片方へ寄せます(収集対象に選んだトピックは寄せません)</li>
+            <li><strong>用語の説明を埋める</strong> —— 説明がまだ無い用語に LLM が一言説明を付けます
+                (トピック名の後ろのかっこ書きと、詳細ページに出ます)。<strong>新しく見つかった語の説明は
+                手順 2(分類)の応答に相乗り</strong>していて追加の呼び出しはありません。ここで聞くのは
+                以前から一覧にあって説明だけ無い語で、1 回に 300 語まで・<strong>1 語につき 1 回だけ</strong>
+                (結果は保存され、次回は聞き直しません)。収集対象に選んだトピックから先に埋めます</li>
+            <li><strong>タグを作り直す(2 回目)</strong> —— 今回の分類で増えた別名を、
+                保存済みの記事・イベント・書籍のタグへ反映します</li>
+            <li><strong>タグを観測して一覧を組み立てる</strong> —— 件数を数え直します。
+                <strong>話題度はいまの値をそのまま保ちます</strong>(取り直しはしません)</li>
+        </ol>
+    </details>
 
     <h2 class="h5">定期実行</h2>
     <p class="page-note text-muted">
@@ -247,6 +341,12 @@
 
     void CollectClassics() =>
         ClassicsRunner.StartInBackground(ct => ClassicsRunner.RunOnceAsync(ct), JobMessage.Describe);
+
+    void RefreshTrends() => MaintenanceRunner.StartInBackground(
+        ct => MaintenanceRunner.RefreshTrendsAsync(ct), JobMessage.Describe);
+
+    void ReclassifyTags() => MaintenanceRunner.StartInBackground(
+        ct => MaintenanceRunner.ReclassifyTagsAsync(ct), JobMessage.Describe);
 
     void Translate() => TranslationRunner.StartInBackground(
         ct => TranslationRunner.RunOnceAsync(ct),

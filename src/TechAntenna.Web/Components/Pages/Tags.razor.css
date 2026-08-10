@@ -17,25 +17,7 @@
 }
 
 /* 状態の説明。普段は畳んでおく */
-.score-help {
-    margin-bottom: 1rem;
-    font-size: 0.86rem;
-}
-
-.score-help > summary {
-    cursor: pointer;
-    color: var(--text-muted);
-}
-
-.score-help ul {
-    margin: 0.5rem 0 0;
-    padding-left: 1.4rem;
-}
-
-.score-help li {
-    margin-bottom: 0.25rem;
-    line-height: 1.7;
-}
+/* 説明の details(.score-help)は app.css にある(3画面で同じ見た目を使うため) */
 
 /* 別名にするフォーム。1 行に収める */
 .alias-form {

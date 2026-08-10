@@ -199,112 +199,6 @@ details[open] > summary .caret::before {
     white-space: nowrap;
 }
 
-/* 話題度の算出方法の説明。普段は畳んでおく(読みたい人だけ開く) */
-.score-help {
-    margin-bottom: 1rem;
-    font-size: 0.86rem;
-}
-
-.score-help > summary {
-    cursor: pointer;
-    color: var(--text-muted);
-}
-
-.score-help ul,
-.score-help ol {
-    margin: 0.5rem 0 0;
-    padding-left: 1.4rem;
-}
-
-.score-help li {
-    margin-bottom: 0.25rem;
-    line-height: 1.7;
-}
-
-/* ボタンの行(ボタン / ? / 副作用の注意)。JobButton の form は mb-3 を持つので、
-   行の中では余白を消して縦位置をそろえる(::deep が要る —— form は子コンポーネントの出力) */
-.job-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem 0.6rem;
-    margin-bottom: 1rem;
-}
-
-.job-row ::deep form {
-    margin-bottom: 0;
-}
-
-.job-note {
-    font-size: 0.85rem;
-}
-
-/* 「?」ボタン。一覧の説明チップ(.note-toggle)と同じ見た目だが、
-   あちらがスマホ専用なのに対し**こちらは常に出す**(説明の置き場がチップしか無いため) */
-.help-toggle {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 1.35rem;
-    height: 1.35rem;
-    padding: 0;
-    border: 1px solid var(--border-strong);
-    border-radius: 50%;
-    background: var(--surface-sunken);
-    color: var(--text-muted);
-    font-size: 0.78rem;
-    cursor: pointer;
-}
-
-.help-toggle:hover {
-    background: var(--accent-soft);
-    color: var(--accent);
-}
-
-/* 説明チップ。画面下に固定するのは一覧のチップと同じ理由(アンカー位置指定の対応がまだ狭い)。
-   PC では横幅を読める幅に抑えて中央へ寄せる */
-.help-popover:popover-open {
-    display: block;
-    position: fixed;
-    inset: auto 0.75rem 0.75rem;
-    margin: 0 auto;
-    max-width: 44rem;
-    max-height: 60vh;
-    overflow-y: auto;
-    padding: 0.9rem 1.1rem;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow);
-    color: var(--text);
-    font-size: 0.88rem;
-    line-height: 1.7;
-}
-
-.help-popover strong {
-    display: block;
-    margin: 0.6rem 0 0.2rem;
-}
-
-.help-popover strong:first-child {
-    margin-top: 0;
-}
-
-.help-popover p {
-    margin: 0 0 0.4rem;
-}
-
-.help-popover ol,
-.help-popover ul {
-    margin: 0 0 0.4rem;
-    padding-left: 1.3rem;
-}
-
-.help-popover::backdrop {
-    background: rgb(0 0 0 / 0.25);
-}
-
 /* 未仕分けの案内。読み流されないよう薄い面に載せるが、警告ではないので色は付けない */
 .pending-notice {
     margin: 0.75rem 0 1rem;
@@ -315,8 +209,8 @@ details[open] > summary .caret::before {
     font-size: 0.9rem;
 }
 
-/* 持ち出し / 取り込みの節。説明の details(.score-help)と同じ見た目に、
-   フォームのぶんだけ行間を足す */
+/* 持ち出し / 取り込みの節。説明の details(.score-help。app.css にある)と
+   同じ見た目に、フォームのぶんだけ行間を足す */
 .transfer p {
     margin: 0.5rem 0;
 }
