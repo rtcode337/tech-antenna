@@ -42,13 +42,14 @@ public abstract class JobRunner
 
     /// <summary>
     /// ジョブをバックグラウンドで1回実行する(既に実行中なら何もしない)。
+    /// 中身は <see cref="RunAndRecordAsync"/> と同じものを渡す(結果の文言もそちらが残す)。
     ///
     /// **画面のボタンはこちらを使う。** 全ページ静的 SSR なので、応答を返し切るまで
     /// 画面は何も出ない —— 数分かかるジョブを await すると、押した人はただ白い画面を
     /// 待たされる。開始だけして応答を返し、進捗は自動リロード(JobButton の
     /// meta refresh)で見せる。
     /// </summary>
-    public void StartInBackground<T>(Func<CancellationToken, Task<T>> run, Func<T, string> describe)
+    public void StartInBackground(Func<CancellationToken, Task<bool>> run)
     {
         if (!IsConfigured || IsRunning)
         {
@@ -58,24 +59,49 @@ public abstract class JobRunner
         // 応答を返す時点で「実行中」に見せる(Task が走り出す前に画面が描画されても
         // meta refresh が付くように、開始フラグは同期的に立てる)
         _starting = true;
-        LastError = null;
 
         _ = Task.Run(async () =>
         {
             try
             {
-                var result = await run(CancellationToken.None);
-                LastMessage = describe(result);
-            }
-            catch (Exception ex)
-            {
-                LastError = ex.Message;
+                await run(CancellationToken.None);
             }
             finally
             {
                 _starting = false;
             }
         });
+    }
+
+    /// <summary>
+    /// ジョブを1回実行して、結果の文言を <see cref="LastMessage"/> / <see cref="LastError"/> に残す。
+    ///
+    /// **定期実行から使う**(<see cref="StartInBackground"/> の await する版)——
+    /// 定期実行は決まった順で通しで走らせるので、次のジョブへ進む前に終わりを待つ必要がある。
+    /// 失敗しても投げ返さず false を返す —— 1つのジョブの失敗で残りを止めないため。
+    /// 画面には手動で押したときと同じ文言が残る。
+    /// </summary>
+    public async Task<bool> RunAndRecordAsync<T>(
+        Func<CancellationToken, Task<T>> run,
+        Func<T, string> describe,
+        CancellationToken cancellationToken)
+    {
+        if (!IsConfigured)
+        {
+            return false;
+        }
+
+        LastError = null;
+        try
+        {
+            LastMessage = describe(await run(cancellationToken));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LastError = ex.Message;
+            return false;
+        }
     }
 
     /// <summary>

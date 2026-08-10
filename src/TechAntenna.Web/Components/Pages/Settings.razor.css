@@ -13,10 +13,37 @@
     color: var(--text-soft);
 }
 
+/* 実行する時刻の入力。ラベル・入力・補足を縦に積む(1行に並べると狭い画面で潰れる) */
+.schedule-times {
+    margin-bottom: 0.9rem;
+}
+
+.schedule-times label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 650;
+}
+
+.schedule-times input {
+    width: min(22rem, 100%);
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.95rem;
+}
+
+.schedule-times span {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
+}
+
 /* 定期実行のチェックと ntfy 通知のトグル。行ごとに縦へ並べる */
 .auto-run label,
 .ntfy-toggle label {
-    display: block;
+    display: inline-block;
     margin-bottom: 0.4rem;
 }
 

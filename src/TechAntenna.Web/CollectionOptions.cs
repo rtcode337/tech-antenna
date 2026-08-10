@@ -7,9 +7,6 @@ public class CollectionOptions
 {
     public const string SectionName = "Collection";
 
-    /// <summary>巡回間隔(分)。収集先への負荷を考えて短くしすぎない。</summary>
-    public int IntervalMinutes { get; set; } = 30;
-
     /// <summary>1つの収集先を読んでから次に移るまでの待ち時間(秒)。</summary>
     public int DelayBetweenSourcesSeconds { get; set; } = 2;
 
@@ -96,9 +93,6 @@ public class BooksOptions
 {
     public const string SectionName = "Books";
 
-    /// <summary>巡回間隔(時)。書籍は記事ほど頻繁に増えないため既定を長めにする。</summary>
-    public int IntervalHours { get; set; } = 24;
-
     /// <summary>1キーワードを検索してから次に移るまでの待ち時間(秒)。
     /// **検索語は設定ではなく選択中のトピック**(<c>ITopicStore.GetSelectedAsync</c>)から取る。</summary>
     public int DelayBetweenKeywordsSeconds { get; set; } = 2;
@@ -171,9 +165,6 @@ public class AnthropicOptions
     /// <summary>使用するモデル ID。コストを抑えるなら claude-haiku-4-5 に変更する。</summary>
     public string Model { get; set; } = "claude-opus-5";
 
-    /// <summary>要約ジョブの実行間隔(分)。</summary>
-    public int IntervalMinutes { get; set; } = 10;
-
     /// <summary>1回の実行で要約する記事数の上限。Claude Code 方式ではここが大きいほど
     /// 呼び出しの固定費が薄まり、1件あたりの消費が下がる。</summary>
     public int BatchSize { get; set; } = 20;
@@ -208,11 +199,8 @@ public class DigestOptions
 {
     public const string SectionName = "Digest";
 
-    /// <summary>自動生成の間隔(時間)。既定 12 = 1日2回。</summary>
-    public int IntervalHours { get; set; } = 12;
-
-    /// <summary>「直近の話題」として材料に入れる窓(時間)。生成間隔より広めに取り、
-    /// 窓の境目で取りこぼさないようにする。</summary>
+    /// <summary>「直近の話題」として材料に入れる窓(時間)。定期実行の間隔より広めに取り、
+    /// 窓の境目で取りこぼさないようにする(既定 48 = 1日1回でも取りこぼさない)。</summary>
     public int WindowHours { get; set; } = 48;
 
     /// <summary>話題度上位として渡す件数(ニュース・記事・話題の論文で等分)。</summary>

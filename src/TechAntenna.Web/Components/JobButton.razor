@@ -1,81 +1,99 @@
 @using TechAntenna.Web.Services
 @inject NavigationManager Navigation
 
-@* ジョブを手動で走らせるボタン。開発環境では定期実行を止めてあるので、ここから起動する。
+@* ジョブ1件の行。**定期実行のチェックと実行ボタンを横に並べる**ので、
+   この部品は form を作らず、**ページ側の1つのフォームの中に置く**(form は入れ子にできない)。
+   押された行は submit ボタンの value(`run:<キー>`)で見分ける —— タグの画面と同じ流儀。
 
-   静的 SSR のフォーム POST。押すとジョブを**バックグラウンドで開始してすぐ応答を返し**、
-   実行中は meta refresh の自動リロードで進捗(Runner.Progress)を追う —— 数分かかる
-   ジョブを await で待つと、押した人は応答が返るまで白い画面を見続けることになる。
-   JS も対話回線(WebSocket)も使わない(このアプリは全ページ静的 SSR)。
+   実行は**バックグラウンドで開始してすぐ応答を返す**。数分かかるジョブを await すると、
+   全ページ静的 SSR のこのアプリでは押した人が白い画面を待つことになる。
+   実行中は meta refresh の自動リロードで進捗(Runner.Progress)を追う(JS は使わない)。
+   結果の文言は Runner(LastMessage / LastError)が持つ —— ページのフィールドに置くと
+   自動リロードのたびに消える。 *@
 
-   結果の文言は Runner(LastMessage / LastError)が持つ。POST をまたいで表示するためで、
-   ページ側のフィールドでは自動リロードのたびに消えてしまう。
-   @formname はフォームを見分けるのに使われるので、ページ内で重複しない名前を渡すこと。 *@
+<div class="job-row">
+    @* チェックは「この時刻の回に含めるか」。**押すボタンのすぐ横に置く** ——
+       別の場所に一覧を作ると、どのボタンの設定なのかを名前で照合することになる。
+       name を共有した配列で受ける(値がジョブのキー)。
+       ScheduleKey が無い行(定期実行そのものを走らせるボタン)にはチェックを出さない *@
+    @if (ScheduleKey is { Length: > 0 } key)
+    {
+        <label class="job-schedule"
+               title="@($"定期実行に含める（{Order} 番目に走ります）")">
+            <input type="checkbox" name="Jobs" value="@key" checked="@Enabled"
+                   aria-label="@($"{Name} を定期実行に含める")" />
+            <span class="job-order" aria-hidden="true">@Order</span>
+        </label>
+    }
 
-@if (Runner.IsConfigured)
-{
-    <form method="post" @formname="@FormName" @onsubmit="RunAsync" class="mb-3">
-        <AntiforgeryToken />
-        <button type="submit" class="btn btn-outline-primary btn-sm" disabled="@Runner.IsRunning">
-            @(Label is { Length: > 0 } label ? label : Runner.Name)
-        </button>
-        @if (Runner.IsRunning)
-        {
-            @* 実行中は 3 秒ごとに自動リロードして進捗を出す。URL を明示した GET にするのは、
-               POST 応答の再読み込みでフォームが再送されるのを避けるため *@
-            <HeadContent>
-                <meta http-equiv="refresh" content="3;url=@CurrentPath" />
-            </HeadContent>
-            <span class="ms-2 running">@(Runner.Progress ?? "実行中…")</span>
-        }
-        else if (Runner.LastError is { Length: > 0 } error)
-        {
-            <span class="ms-2 text-danger">失敗: @error</span>
-        }
-        else if (Runner.LastMessage is { Length: > 0 } message)
-        {
-            <span class="ms-2 text-body-secondary">@message</span>
-        }
-    </form>
-}
-else
-{
     @* 未設定でも**ボタンは消さずに disabled で出す** —— 消すと「そういう機能がある」
        こと自体が画面から分からず、何を設定すれば使えるのかへも辿り着けない *@
-    <div class="mb-3">
-        <button type="button" class="btn btn-outline-primary btn-sm" disabled>
-            @(Label is { Length: > 0 } label ? label : Runner.Name)
-        </button>
-        <span class="ms-2 text-body-secondary">
+    <button type="submit" name="Action" value="@Action"
+            class="btn btn-outline-primary btn-sm"
+            disabled="@(!Runner.IsConfigured || Runner.IsRunning)">
+        @Name
+    </button>
+
+    @if (Runner.IsRunning)
+    {
+        @* 実行中は 3 秒ごとに自動リロードして進捗を出す。URL を明示した GET にするのは、
+           POST 応答の再読み込みでフォームが再送されるのを避けるため *@
+        <HeadContent>
+            <meta http-equiv="refresh" content="3;url=@CurrentPath" />
+        </HeadContent>
+        <span class="running">@(Runner.Progress ?? "実行中…")</span>
+    }
+    else if (!Runner.IsConfigured)
+    {
+        <span class="text-body-secondary">
             @(Runner.NotConfiguredReason ?? "設定が足りないため実行できません。")
             <a href="/integrations">外部連携</a>から設定できます。
         </span>
-    </div>
-}
+    }
+    else if (Runner.LastError is { Length: > 0 } error)
+    {
+        <span class="text-danger">失敗: @error</span>
+    }
+    else if (Runner.LastMessage is { Length: > 0 } message)
+    {
+        <span class="text-body-secondary">@message</span>
+    }
+
+    @ChildContent
+</div>
 
 @code {
-    /// <summary>ボタンが動かすジョブ。未設定(IsConfigured=false)なら disabled で出し、
-    /// 理由(NotConfiguredReason)と外部連携への導線を添える。</summary>
+    /// <summary>実行中・未設定・結果の判定に使う Runner。</summary>
     [Parameter, EditorRequired]
     public JobRunner Runner { get; set; } = default!;
 
-    /// <summary>フォームの識別子。同じページに複数置くときは別々の値にする。</summary>
+    /// <summary>ボタンの文字。</summary>
     [Parameter, EditorRequired]
-    public string FormName { get; set; } = "";
+    public string Name { get; set; } = "";
 
-    /// <summary>ボタンが押されたときの処理。中で Runner.StartInBackground を呼ぶこと。</summary>
+    /// <summary>押されたことを見分ける submit の value(ページ側が振り分ける)。</summary>
     [Parameter, EditorRequired]
-    public EventCallback OnRun { get; set; }
+    public string Action { get; set; } = "";
 
     /// <summary>
-    /// ボタンの文字。省略すると Runner.Name。**1 つの Runner に入口が 2 つある**ジョブ
-    /// (トピックの整備)で、どちらを押すのかを書き分けるために持つ。
+    /// 定期実行の設定キー。**null なら定期実行のチェックを出さない**
+    /// (定期実行そのものを走らせるボタンは、自分を定期実行に入れられない)。
     /// </summary>
     [Parameter]
-    public string? Label { get; set; }
+    public string? ScheduleKey { get; set; }
+
+    /// <summary>定期実行での順番(1 始まり)。**画面の並びは実行順と違う**ので行に出す。</summary>
+    [Parameter]
+    public int Order { get; set; }
+
+    /// <summary>定期実行に含める設定になっているか(チェックの初期値)。</summary>
+    [Parameter]
+    public bool Enabled { get; set; }
+
+    /// <summary>行の末尾に足すもの(説明チップの「?」や、押す前に知らせたい注意)。</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
 
     string CurrentPath =>
         "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
-
-    Task RunAsync() => OnRun.InvokeAsync();
 }

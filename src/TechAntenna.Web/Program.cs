@@ -252,11 +252,6 @@ if (Uri.TryCreate(techPlay.FeedUrl, UriKind.Absolute, out var techPlayFeedUrl))
 
 builder.Services.AddSingleton<EventCollectionRunner>();
 
-// **定期実行のワーカーは常に登録し、オン/オフは周回ごとに画面設定を見る**(既定は無効)。
-// かつては AutoRun の環境変数で登録自体を分岐していたが、画面から切り替えられるようにした
-builder.Services.AddHostedService<ArticleCollectionWorker>();
-builder.Services.AddHostedService<EventCollectionWorker>();
-
 // --- 書籍収集(Google Books + openBD)---
 builder.Services.Configure<BooksOptions>(
     builder.Configuration.GetSection(BooksOptions.SectionName));
@@ -296,8 +291,6 @@ builder.Services.AddSingleton<IBookEnricher>(sp => new RakutenBooksEnricher(
     () => sp.GetRequiredService<ApiCredentials>().Get("Rakuten:ApplicationId"),
     () => sp.GetRequiredService<ApiCredentials>().Get("Rakuten:AccessKey"),
     TimeSpan.FromSeconds(rakuten.DelaySeconds)));
-
-builder.Services.AddHostedService<BookCollectionWorker>();
 
 // 「読むべき技術書」を挙げた記事から薦められている本を拾う。書籍の検索とは独立した経路
 var qiita = builder.Configuration
@@ -364,10 +357,14 @@ builder.Services.AddSingleton<SummaryRunner>();
 builder.Services.AddSingleton<TitleTranslationRunner>();
 builder.Services.AddSingleton<DigestRunner>();
 
-// LLM 系のワーカーも常に登録する(オン/オフ・キーとも実行時に見る。
-// チェックが入っていてもキーが無ければ Runner が何もしない)
-builder.Services.AddHostedService<SummaryWorker>();
-builder.Services.AddHostedService<DigestWorker>();
+// **定期実行のワーカーは1本だけ。** 設定した時刻になったら、チェックの入ったジョブを
+// 決まった順(ScheduledJobs)で通しで走らせる。ワーカーは常に登録し、時刻もオン/オフも
+// 周回ごとに画面設定を見る(既定は時刻なし = 走らない)ので、切り替えは再起動なしで効く。
+// **登録はここ**(サマリーまで含めた全 Runner が出そろってからでないと組み立てられない)
+builder.Services.AddSingleton<ScheduledJobs>();
+// 定期実行の中身。**時刻で走るのも画面の「今すぐ実行」も同じ Runner を通る**
+builder.Services.AddSingleton<ScheduleRunner>();
+builder.Services.AddHostedService<ScheduleWorker>();
 
 // 今日のサマリーの ntfy 通知。**接続先(BaseUrl / Topic / トークン)は画面から実行時に
 // 設定できるので常に登録し**、送信のたびに解決する —— 未設定・無効なら送らないだけ。

@@ -73,6 +73,28 @@ public static class JobMessage
         return message + " 件数と話題度は「話題度を取り直す」「タグを仕分けなおす」で集め直されます。";
     }
 
+    /// <summary>定期実行を1回通した結果。**個々のジョブの文言は各行に出る**ので、ここは要約だけ。</summary>
+    public static string Describe(ScheduleRunResult result)
+    {
+        if (result == ScheduleRunResult.Nothing)
+        {
+            return "定期実行に入れたジョブがありません(ボタンの左のチェックを入れてください)。";
+        }
+
+        var message = $"{result.Total} 件中 {result.Ran} 件を実行しました。";
+        if (result.Failed > 0)
+        {
+            message += $" {result.Failed} 件が失敗(各ジョブの行に理由が出ます)。";
+        }
+
+        if (result.Skipped > 0)
+        {
+            message += $" {result.Skipped} 件は設定が足りないので飛ばしました。";
+        }
+
+        return message;
+    }
+
     public static string Describe(SummaryRunResult result)
     {
         if (result == SummaryRunResult.Nothing)

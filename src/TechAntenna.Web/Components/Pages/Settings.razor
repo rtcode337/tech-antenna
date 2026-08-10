@@ -1,19 +1,10 @@
 @page "/settings"
+@using TechAntenna.Core
 @using TechAntenna.Web.Services
-@inject ArticleCollectionRunner CollectionRunner
-@inject SummaryRunner SummaryRunner
-@inject TitleTranslationRunner TranslationRunner
-@inject DigestRunner DigestRunner
-@inject PaperCollectionRunner PaperRunner
-@inject EventCollectionRunner EventRunner
-@inject BookCollectionRunner BookRunner
-@inject ClassicsCollectionRunner ClassicsRunner
-@inject TopicMaintenanceRunner MaintenanceRunner
+@inject ScheduledJobs Jobs
+@inject ScheduleRunner ScheduleRunner
+@inject TimeProvider Clock
 @inject ApiCredentials Credentials
-@inject Microsoft.Extensions.Options.IOptions<CollectionOptions> CollectionOptions
-@inject Microsoft.Extensions.Options.IOptions<BooksOptions> BooksOptions
-@inject Microsoft.Extensions.Options.IOptions<AnthropicOptions> AnthropicOptions
-@inject Microsoft.Extensions.Options.IOptions<DigestOptions> DigestOptions
 
 <PageTitle>Tech Antenna — 設定</PageTitle>
 
@@ -29,24 +20,33 @@
    並びは**サイドバーと同じ順**(ホーム → トレンド → 興味トピック → 定番)にして、
    「どの画面のものを集めるボタンか」を見出しで引けるようにしてある *@
 <section class="jobs" aria-labelledby="jobs-heading">
-    <h2 id="jobs-heading" class="h5">手動で集めなおす</h2>
+    <h2 id="jobs-heading" class="h5">ジョブ</h2>
     <p class="page-note text-muted">
-        <strong>収集は自動では走りません</strong>(消し忘れたサーバーが収集先を叩き続けたり、
-        LLM の枠を使い切らないようにするため)。集めなおしたいときはここから実行します。
-        押すとバックグラウンドで走り、進捗がボタンの隣に出ます。
+        <strong>ボタンを押すと、そのジョブがいますぐ走ります</strong>
+        (バックグラウンドで走り、進捗と結果がボタンの隣に出ます)。
+        <strong>左のチェックを入れたジョブは、下で決めた時刻に自動でも走ります</strong> ——
+        チェックの横の数字はそのときに走る順番です(下の「定期実行」を参照)。
+        <strong>既定はすべてオフ・時刻なし</strong> —— 消し忘れたサーバーが収集先を
+        叩き続けたり、LLM や外部 API の無料枠を使い切らないため。
     </p>
 
+    @* **ページのジョブは1つのフォームにまとめる。** チェックとボタンを横に並べるので、
+       部品ごとに form を作ると入れ子になってしまう(HTML として不正)。
+       押されたのがどのボタンかは submit の value で見分ける ——
+       `run:<キー>` なら1回実行、`save-schedule` なら定期実行の設定を保存。
+       **実行を押したときチェックは保存しない**(押した操作だけをする) *@
+    <form method="post" @formname="jobs" @onsubmit="SubmitAsync">
+        <AntiforgeryToken />
+
     <h3>ホーム</h3>
-    <JobButton Runner="DigestRunner" FormName="compose-digest" OnRun="ComposeDigest" />
+    @Rows(JobGroup.Home)
     <p class="page-note text-muted">
         収集済みの情報と興味トピックから<strong>押さえておくべき情報のダイジェスト</strong>を
         LLM で作り、<a href="/">ホーム</a>の「今日のサマリー」に出します。
     </p>
 
     <h3>トレンド</h3>
-    <JobButton Runner="CollectionRunner" FormName="collect-articles" OnRun="Collect" />
-    <JobButton Runner="SummaryRunner" FormName="summarize" OnRun="Summarize" />
-    <JobButton Runner="TranslationRunner" FormName="translate-titles" OnRun="Translate" />
+    @Rows(JobGroup.Trend)
     <p class="page-note text-muted">
         「トレンドの収集」で<strong>ニュース・記事・話題の論文</strong>(<a href="/recent">トレンド</a>の
         下にあるもの)をまとめて 1 巡します(ブックマーク数の補完も含みます)。
@@ -56,9 +56,7 @@
     </p>
 
     <h3>興味トピック</h3>
-    <JobButton Runner="PaperRunner" FormName="collect-papers" OnRun="CollectPapers" />
-    <JobButton Runner="EventRunner" FormName="collect-events" OnRun="CollectEvents" />
-    <JobButton Runner="BookRunner" FormName="collect-books" OnRun="CollectBooks" />
+    @Rows(JobGroup.Interests)
     <p class="page-note text-muted">
         <strong>収集対象に選んだトピックを検索語</strong>にして外部へ問い合わせます ——
         <a href="/topics">トピック</a>を選んでいないと<strong>1 件も集まりません</strong>。
@@ -66,7 +64,7 @@
     </p>
 
     <h3>定番</h3>
-    <JobButton Runner="ClassicsRunner" FormName="collect-classics" OnRun="CollectClassics" />
+    @Rows(JobGroup.Classics)
     <p class="page-note text-muted">
         「読むべき技術書」を挙げた Qiita 記事から<strong>名指しされた本</strong>を拾い、
         <a href="/classics/books">定番 → 書籍</a>に出します。
@@ -85,9 +83,10 @@
        FetchTrendsAsync。説明を変えるときはそちらと揃えること)。
        **2つのボタンは Runner が同じ1つ**なので、片方が走っていればもう片方も実行中になり、
        二重には走らない *@
-    <div class="job-row">
-        <JobButton Runner="MaintenanceRunner" FormName="refresh-trends"
-                   Label="話題度を取り直す" OnRun="RefreshTrends" />
+    <JobButton Runner="_trendScores.Runner" Name="@_trendScores.Name"
+               Action="@($"run:{_trendScores.Key}")"
+               ScheduleKey="@_trendScores.Key" Order="Jobs.OrderOf(_trendScores)"
+               Enabled="ScheduleSettings.IsEnabled(Credentials, _trendScores.Key)">
         <button class="help-toggle" type="button" popovertarget="trend-help"
                 aria-label="「話題度を取り直す」の説明">?</button>
         @* 副作用(仕分けまちが増える)はチップの中に隠さない —— 押す前に知っておくべき話 *@
@@ -127,11 +126,13 @@
                     (「タグを仕分けなおす」でも変わりません)</li>
             </ul>
         </div>
-    </div>
+    </JobButton>
 
     @* 仕分けまちの中身とゴミの除外は<a href="/tags">タグ</a>の画面。ここは押す場所だけ持つ *@
-    <JobButton Runner="MaintenanceRunner" FormName="reclassify-tags"
-               Label="タグを仕分けなおす" OnRun="ReclassifyTags" />
+    <JobButton Runner="_tagClassification.Runner" Name="@_tagClassification.Name"
+               Action="@($"run:{_tagClassification.Key}")"
+               ScheduleKey="@_tagClassification.Key" Order="Jobs.OrderOf(_tagClassification)"
+               Enabled="ScheduleSettings.IsEnabled(Credentials, _tagClassification.Key)" />
 
     @* 挙動が画面から分かるようにしておく(説明は TopicMaintenanceRunner の実装と揃えること) *@
     <details class="score-help">
@@ -168,45 +169,75 @@
         </ol>
     </details>
 
-    <h2 class="h5">定期実行</h2>
+    <h3>定期実行</h3>
+    @* **時刻を決めて、チェックの入ったジョブを通しで走らせる。** かつてはジョブごとに
+       「N 分ごと」で回していたが、それだと収集・仕分け・サマリーが互いの結果を待たずに
+       走り、サマリーがその日の収集を含まない材料で作られることがあった。
+       走る順は ScheduledJobs.InOrder(コード側の1か所)で決まり、各行の番号がそれ *@
     <p class="page-note text-muted">
-        チェックを入れたジョブは間隔ごとに自動で走ります(<strong>既定はすべて無効</strong> ——
-        消し忘れたサーバーが収集先を叩き続けたり、LLM や外部 API の無料枠を使い切らないため)。
-        切り替えは保存した直後から効きます(再起動不要)。
+        設定した時刻になると、<strong>チェックを入れたジョブが番号の順に1回ずつ走ります</strong>。
+        後ろのジョブは前のジョブが集めたものを材料にするので、この順番は変えられません
+        (収集 → 話題度 → タグの仕分け → 要約・翻訳 → 今日のサマリー)。
+        <strong>時刻を1つも設定していなければ、定期実行はしません</strong>。
+        保存した内容は再起動なしで効きます。
     </p>
-    @* チェックボックスは未チェックだと POST に乗らないため、hidden の印(Submitted)で
-       「保存が押された」ことを見分け、乗っていない項目をオフとして保存する *@
-    <form method="post" @formname="auto-run" @onsubmit="SaveAutoRunAsync" class="auto-run">
-        <AntiforgeryToken />
-        <input type="hidden" name="Submitted" value="true" />
-        <label>
-            <input type="checkbox" name="CollectionAutoRun" value="true"
-                   checked="@AutoRunSettings.IsEnabled(Credentials, AutoRunSettings.CollectionName)" />
-            トレンドとイベントの収集(@CollectionOptions.Value.IntervalMinutes 分ごと)
-        </label>
-        <label>
-            <input type="checkbox" name="BooksAutoRun" value="true"
-                   checked="@AutoRunSettings.IsEnabled(Credentials, AutoRunSettings.BooksName)" />
-            書籍の収集(@BooksOptions.Value.IntervalHours 時間ごと)
-        </label>
-        <label>
-            <input type="checkbox" name="SummaryAutoRun" value="true"
-                   checked="@AutoRunSettings.IsEnabled(Credentials, AutoRunSettings.SummaryName)" />
-            記事の要約(@AnthropicOptions.Value.IntervalMinutes 分ごと。LLM のキーが要る)
-        </label>
-        <label>
-            <input type="checkbox" name="DigestAutoRun" value="true"
-                   checked="@AutoRunSettings.IsEnabled(Credentials, AutoRunSettings.DigestName)" />
-            今日のサマリーの生成(@DigestOptions.Value.IntervalHours 時間ごと。LLM のキーが要る)
-        </label>
-        <div>
-            <button type="submit" class="btn btn-outline-primary btn-sm">保存</button>
-            @if (_autoRunMessage is { Length: > 0 })
-            {
-                <span class="ms-2 text-body-secondary">@_autoRunMessage</span>
-            }
-        </div>
+
+    <div class="schedule-times">
+        <label for="schedule-times">実行する時刻(日本時間・いくつでも)</label>
+        <input id="schedule-times" name="Times" value="@_timesInput"
+               placeholder="07:00, 19:00" aria-describedby="schedule-times-help" />
+        <span id="schedule-times-help" class="text-muted">
+            <code>HH:mm</code> をカンマか空白で区切って並べます(空にすると止まります)。
+        </span>
+    </div>
+
+    @* **時刻を待たずに、同じ列をいま走らせる。** 設定した直後に確かめたいときと、
+       手で1つずつ押していく手間を省きたいときのため。走るのは<b>チェックの入ったジョブだけ</b>で、
+       順番も時刻の回と同じ(中身は ScheduleRunner —— 時刻で走るのと同じ経路)。
+       **前回の実行時刻(印)は動かさない** —— 手で押したことで、その日の時刻の回が
+       消えてしまわないようにするため *@
+    <JobButton Runner="ScheduleRunner" Name="@ScheduleRunner.Name" Action="run-schedule">
+        <span class="job-note text-muted">
+            チェックの入ったジョブを、番号の順に通しで走らせます(時刻の回とは別に数えます)。
+        </span>
+    </JobButton>
+
+    @* 保存はチェックと時刻をまとめて書き込む。**チェックは未チェックだと POST に
+       乗らない**ので、乗っていないジョブはオフとして保存する *@
+    <div>
+        <button type="submit" name="Action" value="save-schedule"
+                class="btn btn-outline-primary btn-sm">定期実行の設定を保存</button>
+        @if (_scheduleError is { Length: > 0 })
+        {
+            <span class="ms-2 text-danger">@_scheduleError</span>
+        }
+        else if (_scheduleMessage is { Length: > 0 })
+        {
+            <span class="ms-2 text-body-secondary">@_scheduleMessage</span>
+        }
+    </div>
     </form>
+
+    @* 次にいつ走るかを出す —— 設定できているつもりで動いていない、に気づけるように *@
+    <p class="page-note text-muted">
+        @{
+            var times = ScheduleSettings.GetTimes(Credentials);
+            var enabledCount = Jobs.InOrder.Count(job => ScheduleSettings.IsEnabled(Credentials, job.Key));
+        }
+        @if (times.Count == 0)
+        {
+            <text><strong>いまは定期実行しません</strong>(時刻が未設定)。</text>
+        }
+        else if (enabledCount == 0)
+        {
+            <text><strong>時刻は設定されていますが、走るジョブがありません</strong>
+                (チェックが1つも入っていません)。</text>
+        }
+        else if (ScheduleSettings.NextOccurrence(times, Clock.GetUtcNow()) is { } next)
+        {
+            <text>次は <strong>@JapanTime.Format(next)</strong> に @enabledCount 件のジョブが走ります。</text>
+        }
+    </p>
 
     @* 通知は定期実行とは別の話(手動生成でも通知する)なので見出しを分ける。
        オン/オフは接続先の設定(外部連携)とは独立に持つ ——
@@ -258,45 +289,126 @@
     </li>
 </ul>
 
+@* グループに属するジョブの行(番号は実行順)。**インラインテンプレートはマークアップ側の
+   @@{ } にしか書けない**ので、@@code ではなくここに置く(タグの画面と同じ) *@
+@{
+    RenderFragment Rows(JobGroup group) =>
+    @<text>
+        @foreach (var entry in Jobs.InOrder
+            .Select((job, index) => (Job: job, Order: index + 1))
+            .Where(entry => entry.Job.Group == group))
+        {
+            <JobButton Runner="entry.Job.Runner" Name="@entry.Job.Name"
+                       Action="@($"run:{entry.Job.Key}")"
+                       ScheduleKey="@entry.Job.Key" Order="entry.Order"
+                       Enabled="ScheduleSettings.IsEnabled(Credentials, entry.Job.Key)" />
+        }
+    </text>;
+}
+
 @code {
-    string? _autoRunMessage;
+    string? _scheduleMessage;
+    string? _scheduleError;
     string? _ntfyMessage;
 
-    [SupplyParameterFromForm(FormName = "auto-run", Name = "Submitted")]
-    public string? AutoRunSubmitted { get; set; }
+    /// <summary>時刻の入力欄。保存済みの値で初期化し、保存に失敗したときは打った文字を残す。</summary>
+    string _timesInput = "";
 
-    [SupplyParameterFromForm(FormName = "auto-run", Name = "CollectionAutoRun")]
-    public string? CollectionAutoRun { get; set; }
+    /// <summary>整備の2行は説明チップ・注意を添えるので、行を明示的に組む(他はグループ単位)。</summary>
+    ScheduledJob _trendScores = default!;
+    ScheduledJob _tagClassification = default!;
 
-    [SupplyParameterFromForm(FormName = "auto-run", Name = "BooksAutoRun")]
-    public string? BooksAutoRun { get; set; }
-
-    [SupplyParameterFromForm(FormName = "auto-run", Name = "SummaryAutoRun")]
-    public string? SummaryAutoRun { get; set; }
-
-    [SupplyParameterFromForm(FormName = "auto-run", Name = "DigestAutoRun")]
-    public string? DigestAutoRun { get; set; }
-
-    async Task SaveAutoRunAsync()
+    protected override void OnInitialized()
     {
-        if (AutoRunSubmitted is null)
+        _timesInput = ScheduleSettings.Format(ScheduleSettings.GetTimes(Credentials));
+        _trendScores = Jobs.ByKey("trend-scores")!;
+        _tagClassification = Jobs.ByKey("tag-classification")!;
+    }
+
+    /// <summary>押されたボタン(<c>run:&lt;キー&gt;</c> か <c>save-schedule</c>)。</summary>
+    [SupplyParameterFromForm(FormName = "jobs", Name = "Action")]
+    public string? Action { get; set; }
+
+    [SupplyParameterFromForm(FormName = "jobs", Name = "Times")]
+    public string? Times { get; set; }
+
+    /// <summary>チェックの入ったジョブのキー(name を共有した checkbox の値)。</summary>
+    [SupplyParameterFromForm(FormName = "jobs", Name = "Jobs")]
+    public string[]? EnabledJobs { get; set; }
+
+    async Task SubmitAsync()
+    {
+        if (Action is null)
         {
             return;
         }
 
-        // 無効が既定なので、オンだけ "true" を書き、オフは行を消す(= 既定に戻す)
-        await ApplyAsync(AutoRunSettings.CollectionName, CollectionAutoRun == "true");
-        await ApplyAsync(AutoRunSettings.BooksName, BooksAutoRun == "true");
-        await ApplyAsync(AutoRunSettings.SummaryName, SummaryAutoRun == "true");
-        await ApplyAsync(AutoRunSettings.DigestName, DigestAutoRun == "true");
+        if (Action == "save-schedule")
+        {
+            await SaveScheduleAsync();
+            return;
+        }
 
-        _autoRunMessage = "保存しました。次の周回から反映されます。";
+        // 定期実行の列をいますぐ通す(時刻の回と同じ中身)
+        if (Action == "run-schedule")
+        {
+            ScheduleRunner.StartInBackground(
+                ct => ScheduleRunner.RunAndRecordAsync(
+                    ScheduleRunner.RunOnceAsync, JobMessage.Describe, ct));
+            return;
+        }
 
-        Task ApplyAsync(string name, bool enabled) => enabled
+        // **実行は押した1件だけ。** チェックの保存はしない —— 押した操作以外のことを
+        // ついでにやると、何が保存されたのか画面から分からなくなる
+        if (Action.StartsWith("run:", StringComparison.Ordinal)
+            && Jobs.ByKey(Action["run:".Length..]) is { } job)
+        {
+            job.Runner.StartInBackground(job.RunAsync);
+        }
+    }
+
+    async Task SaveScheduleAsync()
+    {
+        _scheduleMessage = null;
+        _scheduleError = null;
+
+        // **時刻が読めなければ何も保存しない。** 一部だけ保存すると、画面の表示と
+        // 実際に走る設定が食い違う
+        if (!ScheduleSettings.TryParseTimes(Times, out var times, out var error))
+        {
+            _timesInput = Times ?? "";
+            _scheduleError = error;
+            return;
+        }
+
+        var enabled = (EnabledJobs ?? []).ToHashSet(StringComparer.Ordinal);
+        foreach (var job in Jobs.InOrder)
+        {
+            // 無効が既定なので、オンだけ "true" を書き、オフは行を消す(= 既定に戻す)
+            await ApplyAsync(ScheduleSettings.EnabledName(job.Key), enabled.Contains(job.Key));
+        }
+
+        if (times.Count == 0)
+        {
+            await Credentials.RemoveAsync(ScheduleSettings.TimesName);
+            // **前回の実行時刻も消す。** 残すと、あとで時刻を設定しなおしたときに
+            // 「その時刻はもう過ぎている」と判定されて、保存した直後に走り出す
+            await Credentials.RemoveAsync(ScheduleSettings.LastRunName);
+        }
+        else
+        {
+            await Credentials.SetAsync(ScheduleSettings.TimesName, ScheduleSettings.Format(times));
+        }
+
+        _timesInput = ScheduleSettings.Format(times);
+        _scheduleMessage = times.Count == 0
+            ? "保存しました(時刻が無いので定期実行はしません)。"
+            : $"保存しました({enabled.Count} 件のジョブを {_timesInput} に実行します)。";
+
+        Task ApplyAsync(string name, bool on) => on
             ? Credentials.SetAsync(name, "true")
             : Credentials.RemoveAsync(name);
     }
-
 
     [SupplyParameterFromForm(FormName = "ntfy-toggle", Name = "Submitted")]
     public string? NtfyToggleSubmitted { get; set; }
@@ -324,39 +436,4 @@
 
         _ntfyMessage = enable ? "通知を有効にしました。" : "通知を無効にしました(接続先の設定は残ります)。";
     }
-
-    void Collect() =>
-        CollectionRunner.StartInBackground(ct => CollectionRunner.RunOnceAsync(ct), JobMessage.Describe);
-
-    void CollectPapers() => PaperRunner.StartInBackground(
-        ct => PaperRunner.RunOnceAsync(ct),
-        result => $"{result.Fetched} 件取得、うち {result.Added} 件を新規追加しました。"
-            + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : ""));
-
-    void CollectEvents() =>
-        EventRunner.StartInBackground(ct => EventRunner.RunOnceAsync(ct), JobMessage.Describe);
-
-    void CollectBooks() =>
-        BookRunner.StartInBackground(ct => BookRunner.RunOnceAsync(ct), JobMessage.Describe);
-
-    void CollectClassics() =>
-        ClassicsRunner.StartInBackground(ct => ClassicsRunner.RunOnceAsync(ct), JobMessage.Describe);
-
-    void RefreshTrends() => MaintenanceRunner.StartInBackground(
-        ct => MaintenanceRunner.RefreshTrendsAsync(ct), JobMessage.Describe);
-
-    void ReclassifyTags() => MaintenanceRunner.StartInBackground(
-        ct => MaintenanceRunner.ReclassifyTagsAsync(ct), JobMessage.Describe);
-
-    void Translate() => TranslationRunner.StartInBackground(
-        ct => TranslationRunner.RunOnceAsync(ct),
-        result => result.Requested == 0
-            ? "訳題の付いていない論文はありません。"
-            : $"{result.Requested} 件中 {result.Translated} 件に訳題を付けました。");
-
-    void Summarize() =>
-        SummaryRunner.StartInBackground(ct => SummaryRunner.RunOnceAsync(ct), JobMessage.Describe);
-
-    void ComposeDigest() =>
-        DigestRunner.StartInBackground(ct => DigestRunner.RunOnceAsync(ct), result => result.Describe());
 }

@@ -363,8 +363,8 @@ hr {
     line-height: 1.7;
 }
 
-/* ボタンの行(ボタン / ? / 副作用の注意)。JobButton の form は mb-3 を持つので、
-   行の中では余白を消して縦位置をそろえる*/
+/* ジョブ1件の行: [定期実行のチェック + 順番] [実行ボタン] [進捗・結果・注意]。
+   横に並べ、狭い画面では折り返す */
 .job-row {
     display: flex;
     flex-wrap: wrap;
@@ -373,12 +373,32 @@ hr {
     margin-bottom: 1rem;
 }
 
-.job-row form {
-    margin-bottom: 0;
-}
-
+.job-row > span,
 .job-note {
     font-size: 0.85rem;
+}
+
+/* 定期実行のチェックと実行順の番号。**ボタンのすぐ左に置く** —— 別の場所に一覧を作ると、
+   どのボタンの設定なのかを名前で照合することになる */
+.job-schedule {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    cursor: pointer;
+}
+
+/* 実行順の番号。**画面の並び(軸ごと)と実行順は違う**ので、行に番号を出して示す */
+.job-order {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.3rem;
+    height: 1.3rem;
+    border-radius: var(--pill);
+    background: var(--surface-sunken);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
 }
 
 /* 「?」ボタン。一覧の説明チップ(.note-toggle)と同じ見た目だが、

@@ -24,7 +24,7 @@
                 </div>
                 @if (_digest is not null)
                 {
-                    @* 生成時刻を出す —— 自動生成(1日2回)でも手動でも、いつの状況の
+                    @* 生成時刻を出す —— 定期実行でも手動でも、いつの状況の
                        まとめなのかが分からないと鵜呑みにできない *@
                     <span class="status-pill">@JapanTime.FormatShort(_digest.GeneratedAt) 生成</span>
                 }
@@ -40,7 +40,7 @@
                     <p>
                         収集した情報と興味トピックから、押さえておくべき情報を LLM がまとめます。
                         <a href="/settings">設定</a>の「今日のサマリーの生成」で作れます
-                        (LLM の設定が必要です。<code>Digest__AutoRun=true</code> で1日2回の自動生成)。
+                        (LLM の設定が必要です。同じ画面の「定期実行」で時刻を決めておくこともできます)。
                     </p>
                 </div>
             }
