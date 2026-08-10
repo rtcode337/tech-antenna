@@ -13,6 +13,16 @@
     color: var(--text-soft);
 }
 
+/* 仕分けまちの案内。読み流されないよう薄い面に載せるが、警告ではないので色は付けない */
+.pending-notice {
+    margin: 0.75rem 0 1rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-size: 0.9rem;
+}
+
 /* 実行する時刻の入力。ラベル・入力・補足を縦に積む(1行に並べると狭い画面で潰れる) */
 .schedule-times {
     margin-bottom: 0.9rem;

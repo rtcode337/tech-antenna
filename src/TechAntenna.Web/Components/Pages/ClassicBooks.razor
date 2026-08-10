@@ -1,8 +1,11 @@
 @page "/classics/books"
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
+@using TechAntenna.Core.Topics
 @using TechAntenna.Web.Services
 @inject IBookStore BookStore
+@inject ITopicStore TopicStore
+@inject TopicCatalog Catalog
 
 @* 定番(第三の軸)の子ページ。中身は「読むべき技術書」を挙げた Qiita 記事から
    名指しされた本を拾ったもの —— 親(/classics)は軸の入口で、一覧はこちらが受け持つ。
@@ -14,8 +17,11 @@
 
 <p class="page-note text-muted">
     「読むべき技術書」を挙げた Qiita 記事(ストック数の多いもの)から、
-    <strong>名指しされた本</strong>を拾います。<strong>トピックの選択には依存しません</strong>
-    —— 選んだトピックで検索して集める本は<a href="/books">興味トピック → 書籍</a>へ。
+    <strong>名指しされた本</strong>を拾います。<strong>集めるのはトピックの選択に
+    依存しません</strong> —— 選んだトピックで検索して集める本は
+    <a href="/books">興味トピック → 書籍</a>へ。
+    ただし<strong>選んだトピック(配下を含む)に当たるタグは強調</strong>して出すので、
+    定番の中から自分の関心に近いものを見つけられます。
 </p>
 
 @* 収集のボタンは設定にある(トピック選択と無関係なので、書籍の収集とは別ボタン) *@
@@ -40,7 +46,10 @@ else
     <ul class="list-unstyled">
         @foreach (var book in _books)
         {
-            <BookItem Book="book" />
+            @* **一覧は絞らない**(定番は選択に依らない軸)が、**タグの色は選んだトピック
+               +配下で強調する** —— トレンドの★と同じ考え方で、絞らずに「自分の関心に
+               当たるもの」を見つけられるようにするため *@
+            <BookItem Book="book" HighlightTags="_interests" />
         }
     </ul>
 
@@ -66,6 +75,9 @@ else
     IReadOnlyList<Book>? _books;
     bool _hasReviews;
 
+    /// <summary>選んだトピック+その配下のキー。**一覧の絞り込みではなく強調にだけ使う**。</summary>
+    HashSet<string> _interests = new(StringComparer.Ordinal);
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     // バックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
@@ -79,5 +91,10 @@ else
             .ToList();
         // クレジット表記は楽天のデータを実際に出しているときだけ置く
         _hasReviews = _books.Any(book => book.ReviewCount is > 0);
+
+        // 強調は配下込み —— 親(AI)を選んだ人にとって、子(LLM・RAG)も興味の範囲
+        _interests = Catalog
+            .ExpandWithDescendants((await TopicStore.GetSelectedAsync()).Select(topic => topic.Key))
+            .ToHashSet(StringComparer.Ordinal);
     }
 }

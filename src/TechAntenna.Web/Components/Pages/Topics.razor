@@ -16,16 +16,6 @@
 
 <p><a href="/settings">← 設定</a></p>
 
-@* 仕分けまちの中身と仕分けのボタンはタグの画面。ここは「溜まっている」ことだけ知らせる ——
-   語彙の画面に居ながら、まだ語彙に入っていない語があると気づけるように *@
-@if (_pendingCount > 0)
-{
-    <p class="pending-notice">
-        未仕分けのタグが <strong>@_pendingCount 語</strong>あります。
-        <a href="/tags">タグの画面</a>で内容の確認・除外・LLM での仕分けができます。
-    </p>
-}
-
 @if (_topics is null)
 {
     <p>読み込み中…</p>
@@ -64,11 +54,14 @@ else
             }
         </form>
         <p>
-            チェックボックスで収集したいトピックを選び、「選択を保存」を押してください。
-            <strong>外部へ検索しに行くのは選んだトピックだけ</strong>です
-            （イベント・書籍・論文はトピック 1 つごとに外部へ問い合わせるため、
-            配下までは検索しません）。親を選ぶと、<strong>配下のトピックは
-            興味トピック側の表示と一覧の強調に含まれます</strong>。
+            チェックボックスで選び、「選択を保存」を押してください。効き方は 2 つあります。
+            <strong>選んだトピックそのもの</strong>が<strong>興味トピックの収集対象</strong>
+            （書籍・イベント・論文の検索語）です —— この 3 つはトピック 1 つごとに外部へ
+            問い合わせるため、<strong>配下までは検索しません</strong>（配下も集めたいときは
+            その子もチェックしてください）。
+            <strong>選んだトピックとその配下</strong>は、トレンドと定番の一覧での
+            <strong>強調表示</strong>（★とタグの色）と、ホームの<strong>今日のサマリー</strong>を
+            作るときの材料、そして興味トピックの一覧に何を出すかに使われます。
         </p>
     </div>
 
@@ -313,7 +306,6 @@ else
 @code {
     IReadOnlyList<Topic>? _topics;
     List<TopicNode>? _roots;
-    int _pendingCount;
     HashSet<string> _matches = new(StringComparer.Ordinal);
     string? _firstMatch;
     IReadOnlyList<string> _glossaryHits = [];
@@ -438,9 +430,7 @@ else
             ? resolved
             : FirstMatchInOrder(_roots, _matches);
 
-        // タグの中身はタグの画面の担当 —— ここは「未仕分けが溜まっている」ことだけ知らせる
         var tags = await TagStore.GetAllAsync();
-        _pendingCount = (await TagStore.GetPendingAsync(DateTimeOffset.UtcNow)).Count;
 
         // 語彙に無くても、タグの側に当たっていれば案内できる(「なぜ出てこないのか」が分かる)
         _glossaryHits = HasQuery

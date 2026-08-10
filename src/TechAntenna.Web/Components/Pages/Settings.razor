@@ -1,10 +1,12 @@
 @page "/settings"
 @using TechAntenna.Core
+@using TechAntenna.Core.Abstractions
 @using TechAntenna.Web.Services
 @inject ScheduledJobs Jobs
 @inject ScheduleRunner ScheduleRunner
 @inject TimeProvider Clock
 @inject ApiCredentials Credentials
+@inject ITagStore TagStore
 
 <PageTitle>Tech Antenna — 設定</PageTitle>
 
@@ -128,6 +130,17 @@
         </div>
     </JobButton>
 
+    @* **仕分けまちが溜まっていることは、押す場所で知らせる。** かつてはトピックの画面に
+       出していたが、そこには押すボタンが無く「見つけたのに何もできない」案内だった。
+       中身の確認とゴミの除外は<a href="/tags">タグ</a>の画面 *@
+    @if (_pendingCount > 0)
+    {
+        <p class="pending-notice">
+            未仕分けのタグが <strong>@_pendingCount 語</strong>あります。
+            下の「タグを仕分けなおす」で語彙に入ります
+            (中身の確認と除外は<a href="/tags">タグの画面</a>で)。
+        </p>
+    }
     @* 仕分けまちの中身とゴミの除外は<a href="/tags">タグ</a>の画面。ここは押す場所だけ持つ *@
     <JobButton Runner="_tagClassification.Runner" Name="@_tagClassification.Name"
                Action="@($"run:{_tagClassification.Key}")" Operation="@_tagClassification.Key"
@@ -318,11 +331,18 @@
     ScheduledJob _trendScores = default!;
     ScheduledJob _tagClassification = default!;
 
-    protected override void OnInitialized()
+    /// <summary>仕分けまちのタグの語数(0 なら案内を出さない)。</summary>
+    int _pendingCount;
+
+    protected override async Task OnInitializedAsync()
     {
         _timesInput = ScheduleSettings.Format(ScheduleSettings.GetTimes(Credentials));
         _trendScores = Jobs.ByKey("trend-scores")!;
         _tagClassification = Jobs.ByKey("tag-classification")!;
+
+        // 「仕分けまち」の語数はタグの画面と同じところ(ITagStore)から数える ——
+        // 画面に出す数と、実際に LLM へ流れる対象を1か所から出すため
+        _pendingCount = (await TagStore.GetPendingAsync(Clock.GetUtcNow())).Count;
     }
 
     /// <summary>押されたボタン(<c>run:&lt;キー&gt;</c> か <c>save-schedule</c>)。</summary>

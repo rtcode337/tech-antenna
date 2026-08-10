@@ -199,16 +199,6 @@ details[open] > summary .caret::before {
     white-space: nowrap;
 }
 
-/* 未仕分けの案内。読み流されないよう薄い面に載せるが、警告ではないので色は付けない */
-.pending-notice {
-    margin: 0.75rem 0 1rem;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-    font-size: 0.9rem;
-}
-
 /* 持ち出し / 取り込みの節。説明の details(.score-help。app.css にある)と
    同じ見た目に、フォームのぶんだけ行間を足す */
 .transfer p {
