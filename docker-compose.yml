@@ -66,17 +66,13 @@ services:
       # 未設定だとメモリ上のストアで動いてしまい再起動でデータが消えるため、必ず渡す
       ConnectionStrings__Default: Host=db;Port=7021;Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=${POSTGRES_PASSWORD:-techantenna}
       TZ: ${TZ:-Asia/Tokyo}
-      # 収集・要約の定期実行。**既定は false(画面のボタンを押したときだけ動く)** で、
-      # 定期実行に切り替えるときだけ .env で true にする
-      Collection__AutoRun: ${COLLECTION_AUTORUN:-false}
-      Books__AutoRun: ${BOOKS_AUTORUN:-false}
-      Anthropic__AutoRun: ${SUMMARY_AUTORUN:-false}
-      Digest__AutoRun: ${DIGEST_AUTORUN:-false}
+      # 定期実行のオン/オフは画面(設定)から切り替える(既定はすべて無効)
       # **外部 API のキーはここでは渡せない**(画面の「設定 → 外部連携」から入れる。
       # 暗号化して DB に保存され、再起動なしで効く)。渡すのはキー以外の設定だけ
       # 既定は appsettings.json と同じ。コストを抑えるなら claude-haiku-4-5 を指定する
       Anthropic__Model: ${ANTHROPIC_MODEL:-claude-opus-5}
-      ClaudeCode__Model: ${CLAUDE_CODE_MODEL:-}
+      # 既定は appsettings と同じ claude-sonnet-5(空文字を渡すと appsettings を上書きして CLI 既定 = 重いモデルに戻るため)
+      ClaudeCode__Model: ${CLAUDE_CODE_MODEL:-claude-sonnet-5}
       # 今日のサマリーの ntfy 通知。接続先(URL・トピック・トークン)は画面から設定する。
       # タップで開く URL だけは「この環境の公開 URL」というデプロイ側の事実なのでここに残す
       Ntfy__ClickUrl: ${NTFY_CLICK_URL:-}

@@ -19,7 +19,9 @@ public class ClaudeCodeSummarizer(
     string? model,
     TimeSpan timeout) : ISummarizer
 {
-    public string Name => "Claude Code";
+    // モデル名まで画面に出す —— どのモデルがサブスク枠を使っているか見えるようにする。
+    // model が null(CLI の既定に任せる)ときは、既定が何かこちらから分からないので付けない
+    public string Name => model is null ? "Claude Code" : $"Claude Code / {model}";
 
     public async Task<IReadOnlyList<SummaryResult>> SummarizeAsync(
         IReadOnlyList<Article> articles,

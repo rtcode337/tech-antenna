@@ -4,6 +4,26 @@
     font-size: 0.89rem;
 }
 
+/* 定期実行のチェックと ntfy 通知のトグル。行ごとに縦へ並べる */
+.auto-run label,
+.ntfy-toggle label {
+    display: block;
+    margin-bottom: 0.4rem;
+}
+
+.auto-run input[type="checkbox"],
+.ntfy-toggle input[type="checkbox"] {
+    margin-right: 0.4rem;
+}
+
+.auto-run > div {
+    margin-top: 0.6rem;
+}
+
+.ntfy-toggle {
+    margin-top: 1.25rem;
+}
+
 /* 子ページへの入口。一覧・カードと同じ面の上に載せる(見た目の文法を揃える) */
 .settings-links {
     display: grid;

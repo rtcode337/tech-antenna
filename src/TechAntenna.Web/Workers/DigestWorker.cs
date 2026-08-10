@@ -4,40 +4,22 @@ using TechAntenna.Web.Services;
 namespace TechAntenna.Web.Workers;
 
 /// <summary>
-/// 今日のサマリー(ダイジェスト)を定期的に生成する。
-///
-/// **登録されるのは <c>Digest:AutoRun</c> が true のときだけで、既定は false**
-/// (理由は <see cref="SummaryWorker"/> と同じ)。既定では設定画面のボタンを
-/// 押したときだけ生成する。間隔の既定は 12 時間 = 1日2回。
+/// 今日のサマリーの生成を定期的に実行する。**オン/オフは画面(設定)の定期実行チェックで切り替える**
+/// (既定は無効)。ループと判定は <see cref="AutoRunWorker"/>。
 /// </summary>
 public class DigestWorker(
     DigestRunner runner,
+    ApiCredentials credentials,
     IOptions<DigestOptions> options,
-    ILogger<DigestWorker> logger) : BackgroundService
+    ILogger<DigestWorker> logger) : AutoRunWorker(credentials, logger)
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        var interval = TimeSpan.FromHours(options.Value.IntervalHours);
-        using var timer = new PeriodicTimer(interval);
+    protected override string SettingName => AutoRunSettings.DigestName;
 
-        // do-while なので起動直後にも1回生成する(他の Worker と同じ流儀。
-        // 最初のタイマーまで12時間待つと「機能が動いていない」ように見える)
-        do
-        {
-            try
-            {
-                await runner.RunOnceAsync(stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                // 1回の失敗で以降の生成を止めない
-                logger.LogError(ex, "{Job} に失敗", runner.Name);
-            }
-        }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
-    }
+    protected override string JobName => runner.Name;
+
+    protected override TimeSpan Interval => TimeSpan.FromHours(options.Value.IntervalHours);
+
+    // キー未設定なら Runner が何もしない(チェックだけ入れても LLM は呼ばれない)
+    protected override Task RunOnceAsync(CancellationToken cancellationToken) =>
+        runner.RunOnceAsync(cancellationToken);
 }

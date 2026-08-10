@@ -21,7 +21,9 @@ public class ClaudeCodeTopicClassifier(
     /// <summary>1回の呼び出しで渡す語数。固定費(1回3万トークン規模)と応答時間の折り合い。</summary>
     public const int BatchSize = 60;
 
-    public string Name => "Claude Code";
+    // モデル名まで画面に出す —— どのモデルがサブスク枠を使っているか見えるようにする。
+    // model が null(CLI の既定に任せる)ときは、既定が何かこちらから分からないので付けない
+    public string Name => model is null ? "Claude Code" : $"Claude Code / {model}";
 
     public async Task<IReadOnlyList<TopicClassifierVerdict>> ClassifyAsync(
         IReadOnlyList<string> tags,

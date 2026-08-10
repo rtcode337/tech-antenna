@@ -202,7 +202,7 @@ openBD で書誌情報を補ってから保存する。**検索語は設定で�
 docker compose で動かす。ホストに .NET も Postgres も要らない。
 
 ```bash
-cp .env.example .env   # AutoRun など必要な設定を入れる
+cp .env.example .env   # ポートやタイムゾーンなど必要な設定を入れる
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
@@ -231,9 +231,9 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 - TLS は前段のリバースプロキシで終端する前提(コンテナは HTTP のみ待ち受ける)。
   プロキシ配下に置くときは `.env` で `FORWARDED_HEADERS_ENABLED=true`
 - **収集も要約も今日のサマリーも、既定では自動実行しない**(画面のボタンを押したときだけ
-  動く)。外部 API や LLM の無料枠を意図せず使い切らないため。定期実行にするときは `.env` で
-  `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` / `SUMMARY_AUTORUN` / `DIGEST_AUTORUN` を
-  `true` にする(サマリーは 12 時間ごと = 1日2回)
+  動く)。外部 API や LLM の無料枠を意図せず使い切らないため。定期実行にするときは
+  画面の「設定」の**定期実行のチェックボックス**を入れる(再起動不要。
+  サマリーは 12 時間ごと = 1日2回)
 - 今日のサマリーは **ntfy へ通知できる**。接続先(ベース URL・トピック名)は画面の
   「設定 → 外部連携」から設定し、トピック名があるときだけ送る(ベース URL の既定は
   https://ntfy.sh )。通知のオン/オフは「設定」のチェックボックスで切り替えられる

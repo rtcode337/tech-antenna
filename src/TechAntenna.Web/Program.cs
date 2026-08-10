@@ -251,13 +251,10 @@ if (Uri.TryCreate(techPlay.FeedUrl, UriKind.Absolute, out var techPlayFeedUrl))
 
 builder.Services.AddSingleton<EventCollectionRunner>();
 
-// **定期実行は AutoRun のときだけで、既定は false**。消し忘れたサーバーが
-// 収集先を叩き続けないようにするため。既定では手動(画面のボタン)だけで動く
-if (collection.AutoRun)
-{
-    builder.Services.AddHostedService<ArticleCollectionWorker>();
-    builder.Services.AddHostedService<EventCollectionWorker>();
-}
+// **定期実行のワーカーは常に登録し、オン/オフは周回ごとに画面設定を見る**(既定は無効)。
+// かつては AutoRun の環境変数で登録自体を分岐していたが、画面から切り替えられるようにした
+builder.Services.AddHostedService<ArticleCollectionWorker>();
+builder.Services.AddHostedService<EventCollectionWorker>();
 
 // --- 書籍収集(Google Books + openBD)---
 builder.Services.Configure<BooksOptions>(
@@ -299,10 +296,7 @@ builder.Services.AddSingleton<IBookEnricher>(sp => new RakutenBooksEnricher(
     () => sp.GetRequiredService<ApiCredentials>().Get("Rakuten:AccessKey"),
     TimeSpan.FromSeconds(rakuten.DelaySeconds)));
 
-if (books.AutoRun)
-{
-    builder.Services.AddHostedService<BookCollectionWorker>();
-}
+builder.Services.AddHostedService<BookCollectionWorker>();
 
 // 「読むべき技術書」を挙げた記事から薦められている本を拾う。書籍の検索とは独立した経路
 var qiita = builder.Configuration
@@ -369,23 +363,10 @@ builder.Services.AddSingleton<SummaryRunner>();
 builder.Services.AddSingleton<TitleTranslationRunner>();
 builder.Services.AddSingleton<DigestRunner>();
 
-// AutoRun だけで登録する(キーの有無は見ない —— 実行時に Runner が未設定なら何もしない。
-// キーを画面から入れた時点で、再起動なしに次の周回から動き出す)
-var anthropic = builder.Configuration
-    .GetSection(AnthropicOptions.SectionName)
-    .Get<AnthropicOptions>() ?? new AnthropicOptions();
-if (anthropic.AutoRun)
-{
-    builder.Services.AddHostedService<SummaryWorker>();
-}
-
-var digestOptions = builder.Configuration
-    .GetSection(DigestOptions.SectionName)
-    .Get<DigestOptions>() ?? new DigestOptions();
-if (digestOptions.AutoRun)
-{
-    builder.Services.AddHostedService<DigestWorker>();
-}
+// LLM 系のワーカーも常に登録する(オン/オフ・キーとも実行時に見る。
+// チェックが入っていてもキーが無ければ Runner が何もしない)
+builder.Services.AddHostedService<SummaryWorker>();
+builder.Services.AddHostedService<DigestWorker>();
 
 // 今日のサマリーの ntfy 通知。**接続先(BaseUrl / Topic / トークン)は画面から実行時に
 // 設定できるので常に登録し**、送信のたびに解決する —— 未設定・無効なら送らないだけ。

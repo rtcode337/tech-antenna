@@ -7,14 +7,6 @@ public class CollectionOptions
 {
     public const string SectionName = "Collection";
 
-    /// <summary>
-    /// 記事・イベントの収集を定期実行するか。**既定は false で、動くのは画面のボタンを
-    /// 押したときだけ** —— 消し忘れたサーバーが気づかないうちに収集先を叩き続け、
-    /// 外部 API や LLM の無料枠を使い切ってしまうため。定期実行に切り替えるときに
-    /// true にする(環境変数なら Collection__AutoRun=true)。
-    /// </summary>
-    public bool AutoRun { get; set; } = false;
-
     /// <summary>巡回間隔(分)。収集先への負荷を考えて短くしすぎない。</summary>
     public int IntervalMinutes { get; set; } = 30;
 
@@ -104,10 +96,6 @@ public class BooksOptions
 {
     public const string SectionName = "Books";
 
-    /// <summary>書籍の収集を定期実行するか。既定(false = 手動のみ)の理由は
-    /// <see cref="CollectionOptions.AutoRun"/> と同じ。</summary>
-    public bool AutoRun { get; set; } = false;
-
     /// <summary>巡回間隔(時)。書籍は記事ほど頻繁に増えないため既定を長めにする。</summary>
     public int IntervalHours { get; set; } = 24;
 
@@ -183,10 +171,6 @@ public class AnthropicOptions
     /// <summary>使用するモデル ID。コストを抑えるなら claude-haiku-4-5 に変更する。</summary>
     public string Model { get; set; } = "claude-opus-5";
 
-    /// <summary>要約を定期実行するか。既定(false = 手動のみ)の理由は
-    /// <see cref="CollectionOptions.AutoRun"/> と同じ。</summary>
-    public bool AutoRun { get; set; } = false;
-
     /// <summary>要約ジョブの実行間隔(分)。</summary>
     public int IntervalMinutes { get; set; } = 10;
 
@@ -207,7 +191,9 @@ public class ClaudeCodeOptions
     /// <summary>claude CLI のパス。PATH 上にあるなら名前だけでよい。</summary>
     public string ExecutablePath { get; set; } = "claude";
 
-    /// <summary>使うモデル。空なら CLI の既定に任せる。</summary>
+    /// <summary>使うモデル。**空にすると CLI の既定に任せる**が、その既定は重いモデル
+    /// (実測 claude-fable-5)でサブスクの週間枠を消費しすぎるため、
+    /// appsettings.json では claude-sonnet-5 を明示している。</summary>
     public string Model { get; set; } = "";
 
     /// <summary>1回の呼び出しの上限(秒)。超えたらプロセスごと落として次の巡回で再試行する。</summary>
@@ -221,10 +207,6 @@ public class ClaudeCodeOptions
 public class DigestOptions
 {
     public const string SectionName = "Digest";
-
-    /// <summary>定期生成するか。既定(false = 手動のみ)の理由は
-    /// <see cref="CollectionOptions.AutoRun"/> と同じ。</summary>
-    public bool AutoRun { get; set; } = false;
 
     /// <summary>自動生成の間隔(時間)。既定 12 = 1日2回。</summary>
     public int IntervalHours { get; set; } = 12;

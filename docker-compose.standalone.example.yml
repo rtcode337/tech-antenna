@@ -55,12 +55,7 @@ x-app-env: &app-env
   ConnectionStrings__Default: *connection-string
   TZ: *timezone
 
-  # 収集・要約の定期実行。**既定は false(画面のボタンを押したときだけ動く)**。
-  # 消し忘れたサーバーが収集先を叩き続けたり、LLM の枠を使い切ったりしないための既定
-  Collection__AutoRun: "false"
-  Books__AutoRun: "false"
-  Anthropic__AutoRun: "false"
-  Digest__AutoRun: "false"
+  # 定期実行のオン/オフは画面(設定)から切り替える(既定はすべて無効)
 
   # **外部 API のキーはここでは渡せない**(画面の「設定 → 外部連携」から入れる。
   # 暗号化して DB に保存され、再起動なしで効く)。渡すのはキー以外の設定だけ

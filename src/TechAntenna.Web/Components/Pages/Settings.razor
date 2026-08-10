@@ -5,6 +5,10 @@
 @inject TitleTranslationRunner TranslationRunner
 @inject DigestRunner DigestRunner
 @inject ApiCredentials Credentials
+@inject Microsoft.Extensions.Options.IOptions<CollectionOptions> CollectionOptions
+@inject Microsoft.Extensions.Options.IOptions<BooksOptions> BooksOptions
+@inject Microsoft.Extensions.Options.IOptions<AnthropicOptions> AnthropicOptions
+@inject Microsoft.Extensions.Options.IOptions<DigestOptions> DigestOptions
 
 <PageTitle>設定 - tech-antenna</PageTitle>
 
@@ -36,18 +40,59 @@
         「記事の要約」は要約がまだ無いものに LLM で要約を付け、
         「論文タイトルの翻訳」は英語タイトルの論文(話題の論文・arXiv)に訳題を付けます。
         「今日のサマリーの生成」は、収集済みの情報と興味トピックから<strong>押さえておくべき
-        情報のダイジェスト</strong>を LLM で作り、<a href="/">ホーム</a>に出します
-        (<code>Digest__AutoRun=true</code> で 12 時間ごとの自動生成)。
+        情報のダイジェスト</strong>を LLM で作り、<a href="/">ホーム</a>に出します。
         <strong>選んだトピックで検索して集めるもの</strong>は、それぞれのページにボタンがあります ——
         <a href="/papers">論文</a>・<a href="/events">イベント</a>・<a href="/books">書籍</a>、
         推薦本は<a href="/classics/books">定番 → 書籍</a>、
         語彙の整理は<a href="/topics">トピック</a>の「話題度を取り直す」「タグを仕分けなおす」です。
     </p>
 
-    @* 通知のオン/オフは接続先の設定(外部連携)とは独立に持つ ——
+    <h2 class="h5">定期実行</h2>
+    <p class="page-note text-muted">
+        チェックを入れたジョブは間隔ごとに自動で走ります(<strong>既定はすべて無効</strong> ——
+        消し忘れたサーバーが収集先を叩き続けたり、LLM や外部 API の無料枠を使い切らないため)。
+        切り替えは保存した直後から効きます(再起動不要)。
+    </p>
+    @* チェックボックスは未チェックだと POST に乗らないため、hidden の印(Submitted)で
+       「保存が押された」ことを見分け、乗っていない項目をオフとして保存する *@
+    <form method="post" @formname="auto-run" @onsubmit="SaveAutoRunAsync" class="auto-run">
+        <AntiforgeryToken />
+        <input type="hidden" name="Submitted" value="true" />
+        <label>
+            <input type="checkbox" name="CollectionAutoRun" value="true"
+                   checked="@AutoRunSettings.IsEnabled(Credentials, AutoRunSettings.CollectionName)" />
+            トレンドとイベントの収集(@CollectionOptions.Value.IntervalMinutes 分ごと)
+        </label>
+        <label>
+            <input type="checkbox" name="BooksAutoRun" value="true"
+                   checked="@AutoRunSettings.IsEnabled(Credentials, AutoRunSettings.BooksName)" />
+            書籍の収集(@BooksOptions.Value.IntervalHours 時間ごと)
+        </label>
+        <label>
+            <input type="checkbox" name="SummaryAutoRun" value="true"
+                   checked="@AutoRunSettings.IsEnabled(Credentials, AutoRunSettings.SummaryName)" />
+            記事の要約(@AnthropicOptions.Value.IntervalMinutes 分ごと。LLM のキーが要る)
+        </label>
+        <label>
+            <input type="checkbox" name="DigestAutoRun" value="true"
+                   checked="@AutoRunSettings.IsEnabled(Credentials, AutoRunSettings.DigestName)" />
+            今日のサマリーの生成(@DigestOptions.Value.IntervalHours 時間ごと。LLM のキーが要る)
+        </label>
+        <div>
+            <button type="submit" class="btn btn-outline-primary btn-sm">保存</button>
+            @if (_autoRunMessage is { Length: > 0 })
+            {
+                <span class="ms-2 text-body-secondary">@_autoRunMessage</span>
+            }
+        </div>
+    </form>
+
+    @* 通知は定期実行とは別の話(手動生成でも通知する)なので見出しを分ける。
+       オン/オフは接続先の設定(外部連携)とは独立に持つ ——
        接続先を消さなくても一時的に通知だけ止められるようにするため。
        チェックボックスは未チェックだと POST に乗らないので、hidden の印(Submitted)で
        「保存が押されたのに値が無い = オフにした」を見分ける *@
+    <h2 class="h5">通知</h2>
     <form method="post" @formname="ntfy-toggle" @onsubmit="SaveNtfyToggleAsync" class="ntfy-toggle">
         <AntiforgeryToken />
         <input type="hidden" name="Submitted" value="true" />
@@ -93,7 +138,44 @@
 </ul>
 
 @code {
+    string? _autoRunMessage;
     string? _ntfyMessage;
+
+    [SupplyParameterFromForm(FormName = "auto-run", Name = "Submitted")]
+    public string? AutoRunSubmitted { get; set; }
+
+    [SupplyParameterFromForm(FormName = "auto-run", Name = "CollectionAutoRun")]
+    public string? CollectionAutoRun { get; set; }
+
+    [SupplyParameterFromForm(FormName = "auto-run", Name = "BooksAutoRun")]
+    public string? BooksAutoRun { get; set; }
+
+    [SupplyParameterFromForm(FormName = "auto-run", Name = "SummaryAutoRun")]
+    public string? SummaryAutoRun { get; set; }
+
+    [SupplyParameterFromForm(FormName = "auto-run", Name = "DigestAutoRun")]
+    public string? DigestAutoRun { get; set; }
+
+    async Task SaveAutoRunAsync()
+    {
+        if (AutoRunSubmitted is null)
+        {
+            return;
+        }
+
+        // 無効が既定なので、オンだけ "true" を書き、オフは行を消す(= 既定に戻す)
+        await ApplyAsync(AutoRunSettings.CollectionName, CollectionAutoRun == "true");
+        await ApplyAsync(AutoRunSettings.BooksName, BooksAutoRun == "true");
+        await ApplyAsync(AutoRunSettings.SummaryName, SummaryAutoRun == "true");
+        await ApplyAsync(AutoRunSettings.DigestName, DigestAutoRun == "true");
+
+        _autoRunMessage = "保存しました。次の周回から反映されます。";
+
+        Task ApplyAsync(string name, bool enabled) => enabled
+            ? Credentials.SetAsync(name, "true")
+            : Credentials.RemoveAsync(name);
+    }
+
 
     [SupplyParameterFromForm(FormName = "ntfy-toggle", Name = "Submitted")]
     public string? NtfyToggleSubmitted { get; set; }

@@ -40,26 +40,25 @@ docker run --rm -v "$PWD":/src -w /src -e HOME=/tmp mcr.microsoft.com/dotnet/sdk
 収集(記事・イベント・書籍)と要約はどれも `BackgroundService` で定期実行できるが、
 **既定はすべて無効で、動くのは画面のボタンを押したときだけ**。消し忘れたサーバーが
 気づかないうちに収集先を叩き続けたり、LLM や外部 API の無料枠を使い切ったりするため。
-定期実行への切り替えは将来の課題。
+**オン/オフは画面(`/settings` の「定期実行」チェックボックス)で切り替える** ——
+API キーと同じく DB(`Secrets`。`AutoRunSettings` の `Collection:AutoRun` 等)に保存し、
+環境変数では設定できない。ワーカーは常に登録され、周回ごとに設定を見て実行するか決める
+(`Workers/AutoRunWorker`)ので、**切り替えは再起動なしで次の周回から効く**。
+間隔(`IntervalMinutes` 等)は今までどおり appsettings / 環境変数の設定値。
 
-| ジョブ | 設定 | 既定 | 手動ボタン |
-|---|---|---|---|
-| 記事・ニュース・話題の論文の収集 | `Collection:AutoRun` | false | `/settings` |
-| ブックマーク数の補完 | (トレンドの収集に含まれる) | — | `/settings` |
-| 記事の要約 | `Anthropic:AutoRun` | false | `/settings` |
-| 今日のサマリーの生成 | `Digest:AutoRun` | false | `/settings` |
-| 論文(トピック検索)の収集 | `Collection:AutoRun` | false | `/papers` |
-| イベントの収集 | `Collection:AutoRun` | false | `/events` |
-| 書籍の収集 | `Books:AutoRun` | false | `/books` |
-| 定番(推薦本)の収集 | (定期実行しない) | — | `/classics/books` |
-| 論文タイトルの翻訳 | (定期実行しない) | — | `/settings` |
-| 話題度の取り直し(LLM を使わない) | (定期実行しない) | — | `/topics` |
-| タグの仕分け直し(未知語の LLM 分類) | (定期実行しない) | — | `/tags` |
-
-**環境で分岐せず設定値にしている**ので、定期実行を有効にするときは
-`Collection__AutoRun=true` のように環境変数で効く(開発・本番で挙動が変わらない)。
-docker compose では `.env` の `COLLECTION_AUTORUN` / `BOOKS_AUTORUN` /
-`SUMMARY_AUTORUN` / `DIGEST_AUTORUN`(既定 false)がその環境変数に渡る。
+| ジョブ | 定期実行のチェック | 手動ボタン |
+|---|---|---|
+| 記事・ニュース・話題の論文の収集 | トレンドとイベントの収集 | `/settings` |
+| ブックマーク数の補完 | (トレンドの収集に含まれる) | `/settings` |
+| イベントの収集 | トレンドとイベントの収集 | `/events` |
+| 書籍の収集 | 書籍の収集 | `/books` |
+| 記事の要約 | 記事の要約 | `/settings` |
+| 今日のサマリーの生成 | 今日のサマリーの生成 | `/settings` |
+| 論文(トピック検索)の収集 | (定期実行しない) | `/papers` |
+| 定番(推薦本)の収集 | (定期実行しない) | `/classics/books` |
+| 論文タイトルの翻訳 | (定期実行しない) | `/settings` |
+| 話題度の取り直し(LLM を使わない) | (定期実行しない) | `/topics` |
+| タグの仕分け直し(未知語の LLM 分類) | (定期実行しない) | `/tags` |
 
 実行の中身は `BackgroundService` ではなく **`JobRunner` の派生クラス**(`Services/`)に
 あり、**定期実行と画面のボタンが同じ経路を通る**。`JobRunner` が `SemaphoreSlim` で
@@ -161,7 +160,8 @@ Protection で暗号化して DB の `Secrets` へ保存し(平文は置かな�
 **環境変数・.env・user-secrets ではキーを渡せない**(かつてはフォールバックとして
 読んでいたが、入口が 2 つあると「どちらの値が効いているのか」の説明を画面が持ち続ける
 ことになるためやめた。Options クラスからもキーのプロパティは消してある)。
-`AutoRun`・接続文字列・モデル名など、**キー以外の設定は今までどおり環境変数**。
+接続文字列・モデル名・巡回間隔など、**キーと定期実行のオン/オフ以外の設定は
+今までどおり環境変数**。
 キー未設定の収集元は**その収集元だけスキップ**され、ジョブのボタンは消えずに残る。
 ntfy の接続先(ベース URL・トピック名・トークン)も同じ画面から設定する
 (`Ntfy__ClickUrl` だけは「この環境の公開 URL」というデプロイ側の事実なので環境変数)。
@@ -780,7 +780,7 @@ URL のリンクにとどめる。
 再起動するまで効かない)。**キー・トークンは外部連携の画面から設定する**(環境変数では
 渡せない)。**両方未設定でもジョブのボタンは消えず、disabled + 理由付きで出る**
 (`JobButton` / `JobRunner.NotConfiguredReason`)—— 消すと機能の存在ごと画面から見えなくなる。
-AutoRun のワーカーもキーの有無を見ずに登録し、未設定の周回は何もしない(キーを入れた
+定期実行のワーカーもキーの有無を見ずに登録し、未設定の周回は何もしない(キーを入れた
 次の周回から動き出す)。
 
 | 方式 | 選ばれる条件(キーはどちらも画面から設定) | 課金 |
@@ -788,7 +788,7 @@ AutoRun のワーカーもキーの有無を見ずに登録し、未設定の周
 | `ClaudeCodeSummarizer` | Claude Code の OAuth トークンがある(**優先**) | サブスクリプションの枠 |
 | `AnthropicSummarizer` | Anthropic API キーがある | API の従量課金 |
 
-共通の設定は `Anthropic` セクション(`AutoRun` / `IntervalMinutes` / `BatchSize`)。指示文は
+共通の設定は `Anthropic` セクション(`IntervalMinutes` / `BatchSize`)。指示文は
 `SummaryPrompt` に集約し、方式を切り替えても要約の口調が変わらないようにしている。
 定期実行の可否と手動実行は「定期実行と手動実行」を参照。
 
@@ -801,6 +801,11 @@ Claude Code にログイン済みの端末で `claude setup-token` を実行し�
 (`SystemProcessRunner` の environmentProvider。アプリ自身の環境変数は書き換えない)。
 `ClaudeCodeOptions` にトークンは持たせない。設定は `ClaudeCode` セクション
 (`ExecutablePath` / `Model` / `TimeoutSeconds`)。
+**モデルは CLI の既定に任せず `claude-sonnet-5` を明示している**(appsettings.json と
+compose の既定)—— CLI の既定は重いモデル(実測 claude-fable-5)で、要約・分類の定型
+ジョブにはサブスクの週間枠を消費しすぎるため。変えるときは `CLAUDE_CODE_MODEL`。
+どのモデルが使われているかは設定画面のジョブ名(「記事の要約(Claude Code /
+claude-sonnet-5)」)とホームのダイジェストの生成者名に出る。
 
 **呼び出し1回の固定費が大きい。** 記事1件だけ渡しても Claude Code のハーネスが毎回入力に乗る
 (実測: 1件で 32,300 トークン、5件まとめて 1件あたり 6,584 トークン)。だから `ISummarizer` は
@@ -845,8 +850,8 @@ Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。�
   `MaxItems` で打ち切る(指示だけに任せない)
 - **生成履歴は `Digests` テーブルに残し、ホームは最新の1件だけ出す**。生成時刻と方式を
   画面に出す —— いつの状況のまとめか分からないと鵜呑みにできない
-- 定期生成は `Digest:AutoRun`(既定 false)+ `IntervalHours`(既定 12 = 1日2回)。
-  手動ボタンは `/settings`(トレンド側の LLM ジョブと同じ置き場)。
+- 定期生成は `/settings` の「定期実行」チェック(既定オフ)+ `IntervalHours`(既定 12 =
+  1日2回)。手動ボタンは `/settings`(トレンド側の LLM ジョブと同じ置き場)。
   材料が 1 件も無いときは LLM を呼ばずに止まり、ボタンの隣にそう出る
 
 生成したサマリーは **ntfy へ通知できる**(`NtfyDigestNotifier` / `IDigestNotifier`)。
