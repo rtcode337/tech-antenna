@@ -117,9 +117,9 @@ else
     /// </summary>
     static readonly (ArticleKind Kind, string Title, string AllHref)[] Kinds =
     [
-        (ArticleKind.News, "ニュース", "/news"),
-        (ArticleKind.Article, "記事", "/articles"),
-        (ArticleKind.TrendingPaper, "話題の論文", "/trending-papers"),
+        (ArticleKind.News, "ニュース", "/recent/news"),
+        (ArticleKind.Article, "記事", "/recent/articles"),
+        (ArticleKind.TrendingPaper, "話題の論文", "/recent/papers"),
     ];
 
     record Section(string Title, string AllHref, IReadOnlyList<Article> Articles);

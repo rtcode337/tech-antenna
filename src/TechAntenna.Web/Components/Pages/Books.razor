@@ -1,4 +1,4 @@
-@page "/books"
+@page "/interests/books"
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
 @using TechAntenna.Core.Topics
@@ -19,7 +19,7 @@
 }
 else if (_groups.Count == 0)
 {
-    <p>まだ書籍がありません。<a href="/topics">設定 → トピック</a>でトピックを選んでから、
+    <p>まだ書籍がありません。<a href="/settings/topics">設定 → トピック</a>でトピックを選んでから、
         <a href="/settings">設定</a>の「書籍の収集」を実行してください。</p>
 }
 else

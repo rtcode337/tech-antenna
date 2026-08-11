@@ -85,6 +85,9 @@ public class ConnpassEventSource(
                     Venue = entry.Place,
                     // connpass にオンライン開催のフラグは無いため会場表記から推定する
                     IsOnline = VenueClassifier.IsOnline(entry.Place, entry.Address),
+                    // 公式かどうかの判定材料(名簿との突き合わせは表示のたびに行う)と規模
+                    Organizer = entry.Organizer,
+                    ParticipantCount = entry.ParticipantCount,
                     CollectedAt = collectedAt,
                     // 検索キーワードに加え、あればハッシュタグもタグにする
                     Tags = (catalog ?? TopicCatalog.Empty).Normalize(
@@ -120,6 +123,8 @@ public class ConnpassEventSource(
             EndsAt = source.EndsAt,
             Venue = source.Venue,
             IsOnline = source.IsOnline,
+            Organizer = source.Organizer,
+            ParticipantCount = source.ParticipantCount,
             CollectedAt = source.CollectedAt,
             Tags = (catalog ?? TopicCatalog.Empty).Normalize(raw),
             RawTags = raw,

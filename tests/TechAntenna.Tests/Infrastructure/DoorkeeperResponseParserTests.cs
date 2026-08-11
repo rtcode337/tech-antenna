@@ -15,6 +15,9 @@ public class DoorkeeperResponseParserTests
               "ends_at": "2026-08-20T21:00:00.000+09:00",
               "venue_name": "東京都渋谷区の会議室",
               "address": "東京都渋谷区1-1-1",
+              "participants": 43,
+              "waitlisted": 5,
+              "group": { "id": 24, "name": "Microsoft Base ユーザー会", "public_url": "https://example.doorkeeper.jp/" },
               "public_url": "https://example.doorkeeper.jp/events/12345"
             }
           },
@@ -26,6 +29,7 @@ public class DoorkeeperResponseParserTests
               "ends_at": null,
               "venue_name": "オンライン",
               "address": null,
+              "group": 24,
               "public_url": "https://example.doorkeeper.jp/events/12346"
             }
           }
@@ -56,6 +60,26 @@ public class DoorkeeperResponseParserTests
         Assert.Null(online.EndsAt);
         Assert.Null(online.Address);
         Assert.Equal("オンライン", online.VenueName);
+    }
+
+    [Fact]
+    public void expandで展開されたグループ名と参加者数を取り出す()
+    {
+        var entries = DoorkeeperResponseParser.Parse(Response);
+
+        // 補欠(waitlisted)は参加者数に足さない
+        Assert.Equal("Microsoft Base ユーザー会", entries[0].Organizer);
+        Assert.Equal(43, entries[0].ParticipantCount);
+    }
+
+    [Fact]
+    public void グループが数値のIDのままなら主催者は分からない扱いにする()
+    {
+        var entries = DoorkeeperResponseParser.Parse(Response);
+
+        // expand[]=group が効かなかったときの形。ID から名前を引き直しはしない
+        Assert.Null(entries[1].Organizer);
+        Assert.Null(entries[1].ParticipantCount);
     }
 
     [Fact]

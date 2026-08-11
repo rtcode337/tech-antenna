@@ -1,4 +1,4 @@
-@page "/topics"
+@page "/settings/topics"
 @using System.Text.Json
 @using TechAntenna.Core
 @using TechAntenna.Core.Abstractions
@@ -29,8 +29,8 @@ else
     @* 2つの見方を切り替える。ツリーは「どの領域が熱いか」(配下込みの話題度)、
        ランキングは「どの用語単体が熱いか」。切り替えはリンク(クエリ)で、JS は使わない *@
     <nav class="view-switch" aria-label="トピック一覧の表示切り替え">
-        <a class="@(IsRanking ? "" : "active")" href="/topics">ツリー</a>
-        <a class="@(IsRanking ? "active" : "")" href="/topics?view=ranking">ランキング(単体の話題度)</a>
+        <a class="@(IsRanking ? "" : "active")" href="/settings/topics">ツリー</a>
+        <a class="@(IsRanking ? "active" : "")" href="/settings/topics?view=ranking">ランキング(単体の話題度)</a>
     </nav>
 
     @* タブの下の1行: 左が選択の説明、右が検索。**検索は GET のフォーム**なので
@@ -40,7 +40,7 @@ else
        チェックボックスから遠くて読まれなかった)。イベント・書籍がトピックごとに
        問い合わせる作りは改善したい —— 直したらこの文言も直すこと *@
     <div class="list-toolbar">
-        <form class="topic-search" method="get" action="/topics">
+        <form class="topic-search" method="get" action="/settings/topics">
             @if (IsRanking)
             {
                 <input type="hidden" name="view" value="ranking" />
@@ -50,7 +50,7 @@ else
             <button type="submit" class="btn btn-outline-primary btn-sm">検索</button>
             @if (HasQuery)
             {
-                <a href="@(IsRanking ? "/topics?view=ranking" : "/topics")">クリア</a>
+                <a href="@(IsRanking ? "/settings/topics?view=ranking" : "/settings/topics")">クリア</a>
             }
         </form>
         <p>
@@ -79,7 +79,7 @@ else
             {
                 <text>
                     「@Query」に一致するトピックはありません。
-                    <a href="/tags">タグ</a>の側に @_glossaryHits.Count 件あります
+                    <a href="/settings/tags">タグ</a>の側に @_glossaryHits.Count 件あります
                     （@string.Join("・", _glossaryHits.Take(5))@(_glossaryHits.Count > 5 ? " …" : "")）。
                 </text>
             }
@@ -399,7 +399,7 @@ else
     // 画面に出すのはキー(生成ai)ではなくカタログの正式表記(生成AI)
     static string Label(Topic topic) => topic.Display is { Length: > 0 } display ? display : topic.Key;
 
-    static string TopicHref(Topic topic) => $"/topics/{Uri.EscapeDataString(topic.Key)}";
+    static string TopicHref(Topic topic) => $"/settings/topics/{Uri.EscapeDataString(topic.Key)}";
 
     /// <summary>用語の一言説明(カタログ。JSON に書いた分と LLM が埋めた分の合成)。</summary>
     string? Description(Topic topic) => Catalog.DescriptionOf(topic.Key);

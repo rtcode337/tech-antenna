@@ -24,7 +24,13 @@ public class InMemoryEventStore : IEventStore
                 if (_byUrl.TryAdd(techEvent.Url, techEvent))
                 {
                     added++;
+                    continue;
                 }
+
+                // 既存のイベントは主催者と参加者数だけ取り込む(EfEventStore と同じ規則)
+                var existing = _byUrl[techEvent.Url];
+                existing.Organizer = techEvent.Organizer ?? existing.Organizer;
+                existing.ParticipantCount = techEvent.ParticipantCount ?? existing.ParticipantCount;
             }
 
             return Task.FromResult(added);
@@ -39,6 +45,35 @@ public class InMemoryEventStore : IEventStore
                 .Where(e => e.StartsAt >= from)
                 .OrderBy(e => e.StartsAt)
                 .Take(count)
+                .ToList();
+            return Task.FromResult(result);
+        }
+    }
+
+    public Task<IReadOnlyList<TechEvent>> GetInRangeAsync(
+        DateTimeOffset from, DateTimeOffset to, int count, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<TechEvent> result = _byUrl.Values
+                .Where(e => e.StartsAt >= from && e.StartsAt < to)
+                .OrderBy(e => e.StartsAt)
+                .Take(count)
+                .ToList();
+            return Task.FromResult(result);
+        }
+    }
+
+    public Task<IReadOnlyList<OrganizerCount>> GetOrganizerCountsAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<OrganizerCount> result = _byUrl.Values
+                .Where(e => !string.IsNullOrWhiteSpace(e.Organizer))
+                .GroupBy(e => e.Organizer!, StringComparer.Ordinal)
+                .Select(g => new OrganizerCount(g.Key, g.Count()))
+                .OrderByDescending(o => o.Count)
+                .ThenBy(o => o.Organizer, StringComparer.Ordinal)
                 .ToList();
             return Task.FromResult(result);
         }

@@ -1,0 +1,155 @@
+@page "/settings/organizers"
+@using TechAntenna.Core
+@using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Models
+@using TechAntenna.Web.Services
+@inject IEventStore EventStore
+@inject ApiCredentials Credentials
+
+@* 「公式のイベント」と見なす主催者の名簿。**判定は保存せず、名簿との突き合わせを
+   表示のたびに行う**ので、ここを直すと過去に集めたイベントにもすぐ効く。
+
+   名簿だけを置いても直しようがないので、**実際に集まっている主催者の一覧を下に出す**
+   —— どの名前が公式と判定されているかを見ながら、足す語・外す語を決められる。 *@
+
+<PageTitle>Tech Antenna — 主催者</PageTitle>
+
+<h1>主催者</h1>
+
+<p><a href="/settings">← 設定</a></p>
+
+<p class="page-note text-muted">
+    ここに載せた名前が主催者名に含まれるイベントを<strong>「公式」</strong>として扱います
+    —— <a href="/interests/events">イベント</a>のカードにバッジが付き、カレンダーでは帯に色が付き、
+    <strong>注目度順</strong>で上に来ます。載せるのは
+    <strong>技術の提供元(ベンダー)の名前</strong>で、ユーザーグループやコミュニティの名前ではありません。
+</p>
+
+<p class="page-note text-muted">
+    突き合わせは<strong>部分一致</strong>です(「Microsoft」で「日本マイクロソフト株式会社」を拾うため)。
+    ただし語の端が英数字のときは境界を見るので、「AI」が「Rails」に当たることはありません。
+    <strong>主催者名を取れるのは connpass と Doorkeeper だけ</strong>で、TECH PLAY の RSS には
+    主催者が入っていません(そのイベントは公式と判定されません)。
+</p>
+
+@if (_message is { Length: > 0 })
+{
+    <p class="notice">@_message</p>
+}
+
+<form method="post" @formname="official-organizers" @onsubmit="SaveAsync">
+    <AntiforgeryToken />
+    <label for="organizer-names">
+        <strong>公式と見なす主催者</strong>（1 行に 1 つ。<code>#</code> で始まる行はメモとして無視します）
+    </label>
+    <textarea id="organizer-names" name="Names" rows="12" spellcheck="false">@Names</textarea>
+    <div class="actions">
+        <button type="submit" class="btn btn-primary" name="Action" value="save">名簿を保存</button>
+        @* **空にして保存すると初期値に戻る**ので、消す操作も同じボタンで足りる。
+           それでも明示のボタンを置くのは、初期値がどれか分からなくなったときの戻り道として *@
+        <button type="submit" class="btn btn-outline-primary" name="Action" value="reset">初期値に戻す</button>
+        <span class="text-muted">
+            @if (OrganizerSettings.IsCustomized(Credentials))
+            {
+                <text>いまは<strong>この画面で設定した名簿</strong>(@_official.Names.Count 件)が効いています。</text>
+            }
+            else
+            {
+                <text>いまは<strong>初期値</strong>(@OfficialOrganizers.Defaults.Count 件)が効いています。</text>
+            }
+        </span>
+    </div>
+</form>
+
+<h2 class="h4 mt-4">集まっているイベントの主催者</h2>
+
+@if (_organizers is null)
+{
+    <p>読み込み中…</p>
+}
+else if (_organizers.Count == 0)
+{
+    <p class="text-muted">主催者の分かるイベントがまだありません
+        (<a href="/settings">設定</a>の「イベントの収集」を実行すると集まります)。</p>
+}
+else
+{
+    <p class="text-muted">
+        収集済みのイベントに出てくる主催者を、件数の多い順に出しています
+        (@_organizers.Count 件のうち、<strong>@_organizers.Count(o => _official.IsOfficial(o.Organizer))
+        件が公式</strong>と判定されています)。
+    </p>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th scope="col">主催者</th>
+                <th scope="col">イベント数</th>
+                <th scope="col">判定</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var organizer in _organizers)
+            {
+                <tr>
+                    <td>@organizer.Organizer</td>
+                    <td class="count">@organizer.Count</td>
+                    <td>
+                        @if (_official.IsOfficial(organizer.Organizer))
+                        {
+                            <span class="badge bg-success">公式</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    string? _message;
+    IReadOnlyList<OrganizerCount>? _organizers;
+    OfficialOrganizers _official = OfficialOrganizers.Default;
+
+    /// <summary>編集中の名簿。**画面には効いている名簿をそのまま出す**(初期値のときは初期値)。</summary>
+    [SupplyParameterFromForm]
+    string? Names { get; set; }
+
+    /// <summary>押されたボタン。行ごとにフォームを分けない流儀に合わせて value で見分ける。</summary>
+    [SupplyParameterFromForm]
+    string? Action { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        // POST で戻ってきたときは打ちかけの値を残す(初回だけ効いている名簿を流し込む)
+        Names ??= OfficialOrganizers.Format(_official.Names);
+    }
+
+    async Task LoadAsync()
+    {
+        _official = OrganizerSettings.Resolve(Credentials);
+        _organizers = await EventStore.GetOrganizerCountsAsync();
+    }
+
+    async Task SaveAsync()
+    {
+        // 空で保存したときも初期値に戻す —— 空の名簿を保存できると、「公式が1件も出ない」と
+        // 「設定していない」が画面から見分けられなくなる(OfficialOrganizers.Parse と同じ判断)
+        var names = OfficialOrganizers.Parse(Names).Names;
+        if (Action == "reset" || string.IsNullOrWhiteSpace(Names))
+        {
+            await Credentials.RemoveAsync(OrganizerSettings.OfficialNamesName);
+            _message = "名簿を初期値に戻しました。";
+        }
+        else
+        {
+            await Credentials.SetAsync(
+                OrganizerSettings.OfficialNamesName, OfficialOrganizers.Format(names));
+            _message = $"名簿を保存しました（{names.Count} 件）。";
+        }
+
+        await LoadAsync();
+        Names = OfficialOrganizers.Format(_official.Names);
+    }
+}

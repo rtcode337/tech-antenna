@@ -19,7 +19,11 @@ public class ConnpassResponseParserTests
               "started_at": "2026-08-10T19:00:00+09:00",
               "ended_at": "2026-08-10T21:00:00+09:00",
               "place": "東京都千代田区の会議室",
-              "address": "東京都千代田区1-1-1"
+              "address": "東京都千代田区1-1-1",
+              "group": { "id": 1, "subdomain": "example", "title": "日本マイクロソフト", "url": "https://example.connpass.com/" },
+              "owner_display_name": "主催者たろう",
+              "accepted": 120,
+              "waiting": 30
             },
             {
               "id": 300002,
@@ -29,7 +33,9 @@ public class ConnpassResponseParserTests
               "started_at": "2026-08-12T20:00:00+09:00",
               "ended_at": null,
               "place": "オンライン",
-              "address": null
+              "address": null,
+              "group": null,
+              "owner_display_name": "個人開催のひと"
             }
           ]
         }
@@ -74,6 +80,26 @@ public class ConnpassResponseParserTests
         Assert.Null(online.EndsAt);
         Assert.Null(online.Address);
         Assert.Equal("オンライン", online.Place);
+    }
+
+    [Fact]
+    public void 主催グループと参加者数を取り出す()
+    {
+        var entries = ConnpassResponseParser.Parse(V2Response);
+
+        // 公式かどうかの判定材料はグループ名(補欠 30 人は参加者数に足さない)
+        Assert.Equal("日本マイクロソフト", entries[0].Organizer);
+        Assert.Equal(120, entries[0].ParticipantCount);
+    }
+
+    [Fact]
+    public void グループの無いイベントは管理者の表示名で代える()
+    {
+        var entries = ConnpassResponseParser.Parse(V2Response);
+
+        Assert.Equal("個人開催のひと", entries[1].Organizer);
+        // 参加者数の項目自体が無いときは null(0 と混ぜない)
+        Assert.Null(entries[1].ParticipantCount);
     }
 
     [Fact]

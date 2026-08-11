@@ -1,4 +1,4 @@
-@page "/topics/{Tag}"
+@page "/settings/topics/{Tag}"
 @using TechAntenna.Core
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
@@ -11,7 +11,7 @@
 
 <h1>@Title</h1>
 
-<p><a href="/topics">← トピック一覧</a></p>
+<p><a href="/settings/topics">← トピック一覧</a></p>
 
 @* 語彙としての姿(同義語・ツリー上の位置)を先に出す。**このページは2つの問いに答える**:
    「この語はどう整理されているか」と「この語に何が紐づいているか」。前者が上、後者が下 *@
@@ -31,7 +31,7 @@
     {
         <p class="text-muted">
             この用語の説明はまだありません
-            （<a href="/topics">トピック</a>の「タグを仕分けなおす」で LLM が埋めます）。
+            （<a href="/settings/topics">トピック</a>の「タグを仕分けなおす」で LLM が埋めます）。
         </p>
     }
 
@@ -41,7 +41,7 @@
         <p class="text-muted">
             この語はまだ語彙(カタログ)に載っていません —— 記事などのタグとしては生きていますが、
             同義語も親子も決まっていない<strong>平置きの語</strong>です。
-            <a href="/topics">トピック</a>の「タグを仕分けなおす」で LLM が分類します。
+            <a href="/settings/topics">トピック</a>の「タグを仕分けなおす」で LLM が分類します。
         </p>
     }
     else if (structure.Aliases.Count == 0)
@@ -182,19 +182,12 @@ else
     }
     else
     {
+        @* イベントのカードは共通コンポーネント(EventItem)—— 3種を並べて見るページなので、
+           イベントの一覧と同じ見た目にする(公式のバッジ・参加者数もそのまま出る) *@
         <ul class="list-unstyled">
             @foreach (var techEvent in _detail.Events)
             {
-                <li class="mb-2">
-                    @* Doorkeeper の API Terms of Use により、イベントには必ず元のイベントページへの
-                       リンクを付け、nofollow 等を指定してはならない(Events.razor と同じ) *@
-                    <a href="@techEvent.Url" target="_blank" rel="noopener">@techEvent.Title</a>
-                    <br />
-                    <small class="text-muted">
-                        @JapanTime.Format(techEvent.StartsAt)
-                        — @(techEvent.IsOnline ? "オンライン" : techEvent.Venue ?? "会場未定")
-                    </small>
-                </li>
+                <EventItem Event="techEvent" />
             }
         </ul>
     }
@@ -250,7 +243,7 @@ else
     /// <summary>LLM の分類で足された別名。カタログ(JSON)に人が書いた分と見分けるために持つ。</summary>
     HashSet<string> _llmAliases = new(StringComparer.Ordinal);
 
-    static string Href(string key) => $"/topics/{Uri.EscapeDataString(key)}";
+    static string Href(string key) => $"/settings/topics/{Uri.EscapeDataString(key)}";
 
     /// <summary>種別のバッジの文字。ナビ・一覧の呼び方と揃える。</summary>
     static string KindLabel(ArticleKind kind) => kind switch

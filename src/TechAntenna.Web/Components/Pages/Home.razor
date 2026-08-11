@@ -79,7 +79,7 @@
                 <p class="eyebrow">EXPLORE</p>
                 <h2 id="topic-rail-heading">トピック</h2>
             </div>
-            <a href="/topics">一覧を管理</a>
+            <a href="/settings/topics">一覧を管理</a>
         </div>
 
         @if (_topics is null)
@@ -96,7 +96,7 @@
                 @foreach (var topic in _topics)
                 {
                     <li>
-                        <a href="@($"/topics/{Uri.EscapeDataString(topic.Key)}")">
+                        <a href="@($"/settings/topics/{Uri.EscapeDataString(topic.Key)}")">
                             <span>@(topic.Display is { Length: > 0 } display ? display : topic.Key)</span>
                             <small>話題度 @(topic.TrendScore.ToString("0.0"))</small>
                         </a>

@@ -438,7 +438,8 @@ app.MapStaticAssets();
 
 // 語彙と仕分けの持ち出し。**ダウンロードは GET 1本で足りる**ので、Blazor のフォームではなく
 // 最小 API に置く(Content-Disposition を付けてファイルとして落とさせるため)。
-// パスを /topics/… の下に置かないのは、`/topics/{tag}`(トピックの詳細)と紛れないようにするため
+// パスを /settings/topics/… の下に置かないのは、`/settings/topics/{tag}`(トピックの詳細)と
+// 紛れないようにするため
 app.MapGet("/export/topics.json", async (
     TopicExporter exporter, TimeProvider clock, CancellationToken cancellationToken) =>
 {

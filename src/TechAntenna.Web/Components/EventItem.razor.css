@@ -1,0 +1,97 @@
+/* 1件ずつを面のあるカードにする(記事のカードと同じ作り)。
+   イベントは日時と会場が判断材料なので、タイトルの下に必ず並べる */
+.event {
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    /* 強調したときにタイトルの位置がずれないよう、非強調でも同じ幅の帯を置いておく */
+    border-left: 3px solid var(--border);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.event + .event {
+    margin-top: 0.5rem;
+}
+
+.event:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow);
+}
+
+/* Doorkeeper の規約により、イベントページへのリンクは必ず出す(razor 側のコメント参照)。
+   ここでは見た目だけを整えている */
+.event > a {
+    display: inline-block;
+    color: var(--text);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.55;
+}
+
+.event > a:hover {
+    color: var(--accent);
+}
+
+/* 注目度によるカードの強調(記事の hot-* と同じ2段階)。
+   左の帯 → 面の染めの順で強くなる */
+.event.hot-mid {
+    border-left-color: var(--accent);
+}
+
+.event.hot-high {
+    border-left-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+/* 日時・会場・主催者・タグ。本文より一段落として、拾い読みの邪魔にならないようにする */
+.event small {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.4rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+/* 提供元(ベンダー)自身が主催しているイベントの印。**参加者数のバッジとは別の色にする**
+   —— 同じ見た目にすると「公式で人が多い」のか「どちらか一方」なのかが読めない */
+.official {
+    padding: 0.05rem 0.45rem;
+    border: 1px solid var(--success-text);
+    border-radius: 999px;
+    background: var(--success-soft);
+    color: var(--success-text);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* 参加者数。**多いほど目立つ**3段階(記事のはてブ数と同じ規則・同じ見た目) */
+.attendees {
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.attendees-low {
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+}
+
+.attendees-mid {
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-weight: 650;
+}
+
+.attendees-high {
+    /* 塗りのアクセント。文字は面の色にして、ライトでもダークでもコントラストを保つ */
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--surface);
+    font-weight: 700;
+}

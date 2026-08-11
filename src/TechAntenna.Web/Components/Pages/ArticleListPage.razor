@@ -1,7 +1,7 @@
-@page "/articles"
-@page "/news"
-@page "/papers"
-@page "/trending-papers"
+@page "/recent/articles"
+@page "/recent/news"
+@page "/interests/papers"
+@page "/recent/papers"
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
 @using TechAntenna.Core.Topics
@@ -35,10 +35,10 @@
     <CollectionHint Job="論文の収集" />
     <p class="page-note text-muted">
         <strong>収集対象に選んだトピックを検索語</strong>にして arXiv(英語)と
-        J-STAGE(日本語)へ問い合わせます —— <a href="/topics">トピック</a>を選んでいないと
+        J-STAGE(日本語)へ問い合わせます —— <a href="/settings/topics">トピック</a>を選んでいないと
         1 件も集まりません。arXiv には<strong>英語表記</strong>を投げます(日本語のままだと 0 件)。
         英語タイトルの翻訳は<a href="/settings">設定</a>の「論文タイトルの翻訳」で付きます。
-        トピックに関係なく話題のものを見たいときは<a href="/trending-papers">話題の論文</a>へ。
+        トピックに関係なく話題のものを見たいときは<a href="/recent/papers">話題の論文</a>へ。
     </p>
 }
 else if (_kind == ArticleKind.TrendingPaper)
@@ -52,7 +52,7 @@ else if (_kind == ArticleKind.TrendingPaper)
         英語タイトルの翻訳は同じく設定の「論文タイトルの翻訳」にあります。
         並びは<strong>新着順</strong>が既定で、上のタブで<strong>upvote の多い順</strong>にも
         切り替えられます(どちらの並びでも、upvote の多いものはカードの濃さで目立ちます)。
-        日本語の論文は<a href="/papers">論文(興味トピック)</a>の担当です。
+        日本語の論文は<a href="/interests/papers">論文(興味トピック)</a>の担当です。
     </p>
 }
 
@@ -78,7 +78,7 @@ else if (_articles.Count == 0)
     @if (_kind == ArticleKind.Paper)
     {
         <p>まだありません。<a href="/settings">設定</a>の「論文の収集」を実行してください
-            (<a href="/topics">トピック</a>を選んでいないと集まりません)。</p>
+            (<a href="/settings/topics">トピック</a>を選んでいないと集まりません)。</p>
     }
     else
     {
@@ -111,7 +111,7 @@ else
             }
             else
             {
-                <text><a href="/topics">設定 → トピック</a>でトピックを選ぶと、そのトピックのものが強調されます。</text>
+                <text><a href="/settings/topics">設定 → トピック</a>でトピックを選ぶと、そのトピックのものが強調されます。</text>
             }
         }
     </p>
@@ -130,7 +130,7 @@ else
 
     ArticleKind _kind = ArticleKind.Article;
     string _title = "記事";
-    string _path = "/articles";
+    string _path = "/recent/articles";
     IReadOnlyList<Article>? _articles;
 
     /// <summary>並び順。既定(null)は新着順で、"popular" なら話題度順。</summary>
@@ -155,13 +155,16 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        // どの Kind を出すかはルートで決まる(3ルートを1コンポーネントで受けている)
+        // どの Kind を出すかはルートで決まる(4ルートを1コンポーネントで受けている)。
+        // **「論文」は軸で2つある** —— トレンド側(/recent/papers)が話題の論文、
+        // 興味トピック側(/interests/papers)がトピック検索の論文。
+        // 末尾だけを見ると両方 "papers" で見分けられないので、パス全体で分ける
         (_kind, _title, _path) = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/') switch
         {
-            "news" => (ArticleKind.News, "ニュース", "/news"),
-            "papers" => (ArticleKind.Paper, "論文（興味トピック）", "/papers"),
-            "trending-papers" => (ArticleKind.TrendingPaper, "話題の論文", "/trending-papers"),
-            _ => (ArticleKind.Article, "記事", "/articles"),
+            "recent/news" => (ArticleKind.News, "ニュース", "/recent/news"),
+            "interests/papers" => (ArticleKind.Paper, "論文（興味トピック）", "/interests/papers"),
+            "recent/papers" => (ArticleKind.TrendingPaper, "話題の論文", "/recent/papers"),
+            _ => (ArticleKind.Article, "記事", "/recent/articles"),
         };
 
         await LoadAsync();

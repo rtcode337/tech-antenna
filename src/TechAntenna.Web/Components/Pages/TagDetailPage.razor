@@ -1,4 +1,4 @@
-@page "/tags/{TagKey}"
+@page "/settings/tags/{TagKey}"
 @using TechAntenna.Core
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
@@ -16,7 +16,7 @@
 
 <h1>@TagKey</h1>
 
-<p><a href="/tags">← タグ一覧</a></p>
+<p><a href="/settings/tags">← タグ一覧</a></p>
 
 @if (_loaded && _tag is null)
 {
@@ -78,7 +78,7 @@ else if (_tag is { } tag)
         }
 
         <p class="text-muted">
-            仕分けを直したいときは<a href="/tags">タグ一覧</a>から
+            仕分けを直したいときは<a href="/settings/tags">タグ一覧</a>から
             (トピックにする / 別名にする / 除外する)。
         </p>
     </div>
@@ -122,19 +122,11 @@ else
     }
     else
     {
+        @* イベントのカードは共通コンポーネント(EventItem。トピックの詳細と同じ) *@
         <ul class="list-unstyled">
             @foreach (var techEvent in _detail.Events)
             {
-                <li class="mb-2">
-                    @* Doorkeeper の API Terms of Use により、イベントには必ず元のイベントページへの
-                       リンクを付け、nofollow 等を指定してはならない(Events.razor と同じ) *@
-                    <a href="@techEvent.Url" target="_blank" rel="noopener">@techEvent.Title</a>
-                    <br />
-                    <small class="text-muted">
-                        @JapanTime.Format(techEvent.StartsAt)
-                        — @(techEvent.IsOnline ? "オンライン" : techEvent.Venue ?? "会場未定")
-                    </small>
-                </li>
+                <EventItem Event="techEvent" />
             }
         </ul>
     }
@@ -188,7 +180,7 @@ else
     bool _loaded;
     TopicDetail? _detail;
 
-    static string TopicHref(string key) => $"/topics/{Uri.EscapeDataString(key)}";
+    static string TopicHref(string key) => $"/settings/topics/{Uri.EscapeDataString(key)}";
 
     /// <summary>種別のバッジの文字。ナビ・一覧の呼び方と揃える。</summary>
     static string KindLabel(ArticleKind kind) => kind switch

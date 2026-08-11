@@ -1,4 +1,4 @@
-@page "/events"
+@page "/interests/events"
 @using TechAntenna.Core
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
@@ -7,13 +7,78 @@
 @inject IEventStore EventStore
 @inject ITopicStore TopicStore
 @inject TopicCatalog Catalog
+@inject ApiCredentials Credentials
 @inject TimeProvider Clock
+
+@* 興味トピックのイベント。**上がカレンダー(いつ何があるか)、下が一覧(何があるか)**。
+   予定を入れるには日付の並びが要り、拾い読みには一覧が要るので両方置いてある。
+
+   月の移動(?month=2026-09)と並び順(?sort=popular)はどちらもリンクなので、
+   全ページ静的 SSR のまま動く(JS も対話回線も使わない)。 *@
 
 <PageTitle>Tech Antenna — イベント</PageTitle>
 
-<h1>これからのイベント</h1>
+<h1>@Heading</h1>
 
 <CollectionHint Job="イベントの収集" />
+
+<p class="text-muted">
+    <strong>収集対象に選んだトピック（配下のトピックを含む）</strong>のイベントを出しています。
+    <strong>公式</strong>は<a href="/settings/organizers">名簿に載せた提供元</a>が主催しているもの、
+    数字は参加者数です。
+</p>
+
+@* --- カレンダー(月グリッド) --- *@
+<section class="calendar" aria-label="イベントカレンダー">
+    <div class="calendar-head">
+        <a class="calendar-nav" href="@MonthHref(_calendar.PreviousKey)" rel="prev">← @_calendar.PreviousKey</a>
+        <h2>@_calendar.Title</h2>
+        <a class="calendar-nav" href="@MonthHref(_calendar.NextKey)" rel="next">@_calendar.NextKey →</a>
+    </div>
+
+    <div class="calendar-grid" role="grid">
+        @foreach (var name in EventCalendar.DayNames)
+        {
+            <div class="calendar-dayname" role="columnheader">@name</div>
+        }
+        @foreach (var week in _calendar.Weeks)
+        {
+            @foreach (var day in week)
+            {
+                <div class="calendar-cell @(day.InMonth ? "" : "outside") @(day.IsToday ? "today" : "")"
+                     role="gridcell">
+                    <div class="calendar-date">@day.Date.Day</div>
+                    @* **1マスに出すのは数件まで。** 多い日をそのまま積むと、その週の行だけが
+                       縦に伸びてカレンダーの形が崩れる(残りは件数で示して一覧に任せる) *@
+                    @foreach (var techEvent in day.Events.Take(MaxPerCell))
+                    {
+                        <a class="calendar-event @(IsOfficial(techEvent) ? "official" : "")"
+                           href="@techEvent.Url" target="_blank" rel="noopener"
+                           title="@JapanTime.FormatShort(techEvent.StartsAt) @techEvent.Title">@techEvent.Title</a>
+                    }
+                    @if (day.Events.Count > MaxPerCell)
+                    {
+                        <div class="calendar-more">他 @(day.Events.Count - MaxPerCell) 件</div>
+                    }
+                </div>
+            }
+        }
+    </div>
+
+    @if (Month is not null)
+    {
+        <p class="calendar-reset"><a href="/interests/events">これからのイベントに戻す</a></p>
+    }
+</section>
+
+@* --- 一覧 --- *@
+@* **並びは開催日順が既定。** イベントは日付が主軸で、注目度順にすると来月の大きな
+   イベントが先頭に来て明日の予定を見落とすため。それでも「規模の大きいものから拾う」
+   見方は要るのでタブで切り替える(記事一覧の新着順/話題度順と同じ流儀) *@
+<nav class="view-switch" aria-label="並び順の切り替え">
+    <a class="@(IsPopular ? "" : "active")" href="@SortHref(null)">開催日順</a>
+    <a class="@(IsPopular ? "active" : "")" href="@SortHref("popular")">注目度順</a>
+</nav>
 
 @if (_events is null)
 {
@@ -21,52 +86,134 @@
 }
 else if (_events.Count == 0)
 {
-    <p>まだイベントがありません。<a href="/topics">設定 → トピック</a>でトピックを選んでから、
-        <a href="/settings">設定</a>の「イベントの収集」を実行してください
-        (connpass から集めるにはキーの設定も要ります)。</p>
+    @if (Month is not null)
+    {
+        <p>@_calendar.Title に該当するイベントはありません。</p>
+    }
+    else
+    {
+        <p>まだイベントがありません。<a href="/settings/topics">設定 → トピック</a>でトピックを選んでから、
+            <a href="/settings">設定</a>の「イベントの収集」を実行してください
+            (connpass から集めるにはキーの設定も要ります)。</p>
+    }
 }
 else
 {
     <p class="text-muted">
-        <strong>収集対象に選んだトピック（配下のトピックを含む）</strong>のイベントだけを、
-        開催日順に出しています。
+        @if (IsPopular)
+        {
+            <text><strong>注目度の高い順</strong>に並べています(公式であることと参加者数で測ります)。
+                <strong>参加者数の取れない収集元</strong>(TECH PLAY)のイベントは後ろに来ます。</text>
+        }
+        else
+        {
+            <text><strong>開催日の早い順</strong>に並べています。</text>
+        }
     </p>
 
     <ul class="list-unstyled">
         @foreach (var techEvent in _events)
         {
-            <li class="mb-2">
-                @* Doorkeeper の API Terms of Use により、イベントには必ず元のイベントページへの
-                   リンクを付け、nofollow 等を指定してはならない(rel は noopener までにとどめる) *@
-                <a href="@techEvent.Url" target="_blank" rel="noopener">@techEvent.Title</a>
-                <br />
-                <small class="text-muted">
-                    @JapanTime.Format(techEvent.StartsAt)
-                    — @(techEvent.IsOnline ? "オンライン" : techEvent.Venue ?? "会場未定")
-                    @foreach (var tag in techEvent.Tags)
-                    {
-                        <span class="badge bg-secondary ms-1">@tag</span>
-                    }
-                </small>
-            </li>
+            <EventItem Event="techEvent" SelectedTags="_selected" EmphasizeByPopularity="true" />
         }
     </ul>
 }
 
 @code {
+    /// <summary>一覧に出す件数。</summary>
+    const int Limit = 100;
+
+    /// <summary>カレンダーに読み込む上限(1か月ぶんなので一覧より多めに取る)。</summary>
+    const int CalendarLimit = 500;
+
+    /// <summary>カレンダーの1マスに積むイベントの数。</summary>
+    const int MaxPerCell = 3;
+
+    /// <summary>表示する月(<c>2026-09</c>)。未指定なら今月のカレンダー + これからの一覧。</summary>
+    [SupplyParameterFromQuery(Name = "month")]
+    string? Month { get; set; }
+
+    /// <summary>並び順。既定(null)は開催日順で、"popular" なら注目度順。</summary>
+    [SupplyParameterFromQuery(Name = "sort")]
+    string? Sort { get; set; }
+
+    bool IsPopular => Sort == "popular";
+
     IReadOnlyList<TechEvent>? _events;
+    CalendarMonth _calendar = default!;
+    HashSet<string> _selected = new(StringComparer.Ordinal);
+    OfficialOrganizers _official = OfficialOrganizers.Default;
+
+    /// <summary>月を指定しているときは、何月を見ているのかを見出しに出す。</summary>
+    string Heading => Month is null ? "これからのイベント" : $"{_calendar.Title}のイベント";
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     async Task LoadAsync()
     {
+        _official = OrganizerSettings.Resolve(Credentials);
+
         // 出すのは収集対象に選んだトピック(配下込み)のものだけ ——
         // 選択を外したトピックで過去に集めたイベントは、消さずに表示から外れるだけ
-        var selected = Catalog
+        _selected = Catalog
             .ExpandWithDescendants((await TopicStore.GetSelectedAsync()).Select(topic => topic.Key))
             .ToHashSet(StringComparer.Ordinal);
-        _events = (await EventStore.GetUpcomingAsync(Clock.GetUtcNow(), 50))
-            .Where(techEvent => techEvent.Tags.Any(selected.Contains))
-            .ToList();
+
+        var now = Clock.GetUtcNow();
+        // 月の既定は**日本時間の今月**(UTC で数えると月初の朝 9 時までは前の月になる)
+        var (year, month) = EventCalendar.TryParseKey(Month, out var y, out var m)
+            ? (y, m)
+            : (JapanTime.To(now).Year, JapanTime.To(now).Month);
+
+        // カレンダーは**はみ出したマスの分まで**読む(前後の月の頭・末が空に見えないように)
+        var (gridFrom, gridTo) = EventCalendar.GridRange(year, month);
+        var inGrid = Selected(await EventStore.GetInRangeAsync(gridFrom, gridTo, CalendarLimit));
+        _calendar = EventCalendar.Build(year, month, inGrid, now);
+
+        // 一覧は「月を指定していればその月、していなければこれから開催されるもの」。
+        // **月を指定したときだけ過去も出す** —— カレンダーで前の月を開いたのに
+        // 一覧が未来のままだと、上下で別のものを見ていることになる
+        var events = Month is null
+            ? Selected(await EventStore.GetUpcomingAsync(now, Limit))
+            : InMonth(inGrid, year, month);
+
+        _events = IsPopular ? events.ByPopularity(_official).ToList() : events;
+    }
+
+    /// <summary>選んだトピック(配下込み)のイベントだけにする。</summary>
+    IReadOnlyList<TechEvent> Selected(IReadOnlyList<TechEvent> events) =>
+        events.Where(techEvent => techEvent.Tags.Any(_selected.Contains)).ToList();
+
+    /// <summary>カレンダーのマス全体から、その月のぶんだけを取り出す(再問い合わせはしない)。</summary>
+    static IReadOnlyList<TechEvent> InMonth(IReadOnlyList<TechEvent> events, int year, int month)
+    {
+        var (from, to) = EventCalendar.MonthRange(year, month);
+
+        return events.Where(e => e.StartsAt >= from && e.StartsAt < to).ToList();
+    }
+
+    bool IsOfficial(TechEvent techEvent) => _official.IsOfficial(techEvent.Organizer);
+
+    /// <summary>月を移すリンク。**並び順は保つ**(月を送るたびに並びが戻ると読みにくい)。</summary>
+    string MonthHref(string monthKey) =>
+        IsPopular
+            ? $"/interests/events?month={monthKey}&sort=popular"
+            : $"/interests/events?month={monthKey}";
+
+    /// <summary>並びを切り替えるリンク。**見ている月は保つ**(同じ理由)。</summary>
+    string SortHref(string? sort)
+    {
+        var query = new List<string>();
+        if (Month is { Length: > 0 })
+        {
+            query.Add($"month={Uri.EscapeDataString(Month)}");
+        }
+
+        if (sort is { Length: > 0 })
+        {
+            query.Add($"sort={sort}");
+        }
+
+        return query.Count == 0 ? "/interests/events" : $"/interests/events?{string.Join("&", query)}";
     }
 }

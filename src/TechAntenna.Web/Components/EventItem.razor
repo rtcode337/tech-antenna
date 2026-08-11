@@ -1,0 +1,90 @@
+@using TechAntenna.Core
+@using TechAntenna.Core.Models
+@using TechAntenna.Web.Services
+@inject ApiCredentials Credentials
+
+@* イベント1件ぶんのカード。イベントの一覧(/interests/events)と、トピック・タグの
+   詳細ページで同じものを使う —— 3種(記事・イベント・書籍)を並べて見るページがあるので、
+   同じものが場所によって違う見た目で出ないようにする。
+
+   - **提供元(ベンダー)自身が主催しているものは「公式」バッジ**。判定は主催者名と
+     名簿(設定 → 主催者)の突き合わせで、**保存された印ではない** —— 名簿を直したら
+     過去のイベントにも効いてほしいため
+   - **参加者数は多いほど目立つ段階バッジ**(記事のはてブ数と同じ文法)。
+     EmphasizeByPopularity を立てるとカードの面にも段階が出る *@
+
+<li class="event @EmphasisClass()">
+    @* Doorkeeper の API Terms of Use により、イベントには必ず元のイベントページへの
+       リンクを付け、nofollow 等を指定してはならない(rel は noopener までにとどめる) *@
+    <a href="@Event.Url" target="_blank" rel="noopener">@Event.Title</a>
+    <small class="text-muted">
+        @if (IsOfficial)
+        {
+            <span class="official" title="提供元(ベンダー)自身が主催しています">公式</span>
+        }
+        @* **null(未取得)のときはバッジごと出さない** —— 0 と混ぜると、
+           参加者数を持たない収集元(TECH PLAY)のイベントが「誰も参加していない」に見える *@
+        @if (Event.ParticipantCount is { } participants and > 0)
+        {
+            <span class="attendees @Tier(participants)" title="参加者数">@participants 人</span>
+        }
+        @JapanTime.Format(Event.StartsAt)
+        — @(Event.IsOnline ? "オンライン" : Event.Venue ?? "会場未定")
+        @if (Event.Organizer is { Length: > 0 } organizer)
+        {
+            <text> — @organizer</text>
+        }
+        @foreach (var tag in Event.Tags)
+        {
+            <span class="badge ms-1 @(SelectedTags.Contains(tag) ? "bg-primary" : "bg-secondary")">@tag</span>
+        }
+    </small>
+</li>
+
+@code {
+    [Parameter, EditorRequired]
+    public TechEvent Event { get; set; } = default!;
+
+    /// <summary>選択中のトピックのキー(タグのバッジの色分けに使う)。</summary>
+    [Parameter]
+    public IReadOnlySet<string> SelectedTags { get; set; } = new HashSet<string>();
+
+    /// <summary>注目度をカードの面にも出すか(イベントの一覧で使う)。</summary>
+    [Parameter]
+    public bool EmphasizeByPopularity { get; set; }
+
+    /// <summary>
+    /// 名簿との突き合わせは<b>このコンポーネントの中でやる</b> ——
+    /// 呼び出し側が渡す作りだと、渡し忘れたページだけ公式のバッジが消える。
+    /// </summary>
+    bool IsOfficial => OrganizerSettings.Resolve(Credentials).IsOfficial(Event.Organizer);
+
+    /// <summary>
+    /// 参加者数の段階。閾値は勉強会の肌感 —— 30 人で「集まっている」、
+    /// 100 人で「大きめのカンファレンス・大規模セミナー」。
+    /// </summary>
+    static string Tier(int participants) => participants switch
+    {
+        >= EventPopularity.HighThreshold => "attendees-high",
+        >= EventPopularity.MidThreshold => "attendees-mid",
+        _ => "attendees-low",
+    };
+
+    /// <summary>
+    /// カードの面の強調。**公式か、人が集まっているか**のどちらかで立てる ——
+    /// 参加者数だけで測ると、数の取れない収集元(TECH PLAY)の公式セミナーが常に地味になる。
+    /// </summary>
+    string EmphasisClass()
+    {
+        if (!EmphasizeByPopularity)
+        {
+            return "";
+        }
+
+        var participants = Event.ParticipantCount ?? 0;
+
+        return participants >= EventPopularity.HighThreshold ? "hot-high"
+            : IsOfficial || participants >= EventPopularity.MidThreshold ? "hot-mid"
+            : "";
+    }
+}

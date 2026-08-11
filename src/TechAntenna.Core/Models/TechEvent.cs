@@ -22,6 +22,26 @@ public class TechEvent
 
     public bool IsOnline { get; init; }
 
+    /// <summary>
+    /// 主催者(主催グループ)の名前。**「公式のイベントか」の判定材料**
+    /// (<see cref="OfficialOrganizers"/>)で、connpass はグループ名、Doorkeeper は
+    /// グループ名、TECH PLAY は取れないので null。
+    ///
+    /// **判定結果ではなく名前を保存する** —— 名簿は画面から直せるので、
+    /// 直したときに過去のイベントにも効いてほしい(<c>RawTags</c> と同じ考え方)。
+    /// 収集しなおしで後から埋まることがあるので init ではなく set。
+    /// </summary>
+    public string? Organizer { get; set; }
+
+    /// <summary>
+    /// 参加者数(connpass の <c>accepted</c>、Doorkeeper の <c>participants</c>)。
+    /// **null は「取得していない」、0 は「まだ誰も参加していない」で別物**
+    /// (書籍の <c>ReviewCount</c>・記事の <c>BookmarkCount</c> と同じ規則)——
+    /// TECH PLAY の RSS には数が無いので、そちらは常に null になる。
+    /// 開催が近づくほど増えるので、既存のイベントでも収集のたびに取り直す。
+    /// </summary>
+    public int? ParticipantCount { get; set; }
+
     public required DateTimeOffset CollectedAt { get; init; }
 
     /// <summary>

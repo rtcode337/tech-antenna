@@ -42,6 +42,8 @@ erDiagram
         timestamptz EndsAt
         text Venue
         boolean IsOnline
+        text Organizer "主催グループ名。公式判定の材料（TECH PLAY は取れず null）"
+        integer ParticipantCount "null=未取得 / 0=参加者なし"
         text_array Tags
         text_array RawTags
         timestamptz CollectedAt
@@ -116,9 +118,10 @@ erDiagram
     Topics |o--o{ Topics : "Parent"
 ```
 
-`Secrets` は画面(外部連携)から設定した API キー・トークン。**どのテーブルとも関係を
-持たない**。`Name` は設定パスの形(例 `Connpass:ApiKey`)。**キーの設定の入口はこの
-テーブル(= 画面)だけ**で、環境変数では渡せない。`Value` は Web 層が Data Protection(鍵は `DataProtection__KeysDirectory`)
+`Secrets` は画面から設定した API キー・トークンと、**キー以外でも画面から設定する数少ないもの**
+(定期実行の時刻・ジョブのチェック、公式イベントの主催者名簿 `Events:OfficialOrganizers`)。
+**どのテーブルとも関係を持たない**。`Name` は設定パスの形(例 `Connpass:ApiKey`)。
+**これらの設定の入口はこのテーブル(= 画面)だけ**で、環境変数では渡せない。`Value` は Web 層が Data Protection(鍵は `DataProtection__KeysDirectory`)
 で暗号化した文字列 —— **平文は DB に入らない**ので、DB のバックアップだけを持ち出しても
 キーは読めない。裏返しに、**鍵ディレクトリを失うと値は戻せない**(アプリは復号できない行を
 「未設定」として扱い、画面から入れ直してもらう。行は消さない —— 鍵を戻せば読める可能性を残す)。
@@ -144,9 +147,12 @@ erDiagram
   ように両方持つ(`RawTags` から `Tags` を再生成する)
 - **列挙は数値ではなく名前で保存**(`Articles.Kind`・`Tags.Status`・`Tags.DecidedBy`)。
   `psql` で覗いたときに読めるほうを優先した
-- **`null` と `0` は別物**。`BookmarkCount` / `UpvoteCount` / `ReviewCount` の `null` は
-  「取得していない」、`0` は「ブックマーク・upvote・レビューが無い」。混ぜると未取得の行が
-  最下位に沈む
+- **`null` と `0` は別物**。`BookmarkCount` / `UpvoteCount` / `ReviewCount` /
+  `ParticipantCount` の `null` は「取得していない」、`0` は「ブックマーク・upvote・
+  レビュー・参加者が無い」。混ぜると未取得の行が最下位に沈む
+- **収集で上書きするのは「後から増える数」だけ。** 既存行の書誌にあたる情報は上書きせず、
+  `Events` は主催者と参加者数、`Books` はレビューだけを取り込む(取れなかった回に
+  `null` で上書きもしない)
 - **人気の指標は収集元ごとに列を分ける**(`BookmarkCount` = はてブ、`UpvoteCount` = HF の
   upvote)。母集団が違うものを 1 列に混ぜると、2 つの意味が 1 つの数字に潰れる
 - **重複判定のキーは列にしてユニーク索引を張る**(`Articles.Url` / `Events.Url` /
@@ -248,7 +254,7 @@ JSON との衝突ルールは持たない。手直しは画面から状態を書
   相乗りさせている(呼び出しは増えない)。arXiv には英語の検索語が要る
 - ~~同義の親を寄せる統合パス~~ —— **済み**(`ITopicMergeAdvisor`)。仕分けの中で語彙の重複を
   LLM に見つけさせ、寄せ元のタグ・配下の親・行の削除まで面倒を見る(`TopicMerger`)
-- ~~手直しの経路~~ —— **済み**。`/tags` から状態を書き換えられる(`DecidedBy = Human`)
+- ~~手直しの経路~~ —— **済み**。`/settings/tags` から状態を書き換えられる(`DecidedBy = Human`)
 
 **残っているのは JSON を実際に外すかの判断だけ。** 空から始めると語彙が育つまで数回の
 仕分けが要るので、初期値として置いておくか、捨てて統合パスに任せるかは運用の好みで決められる。

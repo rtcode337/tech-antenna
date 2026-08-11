@@ -58,9 +58,12 @@ public class DoorkeeperEventSource(
             // 過ぎたイベントを拾わないよう、今日以降に絞る(「今日」は開催地の日本時間で数える
             // —— UTC の日付だと日本の朝 9 時までは前日として問い合わせることになる)
             var since = JapanTime.FormatDate(collectedAt);
+            // expand[]=group で主催グループを名前まで展開させる(既定では数値の ID だけが返り、
+            // 「公式のイベントか」の判定材料にならない)。**展開が効かなくても収集は続く** ——
+            // API は alpha 扱いなので、名前が取れなければ主催者を null のままにする
             var requestUri =
                 $"https://api.doorkeeper.jp/events?q={Uri.EscapeDataString(keyword)}"
-                + $"&since={since}&sort=starts_at";
+                + $"&since={since}&sort=starts_at&expand[]=group";
 
             var json = await client.GetStringAsync(requestUri, cancellationToken);
 
@@ -96,6 +99,9 @@ public class DoorkeeperEventSource(
                     Venue = entry.VenueName,
                     // Doorkeeper にオンライン開催のフラグは無いため会場表記から推定する
                     IsOnline = VenueClassifier.IsOnline(entry.VenueName, entry.Address),
+                    // 公式かどうかの判定材料(名簿との突き合わせは表示のたびに行う)と規模
+                    Organizer = entry.Organizer,
+                    ParticipantCount = entry.ParticipantCount,
                     CollectedAt = collectedAt,
                     // 検索キーワードをタグにして、記事・書籍と突き合わせられるようにする
                     Tags = (catalog ?? TopicCatalog.Empty).Normalize([keyword]),
@@ -128,6 +134,8 @@ public class DoorkeeperEventSource(
             EndsAt = source.EndsAt,
             Venue = source.Venue,
             IsOnline = source.IsOnline,
+            Organizer = source.Organizer,
+            ParticipantCount = source.ParticipantCount,
             CollectedAt = source.CollectedAt,
             Tags = (catalog ?? TopicCatalog.Empty).Normalize(raw),
             RawTags = raw,

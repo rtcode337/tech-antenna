@@ -4,6 +4,8 @@ using TechAntenna.Core;
 namespace TechAntenna.Infrastructure.Events;
 
 /// <summary>connpass API のレスポンスから取り出した1イベント。</summary>
+/// <param name="Organizer">主催グループ名(<c>group.title</c>)。個人開催ではグループが無いので管理者の表示名で代える。</param>
+/// <param name="ParticipantCount">参加者数(<c>accepted</c>)。補欠(<c>waiting</c>)は数えない。</param>
 public record ConnpassEventEntry(
     string Title,
     Uri Url,
@@ -11,7 +13,9 @@ public record ConnpassEventEntry(
     DateTimeOffset? EndsAt,
     string? Place,
     string? Address,
-    string? HashTag);
+    string? HashTag,
+    string? Organizer = null,
+    int? ParticipantCount = null);
 
 /// <summary>
 /// connpass API v2 の /api/v2/events/ レスポンス(JSON)を解析する。
@@ -43,8 +47,20 @@ public static class ConnpassResponseParser
             GetDate(e, "ended_at"),
             GetString(e, "place"),
             GetString(e, "address"),
-            GetString(e, "hash_tag"));
+            GetString(e, "hash_tag"),
+            // グループを持たない個人開催のイベントもあるので、無ければ管理者の表示名で代える
+            // (公式かどうかの判定材料なので、名前が1つも無いより名乗りがあるほうがよい)
+            GetGroupTitle(e) ?? GetString(e, "owner_display_name"),
+            // 補欠(waiting)は足さない —— 定員に達したイベントの規模は accepted で足りるうえ、
+            // 補欠まで数えると「定員 10 人・補欠 200 人」が大規模イベントとして扱われる
+            GetInt(e, "accepted"));
     }
+
+    /// <summary>主催グループ名。v2 では <c>group</c> がオブジェクトで、無いイベントは null。</summary>
+    static string? GetGroupTitle(JsonElement e) =>
+        e.TryGetProperty("group", out var group) && group.ValueKind == JsonValueKind.Object
+            ? GetString(group, "title")
+            : null;
 
     static string? GetString(JsonElement e, string name) =>
         e.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
@@ -53,4 +69,11 @@ public static class ConnpassResponseParser
 
     static DateTimeOffset? GetDate(JsonElement e, string name) =>
         DateTimeOffset.TryParse(GetString(e, name), out var parsed) ? parsed : null;
+
+    /// <summary>数値。**欠けている項目は null のまま返す**(0 と混ぜない)。</summary>
+    static int? GetInt(JsonElement e, string name) =>
+        e.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out var parsed)
+            ? parsed
+            : null;
 }

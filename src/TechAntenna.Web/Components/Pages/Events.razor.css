@@ -1,44 +1,154 @@
-/* 1件ずつを面のあるカードにする(記事一覧と同じ作り)。
-   イベントは日時と会場が判断材料なので、タイトルの下に必ず並べる */
-li {
-    padding: 0.8rem 1rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow-sm);
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+/* イベント1件のカードは共通コンポーネント(EventItem)側に置いてある。
+   ここにあるのは、このページだけにあるカレンダー(月グリッド)の見た目 */
+
+.calendar {
+    margin-bottom: 1.4rem;
 }
 
-li + li {
-    margin-top: 0.5rem;
+/* 見出しの行。前月・当月・翌月を横一列に並べ、当月を中央に置く */
+.calendar-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
 }
 
-li:hover {
-    border-color: var(--border-strong);
-    box-shadow: var(--shadow);
+.calendar-head h2 {
+    margin: 0;
+    font-size: 1.15rem;
 }
 
-/* Doorkeeper の規約により、イベントページへのリンクは必ず出す(razor 側のコメント参照)。
-   ここでは見た目だけを整えている */
-li > a {
-    display: inline-block;
-    color: var(--text);
-    font-size: 1rem;
-    font-weight: 600;
-    line-height: 1.55;
+.calendar-nav {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
-li > a:hover {
+.calendar-nav:hover {
     color: var(--accent);
 }
 
-li small {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-top: 0.4rem;
+/* 7列の固定グリッド。**列は常に 7 つ**なので、日数が変わっても曜日の縦がそろう */
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 1px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--border);
+    overflow: hidden;
+}
+
+.calendar-dayname {
+    padding: 0.3rem 0.4rem;
+    background: var(--surface-sunken);
     color: var(--text-muted);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.calendar-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    /* 予定の無い日でもマスの高さをそろえて、月の形が読めるようにする */
+    min-height: 5.5rem;
+    padding: 0.3rem 0.35rem;
+    background: var(--surface);
+}
+
+/* 前後の月からはみ出したマス。**消さずに沈める** —— 空白にすると
+   月末・月初の週がどこで切れているのか分からなくなる */
+.calendar-cell.outside {
+    background: var(--surface-sunken);
+}
+
+.calendar-cell.outside .calendar-date {
+    color: var(--text-muted);
+    opacity: 0.6;
+}
+
+.calendar-cell.today {
+    background: var(--accent-soft);
+}
+
+.calendar-cell.today .calendar-date {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.calendar-date {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.3;
+}
+
+/* マスの中のイベント。**1行に収めて省略する**(折り返すとマスの高さが日ごとにばらつく)。
+   全文はマウスオーバーの title と、下の一覧で読める */
+.calendar-event {
+    display: block;
+    overflow: hidden;
+    padding: 0.05rem 0.25rem;
+    border-left: 2px solid var(--border-strong);
+    border-radius: 2px;
+    background: var(--surface-sunken);
+    color: var(--text);
+    font-size: 0.72rem;
     line-height: 1.5;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.calendar-event:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+/* 提供元(ベンダー)自身が主催しているイベント。狭いマスでは文字を足せないので、
+   帯の色だけで示す(意味はカードの「公式」バッジと同じ) */
+.calendar-event.official {
+    border-left-color: var(--success-text);
+}
+
+.calendar-more {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    line-height: 1.4;
+}
+
+.calendar-reset {
+    margin: 0.5rem 0 0;
+    font-size: 0.85rem;
+}
+
+/* 狭い画面ではマスを詰める。**列は 7 のまま** —— 縦に積み替えると
+   「週」の形が消えて、カレンダーとして読めなくなる */
+@media (max-width: 640px) {
+    .calendar-cell {
+        min-height: 3.6rem;
+        padding: 0.2rem;
+    }
+
+    .calendar-event {
+        /* タイトルは入らないので、その日に予定があることだけを帯で示す。
+           面まで塗るのは、2px の左罫だけだと帯として見えないため */
+        overflow: hidden;
+        height: 0.42rem;
+        padding: 0;
+        border-left: none;
+        background: var(--border-strong);
+        color: transparent;
+    }
+
+    .calendar-event.official {
+        background: var(--success-text);
+    }
+
+    .calendar-more {
+        font-size: 0.65rem;
+    }
 }

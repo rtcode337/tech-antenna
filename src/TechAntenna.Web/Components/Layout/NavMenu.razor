@@ -49,37 +49,37 @@
         <details class="nav-group" open="@InTrending">
             <summary class="nav-item px-3">
                 <span class="caret" aria-hidden="true"></span>
-                <NavLink class="nav-link" href="recent">
+                <NavLink class="nav-link" href="recent" Match="NavLinkMatch.All">
                     <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> トレンド
                 </NavLink>
             </summary>
             @* ニュースが先 —— 動きの速いものから読む *@
             <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="news">ニュース</NavLink>
+                <NavLink class="nav-link" href="recent/news">ニュース</NavLink>
             </div>
             <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="articles">記事</NavLink>
+                <NavLink class="nav-link" href="recent/articles">記事</NavLink>
             </div>
             <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="trending-papers">話題の論文</NavLink>
+                <NavLink class="nav-link" href="recent/papers">話題の論文</NavLink>
             </div>
         </details>
 
         <details class="nav-group" open="@InInterests">
             <summary class="nav-item px-3">
                 <span class="caret" aria-hidden="true"></span>
-                <NavLink class="nav-link" href="interests">
+                <NavLink class="nav-link" href="interests" Match="NavLinkMatch.All">
                     <span class="bi bi-star-fill-nav-menu" aria-hidden="true"></span> 興味トピック
                 </NavLink>
             </summary>
             <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="books">書籍</NavLink>
+                <NavLink class="nav-link" href="interests/books">書籍</NavLink>
             </div>
             <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="events">イベント</NavLink>
+                <NavLink class="nav-link" href="interests/events">イベント</NavLink>
             </div>
             <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="papers">論文</NavLink>
+                <NavLink class="nav-link" href="interests/papers">論文</NavLink>
             </div>
         </details>
 
@@ -100,45 +100,42 @@
         <details class="nav-group" open="@InSettings">
             <summary class="nav-item px-3">
                 <span class="caret" aria-hidden="true"></span>
-                <NavLink class="nav-link" href="settings">
+                <NavLink class="nav-link" href="settings" Match="NavLinkMatch.All">
                     <span class="bi bi-gear-fill-nav-menu" aria-hidden="true"></span> 設定
                 </NavLink>
             </summary>
             @* トピック(何を集めるかの選択と語彙の整備)。トピックの詳細もこの下に属する。
                タグはその下 —— 語彙になる前の語の話なので、トピックの子にする *@
             <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="topics">トピック</NavLink>
+                <NavLink class="nav-link" href="settings/topics">トピック</NavLink>
             </div>
             <div class="nav-item nav-child nav-grandchild px-3">
-                <NavLink class="nav-link" href="tags">タグ</NavLink>
+                <NavLink class="nav-link" href="settings/tags">タグ</NavLink>
             </div>
             <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="integrations">外部連携</NavLink>
+                <NavLink class="nav-link" href="settings/organizers">主催者</NavLink>
+            </div>
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="settings/integrations">外部連携</NavLink>
             </div>
         </details>
     </nav>
 </div>
 
 @code {
-    /// <summary>トレンドの下にぶら下げるページ(トピックの選択に依存しないもの)。</summary>
-    static readonly string[] TrendingChildren = ["news", "articles", "trending-papers"];
+    @* **URL の階層が軸の階層と一致している**ので、開くグループの判定は親のパスだけで足りる
+       —— かつては軸ごとに子ページの名前を並べた配列を持っていたが(`/news` が
+       トレンドの子、という対応をコード側で覚えていた)、いまは `/recent/news` の
+       ように URL 自体が親を含むため、名前の一覧をここに書き写す必要が無い *@
+    bool InTrending => IsCurrent("recent");
 
-    /// <summary>興味トピックの下にぶら下げるページ(選んだトピックで検索して集めるもの)。</summary>
-    static readonly string[] InterestChildren = ["books", "events", "papers"];
+    bool InInterests => IsCurrent("interests");
 
-    /// <summary>設定の下にぶら下げるページ。トピックの詳細(`/topics/…`)もここに属する。</summary>
-    static readonly string[] SettingsChildren = ["topics", "tags", "integrations"];
-
-    bool InTrending => IsCurrent("recent") || TrendingChildren.Any(IsCurrent);
-
-    bool InInterests => IsCurrent("interests") || InterestChildren.Any(IsCurrent);
-
-    // 子(classics/books)はパスが親の配下なので、IsCurrent("classics") だけで両方に当たる
     bool InClassics => IsCurrent("classics");
 
-    bool InSettings => IsCurrent("settings") || SettingsChildren.Any(IsCurrent);
+    bool InSettings => IsCurrent("settings");
 
-    /// <summary>現在のパスがそのページ(またはその配下)か。`/topics/生成ai` は `topics` に含める。</summary>
+    /// <summary>現在のパスがそのページ(またはその配下)か。`/settings/topics/生成ai` は `settings` に含める。</summary>
     bool IsCurrent(string path)
     {
         var current = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');

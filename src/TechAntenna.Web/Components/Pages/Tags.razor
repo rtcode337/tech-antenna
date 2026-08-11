@@ -1,4 +1,4 @@
-@page "/tags"
+@page "/settings/tags"
 @using TechAntenna.Core
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Topics
@@ -14,7 +14,7 @@
 
 <h1>タグ</h1>
 
-<p><a href="/topics">← トピック</a></p>
+<p><a href="/settings/topics">← トピック</a></p>
 
 <p class="page-note text-muted">
     記事・イベント・書籍で見つかったタグは<strong>まずここに全部入り</strong>、仕分けのときに
@@ -79,7 +79,7 @@
         <input id="alias-target" name="AliasTarget" list="topic-keys" placeholder="生成AI / rag …"
                value="@AliasTarget" autofocus />
         <button type="submit" class="btn btn-primary btn-sm">別名にする</button>
-        <a href="/tags">やめる</a>
+        <a href="/settings/tags">やめる</a>
     </form>
 }
 
@@ -94,7 +94,7 @@
         <input id="promote-parent" name="PromoteParent" list="topic-keys"
                placeholder="空のままなら最上位" value="@PromoteParent" autofocus />
         <button type="submit" class="btn btn-primary btn-sm">トピックにする</button>
-        <a href="/tags">やめる</a>
+        <a href="/settings/tags">やめる</a>
     </form>
 }
 
@@ -167,7 +167,7 @@ else
                             }
                             <span class="tag-name">
                                 @* 名前はタグの詳細(仕分けの状態と紐づくデータ)へのリンク *@
-                                <a href="@($"/tags/{Uri.EscapeDataString(tag.Key)}")">@tag.Key</a>
+                                <a href="@($"/settings/tags/{Uri.EscapeDataString(tag.Key)}")">@tag.Key</a>
                                 @* 紐づくアイテムの件数(記事・ニュース・論文・イベント・書籍の合算)。
                                    トピック一覧と同じ見せ方 —— ラベル無しのかっこ書き。0 は出さない *@
                                 @if (tag.TotalCount > 0)
@@ -202,12 +202,12 @@ else
         @if (tag.Status != TagStatus.Promoted)
         {
             <a class="btn btn-outline-primary btn-sm"
-               href="@($"/tags?promote={Uri.EscapeDataString(tag.Key)}")">トピックにする</a>
-            <a class="btn btn-outline-primary btn-sm" href="@($"/tags?alias={Uri.EscapeDataString(tag.Key)}")">別名にする</a>
+               href="@($"/settings/tags?promote={Uri.EscapeDataString(tag.Key)}")">トピックにする</a>
+            <a class="btn btn-outline-primary btn-sm" href="@($"/settings/tags?alias={Uri.EscapeDataString(tag.Key)}")">別名にする</a>
         }
         else
         {
-            <a class="btn btn-outline-primary btn-sm" href="@($"/topics/{Uri.EscapeDataString(tag.Key)}")">詳細</a>
+            <a class="btn btn-outline-primary btn-sm" href="@($"/settings/topics/{Uri.EscapeDataString(tag.Key)}")">詳細</a>
         }
         @if (tag.Status != TagStatus.NotTopic)
         {
