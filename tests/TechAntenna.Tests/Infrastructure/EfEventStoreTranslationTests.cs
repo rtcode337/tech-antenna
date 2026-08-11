@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using TechAntenna.Core;
+using TechAntenna.Core.Models;
 using TechAntenna.Infrastructure.Persistence;
 
 namespace TechAntenna.Tests.Infrastructure;
@@ -45,6 +47,33 @@ public class EfEventStoreTranslationTests
             .ToQueryString();
 
         Assert.Contains("\"StartsAt\"", sql, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// **Npgsql は timestamptz に時差 0 以外の DateTimeOffset を書けない**
+    /// (Cannot write DateTimeOffset with Offset=09:00:00 ...)。収集元は `+09:00` のまま
+    /// 返してくるし、カレンダーの月の境界も日本時間で決まるので、DbContext の値変換で
+    /// 保存・問い合わせの直前に UTC へそろえている。**外すと、その列を使う画面と
+    /// 収集がまとめて実行時に落ちる。**
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(TechEvent), nameof(TechEvent.StartsAt))]
+    [InlineData(typeof(TechEvent), nameof(TechEvent.EndsAt))]
+    [InlineData(typeof(TechEvent), nameof(TechEvent.CollectedAt))]
+    [InlineData(typeof(Article), nameof(Article.PublishedAt))]
+    [InlineData(typeof(Book), nameof(Book.CollectedAt))]
+    public void 日時は保存の直前にUTCへそろえる(Type entity, string propertyName)
+    {
+        using var db = Context();
+        var converter = db.Model.FindEntityType(entity)!.FindProperty(propertyName)!.GetValueConverter();
+
+        Assert.NotNull(converter);
+        var jst = new DateTimeOffset(2026, 8, 10, 19, 0, 0, JapanTime.Offset);
+        var stored = Assert.IsType<DateTimeOffset>(converter.ConvertToProvider(jst));
+
+        Assert.Equal(TimeSpan.Zero, stored.Offset);
+        // 時点は変えない(9 時間ずらすのではなく、同じ瞬間を UTC で表す)
+        Assert.Equal(jst, stored);
     }
 
     [Fact]

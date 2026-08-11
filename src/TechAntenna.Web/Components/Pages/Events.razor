@@ -22,6 +22,17 @@
 
 <CollectionHint Job="イベントの収集" />
 
+@* **読み込みが終わるまでは何も組み立てない。** ComponentBase は
+   `OnInitializedAsync` が同期で終わらないと、待っているあいだに**一度描画する** ——
+   DB につないだ本番ではここでカレンダーがまだ null で、素通しにすると
+   NullReferenceException で画面ごと落ちる(InMemory のストアは同期に完了するので
+   手元では出ない)。他の一覧ページと同じ「読み込み中…」の作りにそろえてある *@
+@if (_calendar is not { } calendar || _events is null)
+{
+    <p>読み込み中…</p>
+}
+else
+{
 <p class="text-muted">
     <strong>収集対象に選んだトピック（配下のトピックを含む）</strong>のイベントを出しています。
     <strong>公式</strong>は<a href="/settings/organizers">名簿に載せた提供元</a>が主催しているもの、
@@ -31,9 +42,9 @@
 @* --- カレンダー(月グリッド) --- *@
 <section class="calendar" aria-label="イベントカレンダー">
     <div class="calendar-head">
-        <a class="calendar-nav" href="@MonthHref(_calendar.PreviousKey)" rel="prev">← @_calendar.PreviousKey</a>
-        <h2>@_calendar.Title</h2>
-        <a class="calendar-nav" href="@MonthHref(_calendar.NextKey)" rel="next">@_calendar.NextKey →</a>
+        <a class="calendar-nav" href="@MonthHref(calendar.PreviousKey)" rel="prev">← @calendar.PreviousKey</a>
+        <h2>@calendar.Title</h2>
+        <a class="calendar-nav" href="@MonthHref(calendar.NextKey)" rel="next">@calendar.NextKey →</a>
     </div>
 
     <div class="calendar-grid" role="grid">
@@ -41,7 +52,7 @@
         {
             <div class="calendar-dayname" role="columnheader">@name</div>
         }
-        @foreach (var week in _calendar.Weeks)
+        @foreach (var week in calendar.Weeks)
         {
             @foreach (var day in week)
             {
@@ -80,15 +91,11 @@
     <a class="@(IsPopular ? "active" : "")" href="@SortHref("popular")">注目度順</a>
 </nav>
 
-@if (_events is null)
-{
-    <p>読み込み中…</p>
-}
-else if (_events.Count == 0)
+@if (_events.Count == 0)
 {
     @if (Month is not null)
     {
-        <p>@_calendar.Title に該当するイベントはありません。</p>
+        <p>@calendar.Title に該当するイベントはありません。</p>
     }
     else
     {
@@ -118,6 +125,7 @@ else
         }
     </ul>
 }
+} @* 読み込み済みのときの中身は、ここまで *@
 
 @code {
     /// <summary>一覧に出す件数。</summary>
@@ -140,12 +148,21 @@ else
     bool IsPopular => Sort == "popular";
 
     IReadOnlyList<TechEvent>? _events;
-    CalendarMonth _calendar = default!;
+
+    /// <summary>
+    /// 読み込みが終わるまで null。**null 許容のまま持つ**のが要点 ——
+    /// `default!` で「必ずある」ことにすると、読み込み中の描画で落ちても
+    /// コンパイラが教えてくれない(実際にそれで本番だけ 500 になった)。
+    /// </summary>
+    CalendarMonth? _calendar;
+
     HashSet<string> _selected = new(StringComparer.Ordinal);
     OfficialOrganizers _official = OfficialOrganizers.Default;
 
-    /// <summary>月を指定しているときは、何月を見ているのかを見出しに出す。</summary>
-    string Heading => Month is null ? "これからのイベント" : $"{_calendar.Title}のイベント";
+    /// <summary>月を指定しているときは、何月を見ているのかを見出しに出す(読み込み中は既定の見出し)。</summary>
+    string Heading => Month is null || _calendar is null
+        ? "これからのイベント"
+        : $"{_calendar.Title}のイベント";
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 

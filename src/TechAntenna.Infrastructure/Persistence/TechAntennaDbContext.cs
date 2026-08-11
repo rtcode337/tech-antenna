@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TechAntenna.Core.Models;
 using TechAntenna.Core.Topics;
 
@@ -163,7 +164,38 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
             // 値は Web 層が Data Protection で暗号化した文字列(平文は入らない)
             secret.Property(s => s.Value).IsRequired();
         });
+
+        // **日時は DB に渡す直前に UTC へそろえる。** Npgsql は `timestamp with time zone` に
+        // 時差 0 以外の DateTimeOffset を書けず、そのまま渡すと実行時に落ちる:
+        //   Cannot write DateTimeOffset with Offset=09:00:00 to PostgreSQL type
+        //   'timestamp with time zone', only offset 0 (UTC) is supported.
+        // 収集元は時差を付けたまま返してくる(connpass の `started_at` は `+09:00`)ので、
+        // **保存も問い合わせのパラメータもここを通す** —— 収集元ごとに `ToUniversalTime()` を
+        // 書いて回ると、書き忘れた1つが「その収集元だけ 1 件も保存されない」になる
+        // (実際、記事のパーサだけが直していて connpass / Doorkeeper のイベントは
+        // 保存できていなかった。カレンダーの月の範囲を JST のまま渡して画面も落ちた)。
+        // 列は timestamptz(= 時点)のままなので、時差そのものは元から保存されない。
+        // 人に見せるときは JapanTime で JST に直す(CLAUDE.md「日時の表示」)。
+        foreach (var property in modelBuilder.Model.GetEntityTypes()
+                     .SelectMany(entity => entity.GetProperties()))
+        {
+            if (property.ClrType == typeof(DateTimeOffset))
+            {
+                property.SetValueConverter(ToUtc);
+            }
+            else if (property.ClrType == typeof(DateTimeOffset?))
+            {
+                property.SetValueConverter(ToUtcNullable);
+            }
+        }
     }
+
+    /// <summary>保存の直前に UTC へそろえる(読み出しは UTC のまま返る)。</summary>
+    static readonly ValueConverter<DateTimeOffset, DateTimeOffset> ToUtc =
+        new(value => value.ToUniversalTime(), value => value);
+
+    static readonly ValueConverter<DateTimeOffset?, DateTimeOffset?> ToUtcNullable =
+        new(value => value.HasValue ? value.Value.ToUniversalTime() : value, value => value);
 
     // IReadOnlyList<string> のままでは EF が扱えないため、PostgreSQL の text[] 列との間で変換する
     static void ConfigureTags(PropertyBuilder<IReadOnlyList<string>> tags) =>

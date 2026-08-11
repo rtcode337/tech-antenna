@@ -1035,6 +1035,35 @@ Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。�
   語彙の持ち出しファイル名も JST
 - **「今日」の境界も JST で数える。** Doorkeeper の `since` は開催地の日付で問い合わせる
   (UTC の日付だと日本の朝 9 時までは前日を指す)
+- **DB へ渡す直前に UTC へそろえるのは `TechAntennaDbContext` の値変換1か所。**
+  Npgsql は `timestamp with time zone` に**時差 0 以外の `DateTimeOffset` を書けない**
+  (`Cannot write DateTimeOffset with Offset=09:00:00 ...`)。収集元は時差を付けたまま
+  返してくる(connpass の `started_at` は `+09:00`)ので、**保存も問い合わせの
+  パラメータも**モデル側の値変換で UTC にする。列は `timestamptz`(= 時点)なので、
+  時差そのものは元から保存されない。
+  収集元ごとに `ToUniversalTime()` を書いて回らないこと —— **書き忘れた1つが
+  「その収集元だけ 1 件も保存されない」になる**(実際、記事のパーサだけが直していて
+  connpass / Doorkeeper のイベントは保存できていなかった。カレンダーの月の境界を
+  JST のまま問い合わせに渡して画面も落ちた)。
+  **InMemory のストアでは再現しない**ので、`EfEventStoreTranslationTests` が
+  DB につながずにモデルの値変換を見張っている
+
+## 画面が本番でだけ落ちる2つの型
+
+どちらも**手元(接続文字列なし = InMemory ストア)では起きない**。画面を足したら、
+実際の PostgreSQL につないで開くところまで確かめること。
+
+- **EF が翻訳できない LINQ。** InMemory は LINQ をそのまま実行するので通ってしまう。
+  record のコンストラクタで射影してから、その列で並べ替えると落ちた
+  (`OrganizerCountQuery` のコメント)。翻訳できるかは `ToQueryString` で
+  **DB につながずに**確かめられる(`EfEventStoreTranslationTests`)
+- **非同期の初期化中の1回目の描画。** `OnInitializedAsync` が同期で終わらないと、
+  `ComponentBase` は待っているあいだに**一度描画する**。InMemory のストアは同期に
+  完了するのでこの中間状態が現れないが、DB につなぐと現れる ——
+  読み込み中に触る値を `default!` で「必ずある」ことにしていると、そこで
+  `NullReferenceException` になり画面ごと 500 になる(イベントのカレンダーで踏んだ)。
+  **読み込みで埋まるフィールドは null 許容のまま持ち、埋まるまでは「読み込み中…」を出す**
+  (他の一覧ページと同じ作り)
 
 ## 見た目(CSS)
 

@@ -139,7 +139,11 @@ erDiagram
 ## 横断的な決めごと
 
 - **日時はすべて `timestamp with time zone`(UTC で保存)**。人に見せるときだけ
-  日本時間へ直す(`JapanTime`。実行環境の TZ には依存させない。CLAUDE.md「日時の表示」)
+  日本時間へ直す(`JapanTime`。実行環境の TZ には依存させない。CLAUDE.md「日時の表示」)。
+  **UTC へそろえるのは `TechAntennaDbContext` の値変換1か所**(`DateTimeOffset` の
+  プロパティ全部に掛かる)—— Npgsql は `timestamptz` に時差 0 以外の `DateTimeOffset` を
+  書けず、収集元は `+09:00` のまま返してくるので、収集元ごとに直して回ると
+  書き忘れた1つが「その収集元だけ保存されない」になる
 - **`Tags` / `RawTags` / `Authors` / `RecommendedBy` は `text[]`**。C# の
   `IReadOnlyList<string>` と値変換でつないでいる。**この変換のせいで LINQ から翻訳できず、
   タグごとの件数集計だけ生 SQL**(PostgreSQL の `unnest`)で書いてある
