@@ -75,9 +75,11 @@
 
     <aside class="topic-rail" aria-labelledby="topic-rail-heading">
         <div class="topic-rail-heading">
+            @* eyebrow は**見出しの英訳**にそろえる(サマリーの DAILY SUMMARY と同じ流儀)——
+               ここだけ EXPLORE という性格の表示になっていて、見出しと対応していなかった *@
             <div>
-                <p class="eyebrow">EXPLORE</p>
-                <h2 id="topic-rail-heading">トピック</h2>
+                <p class="eyebrow">TRENDING TOPICS</p>
+                <h2 id="topic-rail-heading">話題のトピック</h2>
             </div>
             <a href="/settings/topics">一覧を管理</a>
         </div>
@@ -88,7 +90,12 @@
         }
         else if (_topics.Count == 0)
         {
-            <p class="topic-empty">収集が進むと、ここにトピックが並びます。</p>
+            @* **話題度が付いていないだけ**のこともあるので、行き先を書く ——
+               収集しただけでは話題度は付かず、「話題度を取り直す」で外部トレンドを引く *@
+            <p class="topic-empty">
+                まだ話題度の付いたトピックがありません。<a href="/settings">設定</a>の
+                「話題度を取り直す」を実行すると、ここに並びます。
+            </p>
         }
         else
         {
@@ -111,9 +118,24 @@
     IReadOnlyList<Topic>? _topics;
     Digest? _digest;
 
+    /// <summary>ホームに並べるトピックの数。</summary>
+    const int Limit = 10;
+
     protected override async Task OnInitializedAsync()
     {
-        _topics = (await TopicStore.GetAllAsync()).Take(10).ToList();
+        // **話題度の高い順**に並べる。ストアが返す並びは「選択済みを先頭に固定」
+        // (収集対象の選択を保存する画面の都合)なので、ここで並べ替え直す ——
+        // 「話題のトピック」と名乗る以上、興味の有無ではなく話題度で並べる。
+        // 見るのは**単体の話題度**(行に出している数字と同じもの)—— 配下込みだと
+        // 「プログラミング」のような大きな親ばかりが並ぶ。
+        // **話題度 0 は出さない**(話題になっていないので。まだ 1 件も無いときは
+        // 「話題度を取り直す」への案内が出る)
+        _topics = (await TopicStore.GetAllAsync())
+            .Where(topic => topic.TrendScore > 0)
+            .OrderByDescending(topic => topic.TrendScore)
+            .ThenBy(topic => topic.Key, StringComparer.Ordinal)
+            .Take(Limit)
+            .ToList();
         // 出すのは最新の1件だけ(履歴は保存してあるが、ホームは「いま」に答える場所)
         _digest = await DigestStore.GetLatestAsync();
     }
