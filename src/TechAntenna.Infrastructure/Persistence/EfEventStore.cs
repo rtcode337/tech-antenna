@@ -68,20 +68,33 @@ public class EfEventStore(IDbContextFactory<TechAntennaDbContext> contextFactory
             .ToListAsync(cancellationToken);
     }
 
-    // Organizer は普通の text 列(値変換の掛かった Tags と違う)ので、集計も LINQ で書ける
     public async Task<IReadOnlyList<OrganizerCount>> GetOrganizerCountsAsync(
         CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        return await db.Events
+        return await OrganizerCountQuery(db).ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// 主催者ごとの件数。Organizer は普通の text 列(値変換の掛かった <c>Tags</c> と違う)なので
+    /// 集計も LINQ で書けるが、**並べ替えるまでは匿名型で持つこと** —— record のコンストラクタで
+    /// 射影してから <c>OrderByDescending(o =&gt; o.Count)</c> と書くと、EF は <c>Count</c> を集計に
+    /// 対応づけられず「The LINQ expression could not be translated」で落ちる(実際に画面が
+    /// エラーになった)。**匿名型ならメンバーを辿れる**ので、record にするのは並べ替えの後。
+    ///
+    /// <b>問い合わせを切り出してあるのはテストのため。</b> InMemory のストアでは翻訳の失敗が
+    /// 起きないので、<c>EfEventStoreTranslationTests</c> がここを <c>ToQueryString</c> に掛けて
+    /// 見張っている(DB にはつながない)。
+    /// </summary>
+    public static IQueryable<OrganizerCount> OrganizerCountQuery(TechAntennaDbContext db) =>
+        db.Events
             .Where(e => e.Organizer != null && e.Organizer != "")
             .GroupBy(e => e.Organizer!)
-            .Select(g => new OrganizerCount(g.Key, g.Count()))
-            .OrderByDescending(o => o.Count)
-            .ThenBy(o => o.Organizer)
-            .ToListAsync(cancellationToken);
-    }
+            .Select(g => new { Organizer = g.Key, Count = g.Count() })
+            .OrderByDescending(row => row.Count)
+            .ThenBy(row => row.Organizer)
+            .Select(row => new OrganizerCount(row.Organizer, row.Count));
 
     // タグ関連が生 SQL である理由は EfArticleStore を参照
     public async Task<IReadOnlyList<TechEvent>> GetByTagAsync(string tag, int count, CancellationToken cancellationToken = default)
