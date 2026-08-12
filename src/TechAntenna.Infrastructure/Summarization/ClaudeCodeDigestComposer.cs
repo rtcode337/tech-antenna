@@ -28,7 +28,7 @@ public class ClaudeCodeDigestComposer(
             executablePath,
             model,
             timeout,
-            DigestPrompt.System,
+            DigestPrompt.SystemFor(materials.Scope),
             DigestPrompt.Schema,
             DigestPrompt.ForMaterials(materials),
             cancellationToken);

@@ -43,8 +43,12 @@
     <h3>ホーム</h3>
     @Rows(JobGroup.Home)
     <p class="page-note text-muted">
-        収集済みの情報と興味トピックから<strong>押さえておくべき情報のダイジェスト</strong>を
-        LLM で作り、<a href="/">ホーム</a>の「今日のサマリー」に出します。
+        収集済みの情報から<strong>押さえておくべき情報のダイジェスト</strong>を LLM で作り、
+        <a href="/">ホーム</a>の「今日のサマリー」に出します。
+        <strong>技術界隈全体</strong>(トピックの選択に関係なく話題になっているもの)と
+        <strong>興味トピック</strong>(選んだトピックに当たる記事・イベント)の
+        <strong>2本</strong>を作り、ntfy へも別々に通知します
+        (<a href="/settings/topics">トピック</a>を1つも選んでいないときは全体だけ)。
     </p>
 
     <h3>トレンド</h3>

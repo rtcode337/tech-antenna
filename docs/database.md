@@ -99,7 +99,8 @@ erDiagram
 
     Digests {
         uuid Id PK
-        timestamptz GeneratedAt "最新の1件を選ぶキー"
+        text Scope "守備範囲（Overall / Interests）"
+        timestamptz GeneratedAt "範囲ごとの最新の1件を選ぶキー"
         text Lead "全体の導入（1〜2文）"
         jsonb Items "項目の配列（title / body / url）"
         text GeneratorName "Claude Code / Anthropic API"
@@ -130,7 +131,10 @@ erDiagram
 (生成時点の記事・イベントから LLM が書いた文章のスナップショットで、元データが
 消えても読み返せることに意味がある)。`Items` を行に分けず `jsonb` 1 列で持つのは、
 項目単体を検索・集計する予定が無く、常にダイジェスト丸ごとで読み書きするため。
-画面に出すのは `GeneratedAt` が最新の1件だけ。
+**1回の生成で `Scope` の違う2行**(技術界隈全体 / 興味トピック)が入り、画面に出すのは
+**範囲ごとに `GeneratedAt` が最新の1行**(索引も `Scope, GeneratedAt` の複合)。
+`Scope` は数値ではなく名前で持つ(記事の種別と同じ流儀)。
+**2本に分ける前の行は `Overall` として残る**(`AddDigestScope` の既定値)。
 
 **外部キーは1つも張っていない**(点線はそのため)。タグは `text[]` の中の文字列と突き合わせる
 緩い対応で、正規化の規則を変えると対応先が変わる。参照整合性を DB に持たせると、

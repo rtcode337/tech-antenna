@@ -21,12 +21,15 @@ public class InMemoryDigestStore : IDigestStore
         }
     }
 
-    public Task<Digest?> GetLatestAsync(CancellationToken cancellationToken = default)
+    public Task<Digest?> GetLatestAsync(
+        DigestScope scope, CancellationToken cancellationToken = default)
     {
         lock (_gate)
         {
-            return Task.FromResult(
-                _digests.OrderByDescending(d => d.GeneratedAt).FirstOrDefault());
+            return Task.FromResult(_digests
+                .Where(d => d.Scope == scope)
+                .OrderByDescending(d => d.GeneratedAt)
+                .FirstOrDefault());
         }
     }
 }

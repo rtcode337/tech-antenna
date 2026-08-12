@@ -14,19 +14,25 @@ public class DigestRunnerTests
 {
     static readonly DateTimeOffset Now = new(2026, 8, 9, 12, 0, 0, TimeSpan.Zero);
 
-    /// <summary>受け取った材料を記録し、固定のダイジェストを返す IDigestComposer。</summary>
+    /// <summary>受け取った材料を記録し、固定のダイジェストを返す IDigestComposer。
+    /// **1回の実行で2本呼ばれる**ことがあるので、材料は範囲ごとに残す。</summary>
     class StubComposer : IDigestComposer
     {
-        public DigestMaterials? Received { get; private set; }
+        public List<DigestMaterials> Received { get; } = [];
 
         public string Name => "スタブ";
+
+        /// <summary>その範囲で呼ばれていれば材料、呼ばれていなければ null。</summary>
+        public DigestMaterials? For(DigestScope scope) =>
+            Received.FirstOrDefault(materials => materials.Scope == scope);
 
         public Task<Digest> ComposeAsync(
             DigestMaterials materials, CancellationToken cancellationToken = default)
         {
-            Received = materials;
+            Received.Add(materials);
             return Task.FromResult(new Digest
             {
+                Scope = materials.Scope,
                 GeneratedAt = Now,
                 Lead = "導入。",
                 Items = [new DigestItem("見出し", "本文。", null)],
@@ -48,13 +54,15 @@ public class DigestRunnerTests
     /// <summary>通知の呼び出しを記録する IDigestNotifier。fail=true なら失敗させる。</summary>
     class StubNotifier(bool fail = false) : IDigestNotifier
     {
-        public int CallCount { get; private set; }
+        public List<DigestScope> Notified { get; } = [];
+
+        public int CallCount => Notified.Count;
 
         public string Name => "スタブ通知";
 
         public Task<bool> NotifyAsync(Digest digest, CancellationToken cancellationToken = default)
         {
-            CallCount++;
+            Notified.Add(digest.Scope);
             return fail
                 ? Task.FromException<bool>(new HttpRequestException("落ちた"))
                 : Task.FromResult(true);
@@ -80,6 +88,20 @@ public class DigestRunnerTests
             new FakeTimeProvider(Now),
             NullLogger<DigestRunner>.Instance);
 
+    /// <summary>興味トピック(生成AI ← LLM)を選んだ状態のトピックストアと語彙。</summary>
+    static async Task<(InMemoryTopicStore Topics, TopicCatalog Catalog)> SelectedTopicsAsync()
+    {
+        var catalog = new TopicCatalog([
+            new TopicCatalogEntry("生成AI", [], null),
+            new TopicCatalogEntry("LLM", [], "生成AI"),
+        ]);
+        var topics = new InMemoryTopicStore();
+        await topics.UpsertAsync([new Topic { Key = "生成ai", Display = "生成AI" }], Now);
+        await topics.UpdateSelectionAsync(["生成ai"]);
+
+        return (topics, catalog);
+    }
+
     [Fact]
     public async Task LLMが未設定なら実行しない()
     {
@@ -92,7 +114,7 @@ public class DigestRunnerTests
             TopicCatalog.Empty);
 
         Assert.False(runner.IsConfigured);
-        Assert.Equal(DigestRunResult.Nothing, await runner.RunOnceAsync());
+        Assert.False((await runner.RunOnceAsync()).Composed);
     }
 
     [Fact]
@@ -111,12 +133,13 @@ public class DigestRunnerTests
         var result = await runner.RunOnceAsync();
 
         Assert.False(result.Composed);
-        Assert.Null(composer.Received);
-        Assert.Null(await digests.GetLatestAsync());
+        Assert.Empty(composer.Received);
+        Assert.Null(await digests.GetLatestAsync(DigestScope.Overall));
     }
 
+    // 興味トピックを選んでいない状態。全体のサマリーだけが作られること
     [Fact]
-    public async Task 直近の話題からダイジェストを生成して保存する()
+    public async Task 興味トピックが未設定なら全体のサマリーだけ作る()
     {
         var composer = new StubComposer();
         var articles = new InMemoryArticleStore();
@@ -128,28 +151,59 @@ public class DigestRunnerTests
 
         var result = await runner.RunOnceAsync();
 
-        Assert.True(result.Composed);
-        Assert.Equal(1, result.Items);
-        Assert.NotNull(await digests.GetLatestAsync());
-        Assert.Contains(
-            composer.Received!.TrendingArticles, article => article.Title == "話題の記事");
+        var part = Assert.Single(result.Parts);
+        Assert.Equal(DigestScope.Overall, part.Scope);
+        Assert.Equal(1, part.Items);
+        Assert.NotNull(await digests.GetLatestAsync(DigestScope.Overall));
+        Assert.Null(await digests.GetLatestAsync(DigestScope.Interests));
+        Assert.Contains(composer.For(DigestScope.Overall)!.Articles, a => a.Title == "話題の記事");
     }
 
+    // 2本を別々に保存し、通知も範囲ごとに1通ずつ送ること
     [Fact]
-    public async Task 生成できたら通知する()
+    public async Task 興味トピックがあれば2本作って別々に通知する()
     {
+        var (topics, catalog) = await SelectedTopicsAsync();
         var articles = new InMemoryArticleStore();
-        await articles.AddRangeAsync([Article("話題の記事", ArticleKind.Article)]);
+        await articles.AddRangeAsync([
+            Article("話題の記事", ArticleKind.Article),
+            Article("LLMの記事", ArticleKind.Article, "llm"),
+        ]);
+        var digests = new InMemoryDigestStore();
         var notifier = new StubNotifier();
         var runner = Runner(
-            new StubComposer(), articles, new InMemoryEventStore(), new InMemoryTopicStore(),
-            new InMemoryDigestStore(), TopicCatalog.Empty, notifier);
+            new StubComposer(), articles, new InMemoryEventStore(), topics,
+            digests, catalog, notifier);
 
         var result = await runner.RunOnceAsync();
 
-        Assert.Equal(1, notifier.CallCount);
-        Assert.Equal(1, result.Notified);
-        Assert.Equal(0, result.NotifyFailed);
+        Assert.Equal(
+            [DigestScope.Overall, DigestScope.Interests],
+            result.Parts.Select(part => part.Scope));
+        Assert.Equal(2, result.Notified);
+        Assert.Equal([DigestScope.Overall, DigestScope.Interests], notifier.Notified);
+        Assert.NotNull(await digests.GetLatestAsync(DigestScope.Overall));
+        Assert.NotNull(await digests.GetLatestAsync(DigestScope.Interests));
+    }
+
+    // 全体のサマリーは「興味トピック関係なし」。材料にトピックもイベントも混ぜない
+    [Fact]
+    public async Task 全体のサマリーの材料は興味トピックに依らない()
+    {
+        var (topics, catalog) = await SelectedTopicsAsync();
+        var articles = new InMemoryArticleStore();
+        await articles.AddRangeAsync([Article("LLMの記事", ArticleKind.Article, "llm")]);
+        var events = new InMemoryEventStore();
+        await events.AddRangeAsync([Event()]);
+
+        var composer = new StubComposer();
+        var runner = Runner(composer, articles, events, topics, new InMemoryDigestStore(), catalog);
+
+        await runner.RunOnceAsync();
+
+        var overall = composer.For(DigestScope.Overall)!;
+        Assert.Empty(overall.SelectedTopics);
+        Assert.Empty(overall.UpcomingEvents);
     }
 
     [Fact]
@@ -166,7 +220,7 @@ public class DigestRunnerTests
 
         Assert.True(result.Composed);
         Assert.Equal(1, result.NotifyFailed);
-        Assert.NotNull(await digests.GetLatestAsync());
+        Assert.NotNull(await digests.GetLatestAsync(DigestScope.Overall));
     }
 
     [Fact]
@@ -186,40 +240,31 @@ public class DigestRunnerTests
     public async Task 興味トピックは配下込みで記事とイベントに当てる()
     {
         // 親(生成AI)だけを選んでも、子(LLM)のタグしか持たない記事・イベントが材料に入る
-        var catalog = new TopicCatalog([
-            new TopicCatalogEntry("生成AI", [], null),
-            new TopicCatalogEntry("LLM", [], "生成AI"),
-        ]);
-        var topics = new InMemoryTopicStore();
-        await topics.UpsertAsync([new Topic { Key = "生成ai", Display = "生成AI" }], Now);
-        await topics.UpdateSelectionAsync(["生成ai"]);
-
+        var (topics, catalog) = await SelectedTopicsAsync();
         var articles = new InMemoryArticleStore();
         await articles.AddRangeAsync([Article("LLMの記事", ArticleKind.Article, "llm")]);
         var events = new InMemoryEventStore();
-        await events.AddRangeAsync([new TechEvent
-        {
-            Title = "LLM勉強会",
-            Url = new Uri("https://example.com/llm-event"),
-            SourceName = "connpass",
-            StartsAt = Now.AddDays(3),
-            Tags = ["llm"],
-            CollectedAt = Now,
-        }]);
+        await events.AddRangeAsync([Event()]);
 
         var composer = new StubComposer();
-        var runner = Runner(
-            composer, articles, events, topics, new InMemoryDigestStore(), catalog);
+        var runner = Runner(composer, articles, events, topics, new InMemoryDigestStore(), catalog);
 
         await runner.RunOnceAsync();
 
-        Assert.NotNull(composer.Received);
-        Assert.Contains(composer.Received!.UpcomingEvents, e => e.Title == "LLM勉強会");
-        Assert.Equal(["生成AI"], composer.Received.SelectedTopics);
-        // 記事は「直近の話題」と「興味トピック」のどちらかに入っていればよい
-        // (話題度上位に入った分は興味側から除く実装のため)
-        Assert.Contains(
-            composer.Received.TrendingArticles.Concat(composer.Received.InterestArticles),
-            article => article.Title == "LLMの記事");
+        var interests = composer.For(DigestScope.Interests);
+        Assert.NotNull(interests);
+        Assert.Contains(interests!.UpcomingEvents, e => e.Title == "LLM勉強会");
+        Assert.Contains(interests.Articles, article => article.Title == "LLMの記事");
+        Assert.Equal(["生成AI"], interests.SelectedTopics);
     }
+
+    static TechEvent Event() => new()
+    {
+        Title = "LLM勉強会",
+        Url = new Uri("https://example.com/llm-event"),
+        SourceName = "connpass",
+        StartsAt = Now.AddDays(3),
+        Tags = ["llm"],
+        CollectedAt = Now,
+    };
 }

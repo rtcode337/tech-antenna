@@ -5,27 +5,44 @@ using TechAntenna.Core.Topics;
 
 namespace TechAntenna.Web.Services;
 
-/// <summary>ダイジェストを1回生成した結果。</summary>
-/// <param name="Composed">生成したか(材料が無ければ false)。</param>
+/// <summary>サマリー1本分の結果。</summary>
+/// <param name="Scope">守備範囲(全体 / 興味トピック)。</param>
 /// <param name="Items">生成した項目数。</param>
 /// <param name="Notified">通知した先の数。</param>
 /// <param name="NotifyFailed">通知に失敗した先の数(生成自体は成功のまま)。</param>
-public record DigestRunResult(bool Composed, int Items, int Notified = 0, int NotifyFailed = 0)
-{
-    public static readonly DigestRunResult Nothing = new(false, 0);
+public record DigestPart(DigestScope Scope, int Items, int Notified, int NotifyFailed);
 
-    /// <summary>ボタンの隣に出す結果の文言。</summary>
+/// <summary>ダイジェストを1回実行した結果(全体・興味トピックの最大2本)。</summary>
+/// <param name="Parts">生成できたぶんだけ入る。材料が無い範囲は入らない。</param>
+public record DigestRunResult(IReadOnlyList<DigestPart> Parts)
+{
+    public static readonly DigestRunResult Nothing = new([]);
+
+    public bool Composed => Parts.Count > 0;
+
+    public int Items => Parts.Sum(part => part.Items);
+
+    public int Notified => Parts.Sum(part => part.Notified);
+
+    public int NotifyFailed => Parts.Sum(part => part.NotifyFailed);
+
+    /// <summary>ボタンの隣に出す結果の文言。**範囲ごとに出す** ——
+    /// 合計だけだと、興味トピック側が作られなかったことに気づけない。</summary>
     public string Describe() => Composed
-        ? $"今日のサマリーを生成しました({Items} 項目)。"
-            + (Notified > 0 ? " ntfy へ通知しました。" : "")
+        ? "今日のサマリーを生成しました("
+            + string.Join("・", Parts.Select(part => $"{part.Scope.Label()} {part.Items} 項目"))
+            + ")。"
+            + (Notified > 0 ? $" ntfy へ {Notified} 通 通知しました。" : "")
             + (NotifyFailed > 0 ? " 通知に失敗しました(詳細はログ)。" : "")
         : "材料がありません。先にトレンドの収集(と、あれば興味トピック側の収集)を実行してください。";
 }
 
 /// <summary>
-/// 「今日のサマリー」を1件生成する。**材料の選別はここでやる** —— 直近の話題
-/// (話題度上位)・興味トピック(配下込み)に当たる記事・これからのイベントを
-/// 数件ずつに絞って LLM に渡す。全量を渡すとトークンを浪費するうえ、
+/// 「今日のサマリー」を生成する。**1回の実行で2本作る** —— 技術界隈全体
+/// (話題度上位。トピックの選択に依らない)と、興味トピック(選んだトピック配下に
+/// 当たる記事・これからのイベント)。**トピックが1つも選ばれていなければ後者は作らない**。
+///
+/// **材料の選別はここでやる** —— 全量を LLM に渡すとトークンを浪費するうえ、
 /// 選別の基準は LLM ではなくデータ側の知識(話題度・選択)だから。
 /// </summary>
 public class DigestRunner(
@@ -53,35 +70,53 @@ public class DigestRunner(
         var composer = llm.DigestComposer;
         return composer is null
             ? Task.FromResult(DigestRunResult.Nothing)
-            : RunExclusiveAsync(() => ComposeAsync(composer, cancellationToken),
+            : RunExclusiveAsync(() => ComposeAllAsync(composer, cancellationToken),
                 DigestRunResult.Nothing, cancellationToken);
     }
 
-    async Task<DigestRunResult> ComposeAsync(
+    async Task<DigestRunResult> ComposeAllAsync(
         IDigestComposer composer, CancellationToken cancellationToken)
     {
-        var materials = await CollectMaterialsAsync(cancellationToken);
-        if (materials.IsEmpty)
+        var parts = new List<DigestPart>();
+
+        // 全体 → 興味トピックの順に作る。**片方の材料が無くても、もう片方は作る** ——
+        // トレンドの収集だけ済んでいる日と、興味トピック側だけ動いた日のどちらもあるため
+        foreach (var materials in await CollectMaterialsAsync(cancellationToken))
         {
-            return DigestRunResult.Nothing;
+            if (materials.IsEmpty)
+            {
+                continue;
+            }
+
+            parts.Add(await ComposeOneAsync(composer, materials, cancellationToken));
         }
 
-        Progress = "LLM でダイジェストを生成中…";
+        return parts.Count == 0 ? DigestRunResult.Nothing : new DigestRunResult(parts);
+    }
+
+    async Task<DigestPart> ComposeOneAsync(
+        IDigestComposer composer, DigestMaterials materials, CancellationToken cancellationToken)
+    {
+        var scope = materials.Scope;
+
+        Progress = $"LLM でダイジェストを生成中…({scope.Label()})";
         var digest = await composer.ComposeAsync(materials, cancellationToken);
         await digestStore.SaveAsync(digest, cancellationToken);
 
         logger.LogInformation(
-            "{Composer}: ダイジェストを生成({Items} 項目)", composer.Name, digest.Items.Count);
+            "{Composer}: ダイジェストを生成({Scope}・{Items} 項目)",
+            composer.Name, scope, digest.Items.Count);
 
         // 通知は保存の後・失敗しても生成は成功のまま —— 通知先(ntfy)が落ちていることと、
-        // ダイジェストが作れたことは別の話。失敗はログと結果の文言に出す
+        // ダイジェストが作れたことは別の話。失敗はログと結果の文言に出す。
+        // **範囲ごとに1通ずつ送る**(まとめて1通にしない —— 読み分けられなくなる)
         var notified = 0;
         var notifyFailed = 0;
         foreach (var notifier in _notifiers)
         {
             try
             {
-                Progress = $"{notifier.Name} へ通知中…";
+                Progress = $"{notifier.Name} へ通知中…({scope.Label()})";
                 // 未設定・無効の通知先は false を返す(送っていないので数えない)
                 if (await notifier.NotifyAsync(digest, cancellationToken))
                 {
@@ -95,14 +130,20 @@ public class DigestRunner(
             catch (Exception ex)
             {
                 notifyFailed++;
-                logger.LogError(ex, "{Notifier} への通知に失敗", notifier.Name);
+                logger.LogError(ex, "{Notifier} への通知に失敗({Scope})", notifier.Name, scope);
             }
         }
 
-        return new DigestRunResult(true, digest.Items.Count, notified, notifyFailed);
+        return new DigestPart(scope, digest.Items.Count, notified, notifyFailed);
     }
 
-    async Task<DigestMaterials> CollectMaterialsAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// 2本ぶんの材料を集める。**興味トピックが1つも選ばれていなければ、その1本は作らない**
+    /// (返す配列に入れない)—— 材料が空なら結局書けないうえ、「興味トピックのサマリーが
+    /// 空です」という枠だけがホームに残ることになるため。
+    /// </summary>
+    async Task<IReadOnlyList<DigestMaterials>> CollectMaterialsAsync(
+        CancellationToken cancellationToken)
     {
         var settings = options.Value;
         var now = clock.GetUtcNow();
@@ -127,32 +168,37 @@ public class DigestRunner(
                 .Take(perKind));
         }
 
-        // 興味トピックに当たる直近の記事。話題度上位と重複した分は外す
-        // (同じ記事を2つの節で渡すと、LLM が2項目に割りがちになる)
-        var trendingUrls = trending.Select(a => a.Url).ToHashSet();
-        var interest = interestKeys.Count == 0
-            ? []
-            : (await articleStore.GetRecentAsync(100, null, cancellationToken))
-                .Where(a => (a.PublishedAt ?? a.CollectedAt) >= threshold)
-                .Where(a => !trendingUrls.Contains(a.Url))
-                .Where(a => a.Tags.Any(interestKeys.Contains))
-                .Take(settings.InterestCount)
-                .ToList();
+        var overall = new DigestMaterials(DigestScope.Overall, trending, [], []);
+        if (interestKeys.Count == 0)
+        {
+            return [overall];
+        }
+
+        // 興味トピックに当たる直近の記事。**話題度上位と重なっていても外さない** ——
+        // 別々のサマリーに渡すので、全体で触れた記事が興味トピック側にも要ることがある
+        // (むしろ「自分の関心でも大きい話」なので落とすほうが不自然)
+        var interest = (await articleStore.GetRecentAsync(100, null, cancellationToken))
+            .Where(a => (a.PublishedAt ?? a.CollectedAt) >= threshold)
+            .Where(a => a.Tags.Any(interestKeys.Contains))
+            .Take(settings.InterestCount)
+            .ToList();
 
         // これからのイベント(興味トピックのもの)。/events と同じ絞り
         var horizon = now.AddDays(settings.EventWindowDays);
-        var events = interestKeys.Count == 0
-            ? []
-            : (await eventStore.GetUpcomingAsync(now, 50, cancellationToken))
-                .Where(e => e.StartsAt <= horizon)
-                .Where(e => e.Tags.Any(interestKeys.Contains))
-                .Take(settings.EventCount)
-                .ToList();
+        var events = (await eventStore.GetUpcomingAsync(now, 50, cancellationToken))
+            .Where(e => e.StartsAt <= horizon)
+            .Where(e => e.Tags.Any(interestKeys.Contains))
+            .Take(settings.EventCount)
+            .ToList();
 
-        return new DigestMaterials(
-            trending,
-            interest,
-            events,
-            selected.Select(topic => topic.Display).ToList());
+        return
+        [
+            overall,
+            new DigestMaterials(
+                DigestScope.Interests,
+                interest,
+                events,
+                selected.Select(topic => topic.Display).ToList()),
+        ];
     }
 }

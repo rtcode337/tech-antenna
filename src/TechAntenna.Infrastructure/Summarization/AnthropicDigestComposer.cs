@@ -23,7 +23,7 @@ public class AnthropicDigestComposer(string apiKey, string model, TimeProvider c
             {
                 Model = model,
                 MaxTokens = 4096,
-                System = DigestPrompt.System
+                System = DigestPrompt.SystemFor(materials.Scope)
                     + "応答は指定の JSON だけを出力する。前置きも説明も書かない。"
                     + "形式: " + DigestPrompt.Schema,
                 Messages =

@@ -16,60 +16,16 @@
             <p>記事・イベント・書籍を、あなたの関心からつなげます。</p>
         </header>
 
-        <section class="summary-card" aria-labelledby="summary-heading">
-            <div class="section-heading">
-                <div>
-                    <p class="eyebrow">DAILY SUMMARY</p>
-                    <h2 id="summary-heading">今日のサマリー</h2>
-                </div>
-                @if (_digest is not null)
-                {
-                    @* 生成時刻を出す —— 定期実行でも手動でも、いつの状況の
-                       まとめなのかが分からないと鵜呑みにできない *@
-                    <span class="status-pill">@JapanTime.FormatShort(_digest.GeneratedAt) 生成</span>
-                }
-                else
-                {
-                    <span class="status-pill">未生成</span>
-                }
-            </div>
-            @if (_digest is null)
-            {
-                <div class="summary-placeholder">
-                    <span aria-hidden="true">✦</span>
-                    <p>
-                        収集した情報と興味トピックから、押さえておくべき情報を LLM がまとめます。
-                        <a href="/settings">設定</a>の「今日のサマリーの生成」で作れます
-                        (LLM の設定が必要です。同じ画面の「定期実行」で時刻を決めておくこともできます)。
-                    </p>
-                </div>
-            }
-            else
-            {
-                @if (_digest.Lead is { Length: > 0 })
-                {
-                    <p class="digest-lead">@_digest.Lead</p>
-                }
-                <ul class="digest-items list-unstyled">
-                    @foreach (var item in _digest.Items)
-                    {
-                        <li>
-                            <strong>@item.Title</strong>
-                            <p>
-                                @item.Body
-                                @if (item.Url is { Length: > 0 } url)
-                                {
-                                    <a href="@url" target="_blank" rel="noopener">出典 →</a>
-                                }
-                            </p>
-                        </li>
-                    }
-                </ul>
-                <p class="digest-meta">
-                    @_digest.GeneratorName で生成。再生成は<a href="/settings">設定</a>から。
-                </p>
-            }
-        </section>
+        @* **サマリーは2枚に分ける。** 界隈全体と自分の興味では読む目的が違い、
+           1枚にまとめると興味の話が全体の話に埋もれる(通知も別々に届く)。
+           興味トピックのほうは**トピックを選んでいなければ出さない** ——
+           生成もされないので、空の枠だけ置いても案内にならない *@
+        @SummaryCard(DigestScope.Overall, "DAILY SUMMARY", "overall")
+
+        @if (_interests is not null || _hasSelectedTopics)
+        {
+            @SummaryCard(DigestScope.Interests, "YOUR INTERESTS", "interests")
+        }
 
     </div>
 
@@ -114,9 +70,99 @@
     </aside>
 </div>
 
+@* サマリー1枚。中身は範囲によらず同じ形なので、見出しと文言だけ差し替える *@
+@{
+    RenderFragment SummaryCard(DigestScope scope, string eyebrow, string id) =>
+    @<text>
+        <section class="summary-card" aria-labelledby="summary-heading-@id">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">@eyebrow</p>
+                    <h2 id="summary-heading-@id">今日のサマリー<small>@scope.Label()</small></h2>
+                </div>
+                @{
+                    var digest = Latest(scope);
+                }
+                @if (digest is not null)
+                {
+                    @* 生成時刻を出す —— 定期実行でも手動でも、いつの状況の
+                       まとめなのかが分からないと鵜呑みにできない。**2枚は別々に作られる**
+                       (材料が無い日は片方だけ)ので、時刻も枚数ぶん出す *@
+                    <span class="status-pill">@JapanTime.FormatShort(digest.GeneratedAt) 生成</span>
+                }
+                else
+                {
+                    <span class="status-pill">未生成</span>
+                }
+            </div>
+            @if (digest is null)
+            {
+                <div class="summary-placeholder">
+                    <span aria-hidden="true">✦</span>
+                    <p>
+                        @if (scope == DigestScope.Interests)
+                        {
+                            <text>
+                                選んだ<a href="/settings/topics">興味トピック</a>に当たる記事とイベントから、
+                                あなた向けのまとめを LLM が作ります。
+                            </text>
+                        }
+                        else
+                        {
+                            <text>
+                                トピックの選択に関係なく、話題になっている記事・ニュース・論文から
+                                技術界隈の動きを LLM がまとめます。
+                            </text>
+                        }
+                        <a href="/settings">設定</a>の「今日のサマリーの生成」で作れます
+                        (LLM の設定が必要です。同じ画面の「定期実行」で時刻を決めておくこともできます)。
+                    </p>
+                </div>
+            }
+            else
+            {
+                @if (digest.Lead is { Length: > 0 })
+                {
+                    <p class="digest-lead">@digest.Lead</p>
+                }
+                <ul class="digest-items list-unstyled">
+                    @foreach (var item in digest.Items)
+                    {
+                        <li>
+                            <strong>@item.Title</strong>
+                            <p>
+                                @item.Body
+                                @if (item.Url is { Length: > 0 } url)
+                                {
+                                    <a href="@url" target="_blank" rel="noopener">出典 →</a>
+                                }
+                            </p>
+                        </li>
+                    }
+                </ul>
+                <p class="digest-meta">
+                    @digest.GeneratorName で生成。再生成は<a href="/settings">設定</a>から。
+                </p>
+            }
+        </section>
+    </text>;
+}
+
 @code {
     IReadOnlyList<Topic>? _topics;
-    Digest? _digest;
+
+    /// <summary>技術界隈全体のサマリー(最新の1件)。</summary>
+    Digest? _overall;
+
+    /// <summary>興味トピックのサマリー(最新の1件)。トピック未選択なら作られないので null のまま。</summary>
+    Digest? _interests;
+
+    /// <summary>興味トピックが1つでも選ばれているか。**未生成の枠を出すかの判断に使う** ——
+    /// 選んでいなければ生成もされないので、枠ごと出さない。</summary>
+    bool _hasSelectedTopics;
+
+    /// <summary>範囲に対応する最新の1件(枚ごとの描画から引く)。</summary>
+    Digest? Latest(DigestScope scope) => scope == DigestScope.Interests ? _interests : _overall;
 
     /// <summary>ホームに並べるトピックの数。</summary>
     const int Limit = 10;
@@ -136,7 +182,9 @@
             .ThenBy(topic => topic.Key, StringComparer.Ordinal)
             .Take(Limit)
             .ToList();
-        // 出すのは最新の1件だけ(履歴は保存してあるが、ホームは「いま」に答える場所)
-        _digest = await DigestStore.GetLatestAsync();
+        // 出すのは範囲ごとに最新の1件だけ(履歴は保存してあるが、ホームは「いま」に答える場所)
+        _overall = await DigestStore.GetLatestAsync(DigestScope.Overall);
+        _interests = await DigestStore.GetLatestAsync(DigestScope.Interests);
+        _hasSelectedTopics = (await TopicStore.GetSelectedAsync()).Count > 0;
     }
 }

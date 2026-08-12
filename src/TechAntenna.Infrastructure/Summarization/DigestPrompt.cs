@@ -13,15 +13,32 @@ namespace TechAntenna.Infrastructure.Summarization;
 /// </summary>
 public static class DigestPrompt
 {
-    public const string System =
-        "あなたは技術情報のダイジェストを書く編集者。渡された材料(直近の話題・" +
-        "興味トピックの記事・これからのイベント)から、読者が押さえておくべきものを選び、" +
-        "日本語で短いダイジェストを書く。" +
+    /// <summary>どちらの守備範囲でも変わらない書き方の指示(体裁・出典の扱い)。</summary>
+    const string Common =
         "lead は全体の導入1〜2文。items は3〜6項目で、各項目は title(見出し1行)と " +
         "body(2〜3文。なぜ押さえるべきかまで書く)。" +
         "似た話題の記事は1項目にまとめてよい。" +
         "url には**その項目の根拠にした材料の URL をそのまま写す**(複数あれば代表1つ。" +
         "材料に無い URL を作らない)。材料に書かれていないことを補わない。";
+
+    /// <summary>
+    /// 守備範囲ごとの指示文。**2本を別々の目で書かせる** —— 同じ指示で材料だけ変えると、
+    /// どちらも「話題の総ざらい」になって読み分けられない。全体は界隈の動き、
+    /// 興味トピックは読者の関心に引きつけて書かせる。
+    /// </summary>
+    public static string SystemFor(DigestScope scope) => scope switch
+    {
+        DigestScope.Interests =>
+            "あなたは技術情報のダイジェストを書く編集者。" +
+            "渡された材料(読者の興味トピックに当たる記事・これからのイベント)から、" +
+            "**その読者が押さえておくべきもの**を選び、日本語で短いダイジェストを書く。" +
+            "**読者の興味トピックとの関係が分かるように書く**(どのトピックの話なのか、" +
+            "何をすればよいのか)。界隈全体の一般論には広げない。" + Common,
+        _ =>
+            "あなたは技術情報のダイジェストを書く編集者。渡された材料(直近の話題)から、" +
+            "**技術界隈全体としていま押さえておくべきもの**を選び、日本語で短いダイジェストを書く。" +
+            "特定の読者の好みには寄せず、界隈で何が動いているかを書く。" + Common,
+    };
 
     /// <summary>
     /// 構造化出力のスキーマ。url は空文字で「無し」を表す(nullable にすると
@@ -40,7 +57,7 @@ public static class DigestPrompt
     /// <summary>画面が破綻しないよう、応答の項目数はここで打ち切る(指示だけに任せない)。</summary>
     public const int MaxItems = 8;
 
-    /// <summary>材料をまとめた入力を組み立てる。</summary>
+    /// <summary>材料をまとめた入力を組み立てる。見出しは守備範囲で変える。</summary>
     public static string ForMaterials(DigestMaterials materials)
     {
         var builder = new StringBuilder();
@@ -52,8 +69,12 @@ public static class DigestPrompt
             builder.AppendLine();
         }
 
-        AppendArticles(builder, "## 直近の話題(話題度の高い順)", materials.TrendingArticles);
-        AppendArticles(builder, "## 興味トピックに当たる直近の記事", materials.InterestArticles);
+        AppendArticles(
+            builder,
+            materials.Scope == DigestScope.Interests
+                ? "## 興味トピックに当たる直近の記事"
+                : "## 直近の話題(話題度の高い順)",
+            materials.Articles);
 
         if (materials.UpcomingEvents.Count > 0)
         {
@@ -137,8 +158,7 @@ public static class DigestPrompt
         string generatorName,
         DateTimeOffset generatedAt)
     {
-        var knownUrls = materials.TrendingArticles.Select(a => a.Url.ToString())
-            .Concat(materials.InterestArticles.Select(a => a.Url.ToString()))
+        var knownUrls = materials.Articles.Select(a => a.Url.ToString())
             .Concat(materials.UpcomingEvents.Select(e => e.Url.ToString()))
             .ToHashSet(StringComparer.Ordinal);
 
@@ -176,6 +196,7 @@ public static class DigestPrompt
 
         return new Digest
         {
+            Scope = materials.Scope,
             GeneratedAt = generatedAt,
             Lead = lead?.Trim() ?? "",
             Items = items,

@@ -15,11 +15,13 @@ public class EfDigestStore(IDbContextFactory<TechAntennaDbContext> contextFactor
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<Digest?> GetLatestAsync(CancellationToken cancellationToken = default)
+    public async Task<Digest?> GetLatestAsync(
+        DigestScope scope, CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         return await db.Digests
+            .Where(d => d.Scope == scope)
             .OrderByDescending(d => d.GeneratedAt)
             .FirstOrDefaultAsync(cancellationToken);
     }

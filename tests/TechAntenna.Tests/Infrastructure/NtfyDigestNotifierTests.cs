@@ -9,8 +9,11 @@ public class NtfyDigestNotifierTests
 {
     static readonly DateTimeOffset Now = new(2026, 8, 9, 12, 0, 0, TimeSpan.Zero);
 
-    static Digest Digest(params DigestItem[] items) => new()
+    static Digest Digest(params DigestItem[] items) => Digest(DigestScope.Overall, items);
+
+    static Digest Digest(DigestScope scope, params DigestItem[] items) => new()
     {
+        Scope = scope,
         GeneratedAt = Now,
         Lead = "今日は生成AIの話題が中心。",
         Items = items,
@@ -85,6 +88,30 @@ public class NtfyDigestNotifierTests
         // 日本語のタイトルをヘッダではなく JSON で送る(RFC 2047 エンコード不要)のが要点
         Assert.Contains("今日のサマリー", doc.RootElement.GetProperty("title").GetString());
         Assert.Equal("https://home.example.com/", doc.RootElement.GetProperty("click").GetString());
+    }
+
+    // 1回の生成で2通届くので、通知面(本文が畳まれた状態)で見分けられること
+    [Fact]
+    public async Task 守備範囲はタイトルとタグに出す()
+    {
+        var handler = new RecordingHandler();
+        var notifier = new NtfyDigestNotifier(
+            new SingleClientFactory(handler),
+            () => new NtfyTarget("https://ntfy.example.com", "t", null, null));
+
+        await notifier.NotifyAsync(
+            Digest(DigestScope.Interests, new DigestItem("見出し", "本文。", null)));
+
+        using var interests = JsonDocument.Parse(handler.Body!);
+        Assert.Contains("興味トピック", interests.RootElement.GetProperty("title").GetString());
+        Assert.Equal("dart", interests.RootElement.GetProperty("tags")[0].GetString());
+
+        await notifier.NotifyAsync(
+            Digest(DigestScope.Overall, new DigestItem("見出し", "本文。", null)));
+
+        using var overall = JsonDocument.Parse(handler.Body!);
+        Assert.Contains("技術界隈全体", overall.RootElement.GetProperty("title").GetString());
+        Assert.Equal("newspaper", overall.RootElement.GetProperty("tags")[0].GetString());
     }
 
     [Fact]

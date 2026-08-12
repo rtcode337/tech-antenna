@@ -1,12 +1,44 @@
 namespace TechAntenna.Core.Models;
 
 /// <summary>
-/// 「今日のサマリー」1回分。収集した情報と興味トピックをもとに LLM がまとめた、
-/// 押さえておくべき情報のダイジェスト。ホームに最新の1件を出す。
+/// サマリーの守備範囲。**1回の生成で2本作る** —— 「界隈で何が起きたか」と
+/// 「自分の興味に何があったか」は読む目的が違い、1本にまとめると興味の話が
+/// 全体の話に埋もれる。通知も別々に届いたほうが、読む・読み飛ばすを選べる。
+/// </summary>
+public enum DigestScope
+{
+    /// <summary>技術界隈全体。**興味トピックの選択に依らず**、話題度の高いものだけで作る。</summary>
+    Overall,
+
+    /// <summary>興味トピック。選んだトピックに当たる記事・イベントだけで作る
+    /// (**トピックが1つも選ばれていなければ作らない**)。</summary>
+    Interests,
+}
+
+public static class DigestScopes
+{
+    /// <summary>
+    /// 画面・通知・結果の文言に出す名前。**1か所から出す** ——
+    /// 表記が割れると、同じサマリーが画面と通知で別物に見えるため。
+    /// </summary>
+    public static string Label(this DigestScope scope) => scope switch
+    {
+        DigestScope.Interests => "興味トピック",
+        _ => "技術界隈全体",
+    };
+}
+
+/// <summary>
+/// 「今日のサマリー」1本分。収集した情報をもとに LLM がまとめた、押さえておくべき
+/// 情報のダイジェスト。**守備範囲(<see cref="DigestScope"/>)ごとに最新の1件**を
+/// ホームに出す。
 /// </summary>
 public class Digest
 {
     public Guid Id { get; init; } = Guid.NewGuid();
+
+    /// <summary>守備範囲(全体 / 興味トピック)。ホームと通知はこれで出し分ける。</summary>
+    public required DigestScope Scope { get; init; }
 
     /// <summary>生成した日時(UTC)。最新の1件を選ぶキー。</summary>
     public required DateTimeOffset GeneratedAt { get; init; }

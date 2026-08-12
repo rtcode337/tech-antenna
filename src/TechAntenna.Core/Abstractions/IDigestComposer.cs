@@ -7,18 +7,20 @@ namespace TechAntenna.Core.Abstractions;
 /// 渡すとトークンを浪費するうえ、選別の基準(話題度・興味トピック)はデータ側の知識なので
 /// プロンプトに埋めるより集める側に置くほうが検証できる。
 /// </summary>
-/// <param name="TrendingArticles">直近の話題(ニュース・記事・話題の論文の話題度上位)。</param>
-/// <param name="InterestArticles">興味トピック(配下込み)に当たる直近の記事。</param>
-/// <param name="UpcomingEvents">これから開催されるイベント(興味トピックのもの)。</param>
-/// <param name="SelectedTopics">収集対象に選んだトピックの表記。読者の関心として LLM に伝える。</param>
+/// <param name="Scope">この材料で書くサマリーの守備範囲。**材料と一緒に持ち回る** ——
+/// 指示文・通知のタイトル・保存先の出し分けが、材料の選び方と1対1で決まるため。</param>
+/// <param name="Articles">材料にする記事。全体は話題度の高い順、
+/// 興味トピックは選んだトピック(配下込み)に当たるもの。</param>
+/// <param name="UpcomingEvents">これから開催されるイベント(興味トピックのときだけ)。</param>
+/// <param name="SelectedTopics">収集対象に選んだトピックの表記(興味トピックのときだけ)。
+/// 読者の関心として LLM に伝える。</param>
 public record DigestMaterials(
-    IReadOnlyList<Article> TrendingArticles,
-    IReadOnlyList<Article> InterestArticles,
+    DigestScope Scope,
+    IReadOnlyList<Article> Articles,
     IReadOnlyList<TechEvent> UpcomingEvents,
     IReadOnlyList<string> SelectedTopics)
 {
-    public bool IsEmpty =>
-        TrendingArticles.Count == 0 && InterestArticles.Count == 0 && UpcomingEvents.Count == 0;
+    public bool IsEmpty => Articles.Count == 0 && UpcomingEvents.Count == 0;
 }
 
 /// <summary>

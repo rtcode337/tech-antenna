@@ -56,9 +56,13 @@ public class NtfyDigestNotifier(
             Content = JsonContent.Create(new
             {
                 topic = target.Topic,
-                title = $"今日のサマリー({JapanTime.FormatShort(digest.GeneratedAt)} 生成)",
+                // **守備範囲をタイトルに入れる。** 1回の生成で2通届くので、
+                // 通知面(本文が畳まれた状態)でどちらのサマリーか見分けられないと読み分けられない
+                title = $"今日のサマリー・{digest.Scope.Label()}"
+                    + $"({JapanTime.FormatShort(digest.GeneratedAt)} 生成)",
                 message = BuildMessage(digest),
-                tags = new[] { "newspaper" },
+                // 絵文字も範囲で変える(ntfy は tag を絵文字にして通知の頭に出す)
+                tags = new[] { digest.Scope == DigestScope.Interests ? "dart" : "newspaper" },
                 // click はホームの URL(設定されているときだけ)。アプリは自分の公開 URL を
                 // 知らないので、設定から渡してもらう
                 click = string.IsNullOrWhiteSpace(target.ClickUrl) ? null : target.ClickUrl,
