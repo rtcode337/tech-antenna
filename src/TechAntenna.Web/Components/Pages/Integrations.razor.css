@@ -71,3 +71,15 @@ td.secret-cell button + button {
 code {
     font-size: 0.82rem;
 }
+
+/* コピーのボタンは JS が動いたときだけ出す(copy-field.js が hidden を外す)。
+   .btn の display が UA の [hidden] に勝ってしまうので、ここで明示的に消す。
+   幅を決め打つのは、押した直後のラベル(コピー済み)で表の列幅が動かないようにするため */
+td.secret-cell .copy-field {
+    min-width: 6.2rem;
+    justify-content: center;
+}
+
+td.secret-cell .copy-field[hidden] {
+    display: none;
+}

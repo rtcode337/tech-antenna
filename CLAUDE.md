@@ -218,6 +218,14 @@ docker run --rm -v "$PWD":/src -w /src -e HOME=/tmp mcr.microsoft.com/dotnet/sdk
 いないし、キーの要否は収集元ごとの事情(申請の要不要・無料枠)で決まるため自動生成できない。
 **外部 API を足したらここにも1行足すこと**(キーがあるなら `EditableSecrets` にも)。
 画面に出すのは**キーの有無だけ**で、値は長さも先頭数文字も出さない。
+**例外は秘匿値でないキー**(`EditableSecret.Sensitive: false` —— ntfy のベース URL・
+トピック名)で、保存済みの値を入力欄に出し、隣の「コピー」で写せる ——
+設定ミスに気づけないほうが害が大きく、トピック名は購読する端末へ渡すために要るため。
+コピーは JS の上乗せ(`wwwroot/copy-field.js`。ボタンは `hidden` で描き、JS が外す)で、
+**動かなくても値は見えているので手で選んでコピーできる**。
+**自分で決めてよい値は「生成」で作れる**(`EditableSecret.Generate`。今は ntfy の
+トピック名だけ)。**作るのは入力欄までで保存はしない** —— 押し直して選び直せるし、
+設定済みのトピックを 1 クリックで置き換えてしまわないため。
 
 **キーの設定の入口は同じ画面の「キーの設定」列だけ**(`ApiCredentials`)。値は Data
 Protection で暗号化して DB の `Secrets` へ保存し(平文は置かない。詳細は
@@ -997,8 +1005,10 @@ Anthropic 公式 .NET SDK(NuGet `Anthropic`)経由で Messages API を呼ぶ。�
   材料が 1 件も無いときは LLM を呼ばずに止まり、ボタンの隣にそう出る
 
 生成したサマリーは **ntfy へ通知できる**(`NtfyDigestNotifier` / `IDigestNotifier`)。
-接続先(ベース URL・トピック名・トークン)は**外部連携の画面から設定**し、通知は
-**トピック名があるときだけ**送る —— ベース URL は未設定なら `https://ntfy.sh` が既定
+接続先(ベース URL・トピック名・トークン)は**外部連携の画面から設定**し(トピック名は
+同じ画面の「生成」で作れる —— `NtfySettings.GenerateTopic`。**ntfy.sh のトピック名は
+知っていれば誰でも購読・投稿できる**ので、`RandomNumberGenerator` で 80 bit 相当を作り、
+見間違えやすい文字は使わない)、通知は**トピック名があるときだけ**送る —— ベース URL は未設定なら `https://ntfy.sh` が既定
 (`NtfySettings.DefaultBaseUrl`)。通知先は送信のたびに解決するので DI には常に登録され、
 未設定なら送らずに済ませる(`NotifyAsync` が false を返し、結果の「通知しました」に
 数えない)。**通知のオン/オフは接続先とは独立**で、設定画面(`/settings`)の

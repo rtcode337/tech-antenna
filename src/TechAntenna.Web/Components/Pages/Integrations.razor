@@ -9,7 +9,9 @@
 
 <p class="text-muted">
     どこから何を集めていて、キーが要るのか・設定できているのかをまとめています。
-    <strong>キーの値そのものは表示しません</strong>(有無だけを見ています)。
+    <strong>キー・トークンの値そのものは表示しません</strong>(有無だけを見ています)。
+    秘匿値でないもの(ntfy のベース URL・トピック名)だけは、保存済みの値を入力欄に出して
+    <strong>「コピー」で写せます</strong>。
     キーは各表の<strong>「キーの設定」列</strong>から入れます —— 暗号化して DB に保存され、
     再起動なしですぐ効きます。<strong>設定の入口はこの画面だけ</strong>で、
     環境変数や .env では渡せません(実値をリポジトリや設定ファイルに置かないため)。
@@ -97,18 +99,43 @@ else if (_secretMessage is { Length: > 0 })
                             {
                                 var editable = IntegrationCatalog.EditableSecrets
                                     .First(secret => secret.SecretName == secretName);
+                                @* 入力欄に出す値。「生成」で作った値はまだ保存していないので、
+                                   保存済みの値より優先して見せる(保存を押すまでは効かない) *@
+                                var shown = editable.Sensitive
+                                    ? null
+                                    : _generated.GetValueOrDefault(secretName) ?? Credentials.Get(secretName);
                                 <div class="secret-row">
                                     @if (secretNames.Count > 1)
                                     {
                                         <span class="secret-label text-muted">@editable.Label</span>
                                     }
-                                    @* 値は入力欄に受けるだけで画面に残さない。ブラウザにも覚えさせない。
-                                       秘匿値でないもの(URL 等)は打った値が見えるほうが打ち間違いに気づける *@
+                                    @* 秘匿値は入力欄に受けるだけで画面に残さない。ブラウザにも覚えさせない。
+                                       秘匿値でないもの(ntfy の URL・トピック名)は**保存済みの値を出す** ——
+                                       打った値が見えるほうが打ち間違いに気づけるし、後から
+                                       「今どこへ通知しているのか」を確かめる先がこの画面しかないため *@
                                     <input type="@(editable.Sensitive ? "password" : "text")"
+                                           id="value-@((int)axis)-@secretName"
                                            name="value-@((int)axis)-@secretName"
+                                           value="@shown"
                                            autocomplete="@(editable.Sensitive ? "new-password" : "off")"
                                            placeholder="@(editable.Hint ?? "新しい値")"
                                            aria-label="@editable.Label" />
+                                    @* コピーは JS の上乗せ(hidden で描き copy-field.js が出す)。
+                                       ntfy のトピック名を購読側の端末へ渡すのに要る *@
+                                    @if (!editable.Sensitive && Credentials.Has(secretName))
+                                    {
+                                        <button type="button" hidden
+                                                data-copy-target="value-@((int)axis)-@secretName"
+                                                class="btn btn-outline-secondary btn-sm copy-field">コピー</button>
+                                    }
+                                    @* 自分で決めてよい値(ntfy のトピック名)は乱数で作れる。
+                                       作るだけで保存はしない —— 気に入らなければ押し直せるし、
+                                       設定済みのトピックを1クリックで置き換えてしまわないため *@
+                                    @if (editable.Generate is not null)
+                                    {
+                                        <button type="submit" name="Action" value="generate:@((int)axis):@secretName"
+                                                class="btn btn-outline-secondary btn-sm">生成</button>
+                                    }
                                     <button type="submit" name="Action" value="save:@((int)axis):@secretName"
                                             class="btn btn-outline-primary btn-sm">保存</button>
                                     @if (Credentials.Has(secretName))
@@ -137,6 +164,9 @@ else if (_secretMessage is { Length: > 0 })
     string? _secretMessage;
     string? _secretError;
 
+    /// <summary>「生成」で作ったが、まだ保存していない値(キー → 値)。この 1 リクエストだけ持つ。</summary>
+    readonly Dictionary<string, string> _generated = [];
+
     [CascadingParameter]
     HttpContext? HttpContext { get; set; }
 
@@ -164,6 +194,22 @@ else if (_secretMessage is { Length: > 0 })
         if (editable is null)
         {
             _secretError = "不明なキーです。";
+            return;
+        }
+
+        if (parts[0] == "generate")
+        {
+            if (editable.Generate is null)
+            {
+                _secretError = $"{editable.Label}: このキーは生成できません。";
+                return;
+            }
+
+            // 入力欄に入れるだけで保存はしない(押した人が見てから「保存」を押す)
+            _generated[name] = editable.Generate();
+            _secretError = null;
+            _secretMessage = $"{editable.Label} を作りました。「保存」を押すまでは有効になりません。";
+
             return;
         }
 

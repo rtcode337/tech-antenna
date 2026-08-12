@@ -91,11 +91,16 @@ public class IntegrationCatalog(
     /// <summary>画面から設定できるキーの1件分(外部連携画面の設定フォームの元)。</summary>
     /// <param name="SecretName">ApiCredentials に渡す設定パス。</param>
     /// <param name="Label">フォームに出す名前。</param>
-    /// <param name="Sensitive">秘匿値か。false なら入力欄を伏せ字にしない(ntfy の URL 等。
-    /// ただし保存済みの値を画面に出さないのはどちらも同じ)。</param>
+    /// <param name="Sensitive">秘匿値か。false なら入力欄を伏せ字にせず、
+    /// <b>保存済みの値も入力欄に出してコピーできる</b>(ntfy の URL・トピック名)。
+    /// true のキーは有無だけを画面に出し、値は長さも先頭数文字も出さない。</param>
     /// <param name="Hint">入力欄の placeholder。既定値があるキーはここで示す。</param>
+    /// <param name="Generate">値を自分で作れるキーはここに作り方を渡す(画面に「生成」が出て、
+    /// 押すと入力欄に入る。保存はされないので、気に入らなければ押し直せる)。
+    /// 外部から発行されるキー(API キー・トークン)は null。</param>
     public record EditableSecret(
-        string SecretName, string Label, bool Sensitive = true, string? Hint = null);
+        string SecretName, string Label, bool Sensitive = true, string? Hint = null,
+        Func<string>? Generate = null);
 
     /// <summary>
     /// 画面から設定できるキーの一覧。**外部 API のキーを足したらここにも1行足すこと**
@@ -111,12 +116,15 @@ public class IntegrationCatalog(
         new("Qiita:AccessToken", "Qiita アクセストークン"),
         new(LlmGateway.ClaudeCodeTokenName, "Claude Code OAuth トークン"),
         new(LlmGateway.AnthropicApiKeyName, "Anthropic API キー"),
-        // ntfy の接続先一式。URL とトピック名は秘匿値ではないので伏せ字にしない
-        // (トピック名は ntfy.sh では実質パスワードだが、打った値が見えないと設定ミスに
-        // 気づけないほうが害が大きい。保存済みの値はどのみち表示しない)
+        // ntfy の接続先一式。URL とトピック名は秘匿値ではないので伏せ字にせず、
+        // 保存済みの値も出す(トピック名は ntfy.sh では実質パスワードだが、設定ミスに
+        // 気づけない・購読する端末へ写せないほうが害が大きい)
         new(NtfySettings.BaseUrlName, "ntfy ベース URL", Sensitive: false,
             Hint: $"未設定なら {NtfySettings.DefaultBaseUrl}"),
-        new(NtfySettings.TopicName, "ntfy トピック名", Sensitive: false),
+        // トピック名だけはこちらで決めてよい値なので「生成」を出す(ntfy に登録は要らず、
+        // 好きな名前へ送れば購読側に届く。ただし推測されると誰でも読めるので乱数で作る)
+        new(NtfySettings.TopicName, "ntfy トピック名", Sensitive: false,
+            Generate: NtfySettings.GenerateTopic),
         new(NtfySettings.AccessTokenName, "ntfy アクセストークン(認証ありのときだけ)"),
     ];
     public IReadOnlyList<Integration> GetAll()
