@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""favicon.png / favicon.ico を生成する。
+"""favicon.png / favicon.ico / apple-touch-icon.png / PWA のアイコンを生成する。
 
 絵柄は wwwroot/favicon.svg と同じアンテナ（左上のロゴ = NavMenu.razor の .brand-mark）。
 **形の定義がこのファイルと favicon.svg の 2 か所にある**ので、片方だけ直すと
@@ -47,11 +47,11 @@ MARK_ORIGIN = (12.0, 10.25)
 PLATE_CENTER = (16.0, 16.0)
 
 
-def to_mark_space(x: float, y: float) -> tuple[float, float]:
+def to_mark_space(x: float, y: float, mark_scale: float = MARK_SCALE) -> tuple[float, float]:
     """32 単位のプレート座標 → 24 単位のマーク座標。"""
     return (
-        (x - PLATE_CENTER[0]) / MARK_SCALE + MARK_ORIGIN[0],
-        (y - PLATE_CENTER[1]) / MARK_SCALE + MARK_ORIGIN[1],
+        (x - PLATE_CENTER[0]) / mark_scale + MARK_ORIGIN[0],
+        (y - PLATE_CENTER[1]) / mark_scale + MARK_ORIGIN[1],
     )
 
 
@@ -107,8 +107,16 @@ def over(dst: list[float], rgb: tuple[int, int, int], alpha: float) -> None:
     dst[3] = out_a
 
 
-def render(size: int, plate_radius: float = PLATE_RADIUS) -> bytes:
-    """RGBA の生画素を返す。plate_radius=0 なら角丸なしの全面塗り。"""
+def render(
+    size: int,
+    plate_radius: float = PLATE_RADIUS,
+    mark_scale: float = MARK_SCALE,
+) -> bytes:
+    """RGBA の生画素を返す。plate_radius=0 なら角丸なしの全面塗り。
+
+    mark_scale を下げるとマークだけが小さくなる（プレートの余白が増える）。
+    maskable アイコンは OS が好きな形に切り抜くので、これで安全域へ収める。
+    """
     px = 32.0 / size  # 1 ピクセルがプレート座標で何単位か
     rows = bytearray()
     for iy in range(size):
@@ -127,8 +135,8 @@ def render(size: int, plate_radius: float = PLATE_RADIUS) -> bytes:
                 )
                 over(pixel, rgb, plate)  # type: ignore[arg-type]
 
-            mx, my = to_mark_space(x, y)
-            mark_px = px / MARK_SCALE  # マーク座標系での 1 ピクセル
+            mx, my = to_mark_space(x, y, mark_scale)
+            mark_px = px / mark_scale  # マーク座標系での 1 ピクセル
 
             for radius, side, opacity in WAVES:
                 cov = coverage(sd_arc(mx, my, radius, side) - STROKE_HALF, mark_px)
@@ -186,6 +194,20 @@ def main() -> None:
     # iOS のホーム画面用。角丸は OS がかけるので、こちらで丸めると二重に丸まって縁が痩せる
     (out / "apple-touch-icon.png").write_bytes(png(180, render(180, plate_radius=0.0)))
     print(f"{out / 'apple-touch-icon.png'} (180x180)")
+
+    # PWA(manifest.webmanifest)のアイコン。192 と 512 の 2 枚が要る
+    # （インストールの条件。片方だけだとブラウザが「インストール可能」と見なさない）
+    for size in (192, 512):
+        name = f"icon-{size}.png"
+        (out / name).write_bytes(png(size, render(size)))
+        print(f"{out / name} ({size}x{size})")
+
+    # maskable は **OS が好きな形（円・角丸・雫）に切り抜く**ので、絵は中央 80% の
+    # 安全域に収め、背景は隅まで塗る。切り抜かれる前提の絵柄なので角丸は付けない
+    (out / "icon-maskable-512.png").write_bytes(
+        png(512, render(512, plate_radius=0.0, mark_scale=MARK_SCALE * 0.72))
+    )
+    print(f"{out / 'icon-maskable-512.png'} (512x512, maskable)")
 
 
 if __name__ == "__main__":

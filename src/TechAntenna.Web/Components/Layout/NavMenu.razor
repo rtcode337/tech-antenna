@@ -1,6 +1,24 @@
 @inject NavigationManager Navigation
 
 <div class="top-row">
+    @* **PWA(ホーム画面から起動した状態)にはブラウザの戻る/進むが無い。** その2つを
+       ロゴの左に置き直す。**出るのはスタンドアロン表示のときだけ**(wwwroot/history-nav.js が
+       html に .standalone を付ける)—— タブで開いているときはアドレスバーに同じものが
+       あるので、二重に見せない *@
+    <nav class="history-nav" aria-label="履歴の移動">
+        <button type="button" class="history-back" title="戻る" aria-label="前のページへ戻る">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M15 5 8 12l7 7" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </button>
+        <button type="button" class="history-forward" title="進む" aria-label="次のページへ進む">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </button>
+    </nav>
     <a class="brand" href="">
         @* アンテナ（支柱＋左右へ広がる電波）。マークとワードマークで 1 つのロゴ *@
         <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">

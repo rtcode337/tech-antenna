@@ -1127,6 +1127,34 @@ link を外し、razor が実際に使っているユーティリティ(`text-mu
   `blazor.web.js` が動くので起きる)。app.css は `[tabindex="-1"]` を除いている
 - 和文の折り返しは `ch` ではなく `em` で測る。`ch` は "0" の字幅なので、全角が並ぶと
   **想定の半分の位置で折り返す**
+- **PWA(ホーム画面から起動した状態)ではブラウザの戻る/進むが消える。** 同じ2つを
+  サイドバー上部(ロゴの左)に置いてある。出すのは `wwwroot/history-nav.js` が
+  `display-mode`(と iOS の `navigator.standalone`)を見て `html` に `.standalone` を
+  付けたときだけ —— **タブで開いているときは出さない**(アドレスバーと二重になる)。
+  **行き先が無くても無効化はしない** —— 履歴のどこにいるかを知る API が無く、
+  `history.length` では判定できない(戻っても減らない)。状態を偽って出すよりよい
+
+## PWA(インストールして使う)
+
+`wwwroot/manifest.webmanifest` で**インストールできる**ようにしてある
+(`display: standalone` / `start_url: /` / 192・512・maskable のアイコン)。
+iOS は 16.4 より前がマニフェストを見ないので、`apple-mobile-web-app-capable` でも
+同じことを言う(`App.razor`)。**テーマ色はサイドバー上端と同じ `#0f1116`**。
+
+- **サービスワーカー(`wwwroot/service-worker.js`)はページもデータもキャッシュしない。**
+  引き受けるのは「インストールの条件を満たすこと」と「通信できないときに
+  `offline.html` を返すこと」だけ —— このアプリは集めた情報を毎回サーバーから読む画面で、
+  古い HTML を返すと**昨日の一覧を今日のものとして見せる**ことになる(本人には見分けが
+  付かない)。静的アセットも持たない(Blazor の指紋付き URL に HTTP キャッシュが効く)
+- **横取りするのはページの移動(GET)だけ。** フォームの POST を触ると、保存の失敗を
+  オフライン画面で覆い隠してしまう
+- `offline.html` は**スタイルを自分の中に持つ**(app.css を読みに行くと、オフラインでは
+  取れずに素の文字だけになる)
+- **登録は安全なコンテキスト(https か localhost)でだけ**成立する。LAN の IP へ http で
+  当てている場合は登録されず、インストールもできない(ブラウザ側の決まり。
+  `register-sw.js` は静かに何もしない)
+- 版を上げるときは `service-worker.js` の `VERSION` を進める(古いキャッシュは
+  `activate` で消える)
 
 ## アイコン
 
@@ -1139,6 +1167,10 @@ link を外し、razor が実際に使っているユーティリティ(`text-mu
 - `wwwroot/apple-touch-icon.png`(180px) — iOS のホーム画面追加用。**角丸なしの全面塗り**で
   出す(角丸は OS 側がかけるので、こちらで丸めると二重に丸まって縁が痩せる)。
   ホーム画面での名前はページごとの `<title>` ではなく `apple-mobile-web-app-title` から取らせる
+- `wwwroot/icon-192.png` / `icon-512.png` — PWA(マニフェスト)用。**インストールの条件が
+  この 2 枚**なので、片方だけだとブラウザが「インストール可能」と見なさない
+- `wwwroot/icon-maskable-512.png` — `purpose: maskable` 用。**OS が好きな形(円・角丸・雫)に
+  切り抜く**ので、絵を中央 80% の安全域に収め(マークを 0.72 倍)、背景は隅まで塗る
 
 PNG / ICO は `tools/generate-icons.py` で生成する。ImageMagick も PIL も要らないよう、
 距離関数でアンチエイリアスをかけて自前でラスタライズし、zlib で PNG を組んでいる

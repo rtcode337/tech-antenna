@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tech Antenna — オフライン</title>
+    <!-- **スタイルはこのファイルに閉じる。** サービスワーカーがオフラインで返す唯一のページなので、
+         app.css を読みに行くと(取れずに)素の文字だけになる。色は app.css の値を写したもの -->
+    <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #f6f7f9;
+            --surface: #ffffff;
+            --border: #e4e7ec;
+            --text: #16181d;
+            --text-muted: #69717f;
+            --accent: #6244d4;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0f1218;
+                --surface: #161a22;
+                --border: rgb(255 255 255 / 0.1);
+                --text: #e9ecf2;
+                --text-muted: #98a1b0;
+                --accent: #a08eff;
+            }
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1.25rem;
+            background: var(--bg);
+            color: var(--text);
+            font-family: system-ui, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+            line-height: 1.7;
+        }
+
+        main {
+            max-width: 28rem;
+            padding: 1.75rem;
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            background: var(--surface);
+            text-align: center;
+        }
+
+        h1 {
+            margin: 0 0 0.75rem;
+            font-size: 1.25rem;
+        }
+
+        p {
+            margin: 0 0 1.25rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        button {
+            padding: 0.5rem 1.25rem;
+            border: 1px solid transparent;
+            border-radius: 0.375rem;
+            background: var(--accent);
+            color: #fff;
+            font: inherit;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <h1>つながりませんでした</h1>
+        <p>
+            Tech Antenna は集めた情報をサーバーから読むので、
+            オフラインでは中身を出せません。
+            接続が戻ってから読み込み直してください。
+        </p>
+        <button type="button" onclick="location.reload()">再読み込み</button>
+    </main>
+</body>
+
+</html>
