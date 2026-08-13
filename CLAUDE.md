@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Web | ASP.NET Core + Blazor |
 | 収集ジョブ | `BackgroundService` |
 | DB | PostgreSQL + EF Core |
-| LLM 要約 | Claude Code ヘッドレス(`claude -p`)/ Anthropic API |
+| LLM 要約 | Claude Code(CLI ブリッジ経由)/ Anthropic API |
 
 .NET 9 (STS) と .NET 8 (LTS) はどちらも 2026-11 に EOL のため採用しない。
 
@@ -1064,15 +1064,29 @@ URL のリンクにとどめる。
 `SummaryPrompt` に集約し、方式を切り替えても要約の口調が変わらないようにしている。
 定期実行の可否と手動実行は「定期実行と手動実行」を参照。
 
-### Claude Code 方式(`claude -p`)
+### Claude Code 方式(CLI ブリッジ経由)
 
 Claude Code にログイン済みの端末で `claude setup-token` を実行して得た長期 OAuth トークンを
 外部連携の画面から設定する。**ホストの `~/.claude` はマウントしない。**
-トークンは CLI が環境変数 `CLAUDE_CODE_OAUTH_TOKEN` から読む仕様なので、
-**画面で設定した値を `LlmGateway` が子プロセスの環境変数として注入する**
-(`SystemProcessRunner` の environmentProvider。アプリ自身の環境変数は書き換えない)。
-`ClaudeCodeOptions` にトークンは持たせない。設定は `ClaudeCode` セクション
-(`ExecutablePath` / `Model` / `TimeoutSeconds`)。
+
+**CLI はこのアプリのイメージに入っていない。** 別コンテナの CLI ブリッジ
+(chiezo リポジトリの `chiezo-bridge`。Claude Code を OpenAI 互換の `/chat/completions` に
+見せるサイドカー)へ HTTP で頼む(`CliBridgeClient`)。**CLI の実体だけで 100MB 超**あり、
+版を上げるたびにこちらのイメージを焼き直すことになるため、更新はブリッジ側に任せる。
+
+**トークンは共有ディレクトリの設定 DB で渡す**(`BridgeCredentialStore`。既定
+`ClaudeCode:StateDirectory` = `state`、compose では `data/state`)。CLI は別コンテナで動くので、
+このプロセスの環境変数では渡せない —— `provider_settings` 表に書き、ブリッジが**読み取り専用で
+マウントして読む**。書くのは `LlmGateway` の組み立て(= キーの版数が変わったとき)で、
+**ブリッジは要求のたびに読み直す**ので入れ替えても再起動は要らない。**表の形はブリッジとの約束**
+(列を減らさない)で、**WAL にしない** —— 読み取り専用マウントでは `-shm` を作れず開けなくなる。
+**画面からトークンを消したときも書く**(残すと古いトークンでブリッジが動き続ける)。
+
+**ブリッジはホストへ公開しない。** 認証が無く、しかもトークンを読める —— 外から触れると
+そのまま AI を使われる。呼ぶのは同じ compose ネットワークの `app` だけ
+(手元の `dotnet run` から使うときだけ `docker-compose.dev.yml` が 127.0.0.1 に開ける)。
+
+設定は `ClaudeCode` セクション(`BridgeUrl` / `StateDirectory` / `Model` / `TimeoutSeconds`)。
 **モデルは CLI の既定に任せず `claude-sonnet-5` を明示している**(appsettings.json と
 compose の既定)—— CLI の既定は重いモデル(実測 claude-fable-5)で、要約・分類の定型
 ジョブにはサブスクの週間枠を消費しすぎるため。変えるときは `CLAUDE_CODE_MODEL`。
@@ -1089,19 +1103,22 @@ claude-sonnet-5)」)とホームのダイジェストの生成者名に出る。
 
 実装上の勘所:
 
-- **プロンプトは引数ではなく標準入力で渡す**(`IProcessRunner`)。Linux の単一引数の長さ上限
-  (MAX_ARG_STRLEN = 128KiB)を記事をまとめると容易に超え、実行前に E2BIG で落ちる
-- **`--json-schema` で番号と要約の対応を返させる**。記事の Id(GUID)を LLM に写させない
-- **`--max-turns` は 2 にする。** 構造化出力自体が内部のツール呼び出しとして実装されていて
-  1 ターン消費する(v2.1.220 で実測: 1 だと結果を出す前に `error_max_turns` で打ち切られ、
-  終了コード 1・詳細なしで落ちる)
-- **`claude` は失敗の詳細を stderr ではなく stdout の JSON に書く**(`result` と
-  `api_error_status`)。終了コードだけ見ると原因が分からないので
-  `ClaudeCodeResponseParser.DescribeError` で拾う
-- **`--bare` は使えない。** bare モードは keychain と OAuth の読み取りを飛ばすため、
-  `CLAUDE_CODE_OAUTH_TOKEN` が効かなくなる。公式ドキュメントは `--bare` を推奨し
-  「将来 `-p` の既定にする」としているので、そうなったら追従が要る(v2.1.220 時点で
-  `--no-bare` のような opt-out は無い)
+- **スキーマはプロンプトで指示する**(`ClaudeCodeBatch.WithSchema`)。ブリッジは OpenAI 互換の
+  口(テキスト応答)なので、CLI を直接起動していた頃の `--json-schema`(構造化出力)を
+  載せる場所が無い。**強制ではなくなった**ぶん、応答から JSON を切り出して読む
+- **前置きとコードフェンスを許して読む**(`ClaudeCodeResponseParser.ExtractJson`)。
+  「JSON だけ」と指示しても説明を1行添えてくる応答はあり、そこで丸ごと捨てると
+  1バッチ分の要約が消える。**形が違うときは例外にする** —— それらしいテキストを
+  要約として紐づけないため。失敗したバッチはジョブが次の巡回で引き直す
+- **番号と値の対応で返させる**。記事の Id(GUID)を LLM に写させない
+- **長さの上限は気にしなくてよい**。CLI に直接渡していた頃は Linux の単一引数の長さ上限
+  (MAX_ARG_STRLEN = 128KiB)を避けて標準入力に流していたが、HTTP の本文にその制限は無い
+- **失敗はブリッジが HTTP で返す**。504 = 上限秒数で打ち切り(`TimeoutException` に写す)、
+  401 = 認証情報を読めていない(共有ディレクトリのマウントか設定 DB を疑う)、
+  502 = CLI が非ゼロで終了。**こちらの待ちはブリッジより 30 秒長くする** ——
+  先に切れると「ブリッジが何秒で諦めたか」が分からなくなる
+- **道具は使わせない**。ブリッジ側で組み込みの道具を塞ぎ、MCP も繋がない設定
+  (`CHIEZO_BRIDGE_MCP_URL` を空)で動かす。渡すのは自前のプロンプトだけ
 
 ### Anthropic API 方式
 
@@ -1380,24 +1397,23 @@ ER 図・トピック3テーブルの関係)。**DB に変更を入れたら、�
 
 - `Dockerfile` — マルチステージ。`sdk:10.0` で publish し、`aspnet:10.0` に成果物だけを載せて
   非 root(`USER $APP_UID`=1654)で `dotnet TechAntenna.Web.dll` を実行する。HTTP 7020 のみ待ち受け
-  - **Claude Code の CLI を同梱する**(要約のサブスク枠方式で使う)。イメージは約 370MB →
-    730MB になる。配布物は Node に依存しない単体のネイティブバイナリなので**実行イメージに
-    Node は入れない**。npm パッケージはアーキごとに分かれていて名前で明示すればビルドホストから
-    対象アーキ用を取れるため、取得ステージも `$BUILDPLATFORM` で動かしエミュレーションを避ける
-  - `claude` は起動時にホーム配下へ設定を書くので、非 root で動かすために `HOME=/home/app` を
-    用意する(ディレクトリはビルドステージで作って `COPY --chown` する)
+  - **Claude Code の CLI は同梱しない**(以前は入れていて、イメージが約 370MB → 730MB に
+    なっていた)。要約をサブスクの枠で回すときは別コンテナの CLI ブリッジへ HTTP で頼み、
+    トークンは `/app/state` の設定 DB 経由で渡す(「Claude Code 方式」参照)
   - **Alpine ではなく Debian ベース**を使う。Alpine 版の .NET イメージは globalization
     invariant モードが既定で、日本語の日付・文字列の書式が効かない
   - arm64 向けは QEMU ではなく **.NET のクロスコンパイル**(`--platform=$BUILDPLATFORM` +
     `dotnet publish -a`)で出す。実行ステージに `RUN` を置かないのもエミュレーションを
     避けるため(鍵置き場のディレクトリはビルドステージで作って `COPY --chown` する)
-- `docker-compose.yml` — 本番用(`app` + `db` + 起動前に一度だけ走る `init`)。この定義自体はビルドせず GHCR のイメージを
+- `docker-compose.yml` — 本番用(`app` + `db` + Claude Code の CLI を動かす `bridge` +
+  起動前に一度だけ走る `init`)。この定義自体はビルドせず GHCR のイメージを
   参照する。設定は `.env` から環境変数で渡す。`docker-compose.build.yml` はその場でビルドする
   上書き定義(`:local` タグ)で、手元での動作確認や GHCR を使わない起動はこちらを重ねて使う
   - Postgres は `postgres:18-alpine`。**18 のイメージは PGDATA が
     `/var/lib/postgresql/18/docker`** で、マウントするのはその1段上の
     `/var/lib/postgresql`(17 以前と位置が違うので、マウント先を変えると初期化し直しになる)
-  - **永続データはホストの `data/` へバインドする**(`data/postgres` と `data/keys`)。
+  - **永続データはホストの `data/` へバインドする**(`data/postgres`・`data/keys`・
+    CLI ブリッジと共有する `data/state`。`init` が後の2つを UID 1654 に chown する)。
     名前付きボリュームを使わないのは、`data/` を丸ごとコピーするだけでバックアップに
     なるようにするため —— Docker の中に置くと持ち出しに一手間かかる。`data/` は
     `.gitignore` 済み。standalone 側は `${...}` を解決できないので、雛形の先頭に

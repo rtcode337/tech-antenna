@@ -238,7 +238,8 @@ public class IntegrationCatalog(
             IntegrationAxis.Both, "要約・翻訳・語彙の仕分け・今日のサマリー", "Claude Code(サブスクの枠)", CredentialNeed.EitherRequired,
             false,
             "`claude setup-token` で発行する。**設定されていると Anthropic API より優先**され、"
-            + "従量課金ではなくサブスクリプションの枠を使う",
+            + "従量課金ではなくサブスクリプションの枠を使う。**CLI は別コンテナ(bridge)が動かす**ので、"
+            + "そちらが起動していないと要約・翻訳のジョブが失敗する",
             AlternativeConfigured: credentials.Has(LlmGateway.AnthropicApiKeyName)),
             LlmGateway.ClaudeCodeTokenName));
         integrations.Add(WithSecret(new Integration(

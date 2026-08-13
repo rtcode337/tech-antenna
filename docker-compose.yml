@@ -49,9 +49,11 @@ services:
   init:
     image: alpine:3.24
     user: root
-    entrypoint: ["sh", "-c", "chown -R 1654:1654 /app/keys"]
+    entrypoint: ["sh", "-c", "chown -R 1654:1654 /app/keys /app/state"]
     volumes:
       - ./data/keys:/app/keys
+      # CLI ブリッジと共有する設定の置き場。app が書き、bridge が読み取り専用で読む
+      - ./data/state:/app/state
     restart: "no"
 
   app:
@@ -73,6 +75,9 @@ services:
       Anthropic__Model: ${ANTHROPIC_MODEL:-claude-opus-5}
       # 既定は appsettings と同じ claude-sonnet-5(空文字を渡すと appsettings を上書きして CLI 既定 = 重いモデルに戻るため)
       ClaudeCode__Model: ${CLAUDE_CODE_MODEL:-claude-sonnet-5}
+      # Claude Code の CLI は下の bridge が持つ。ホストへは公開していないので、
+      # サービス名で内部ネットワーク越しに呼ぶ
+      ClaudeCode__BridgeUrl: ${CLAUDE_CODE_BRIDGE_URL:-http://bridge:7013/v1}
       # 今日のサマリーの ntfy 通知。接続先(URL・トピック・トークン)は画面から設定する。
       # タップで開く URL だけは「この環境の公開 URL」というデプロイ側の事実なのでここに残す
       Ntfy__ClickUrl: ${NTFY_CLICK_URL:-}
@@ -86,4 +91,32 @@ services:
       # antiforgery と Blazor が使う Data Protection の鍵。コンテナを作り直しても
       # 鍵を引き継げるようにする(消えると開いていたページの操作が一度エラーになる)
       - ./data/keys:/app/keys
+      # CLI ブリッジと共有する設定。画面で入れた Claude Code のトークンをここへ書き、
+      # ブリッジが読む(アプリの環境変数では渡せない —— CLI は別コンテナで動くため)
+      - ./data/state:/app/state
     restart: unless-stopped
+
+  # Claude Code の CLI を OpenAI 互換の口に見せるサイドカー(chiezo リポジトリのイメージ)。
+  # **アプリ本体は CLI を持たない** —— イメージに 100MB 超を積まずに済み、CLI の更新は
+  # このコンテナを入れ替えるだけになる。
+  #
+  # **ホストへポートを公開しない。** 認証の無いサービスで、しかもトークンを読める ——
+  # 外から触れるとそのまま AI を使われる。呼ぶのは同じ compose ネットワークの app だけ。
+  #
+  # MCP は繋がない(CHIEZO_BRIDGE_MCP_URL を空にする)。渡すのは自前のプロンプトで、
+  # 知識ベースを引かせる用途ではないため。
+  bridge:
+    # **公開パッケージ**なので docker login は要らない(tech-antenna 本体のイメージだけが非公開)
+    image: ${BRIDGE_IMAGE:-ghcr.io/rtcode337/chiezo-bridge:latest}
+    volumes:
+      # **読み取り専用**。ブリッジは書かない
+      - ./data/state:/state:ro
+    environment:
+      - CHIEZO_BRIDGE_CLI=claude
+      - CHIEZO_BRIDGE_MCP_URL=
+      # 1回の上限は要求ごとに送るので、ここは保険の既定値(appsettings の TimeoutSeconds と同じ)
+      - CHIEZO_BRIDGE_TIMEOUT=${CLAUDE_CODE_TIMEOUT_SECONDS:-300}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:7013/health"]
+      interval: 60s

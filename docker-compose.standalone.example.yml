@@ -45,6 +45,8 @@ x-image: &image "ghcr.io/rtcode337/tech-antenna:latest"
 # postgres 側は中身の所有者をエントリポイントが揃えるので、ホスト側の準備は要らない
 x-postgres-dir: &postgres-dir "/path/to/tech-antenna/data/postgres"
 x-keys-dir: &keys-dir "/path/to/tech-antenna/data/keys"
+# CLI ブリッジと共有する設定の置き場(app が書き、bridge が読み取り専用で読む)
+x-state-dir: &state-dir "/path/to/tech-antenna/data/state"
 
 # ---- ここだけ編集: 公開ポート ----
 # host:container。コンテナ内は 7020 固定なので、変えるのは左だけ。
@@ -63,6 +65,10 @@ x-app-env: &app-env
 
   # **外部 API のキーはここでは渡せない**(画面の「設定 → 外部連携」から入れる。
   # 暗号化して DB に保存され、再起動なしで効く)。渡すのはキー以外の設定だけ
+
+  # Claude Code の CLI は bridge サービスが持つ(このイメージには入っていない)。
+  # ホストへは公開していないので、サービス名で内部ネットワーク越しに呼ぶ
+  ClaudeCode__BridgeUrl: "http://bridge:7013/v1"
 
   # 今日のサマリーの ntfy 通知。接続先(URL・トピック・トークン)は画面から設定する。
   # タップで開く URL だけは「この環境の公開 URL」というデプロイ側の事実なのでここに残す
@@ -95,17 +101,20 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # 鍵の置き場を app の実行ユーザー(イメージが持つ非 root、UID 1654)が書けるようにする。
-  # ホストのディレクトリは作成者の所有になるため、そのままでは鍵を書き出せない
+  # 鍵と共有設定の置き場を app の実行ユーザー(イメージが持つ非 root、UID 1654)が
+  # 書けるようにする。ホストのディレクトリは作成者の所有になるため、そのままでは書き出せない
   # chown を実行するだけなので、アプリのイメージではなく小さい汎用イメージを使う
   init:
     image: alpine:3.24
     user: root
-    entrypoint: ["sh", "-c", "chown -R 1654:1654 /app/keys"]
+    entrypoint: ["sh", "-c", "chown -R 1654:1654 /app/keys /app/state"]
     volumes:
       - type: bind
         source: *keys-dir
         target: /app/keys
+      - type: bind
+        source: *state-dir
+        target: /app/state
     restart: "no"
 
   app:
@@ -125,4 +134,31 @@ services:
       - type: bind
         source: *keys-dir
         target: /app/keys
+      # CLI ブリッジと共有する設定。画面で入れた Claude Code のトークンをここへ書き、
+      # ブリッジが読む(アプリの環境変数では渡せない —— CLI は別コンテナで動くため)
+      - type: bind
+        source: *state-dir
+        target: /app/state
     restart: unless-stopped
+
+  # Claude Code の CLI を OpenAI 互換の口に見せるサイドカー(chiezo リポジトリのイメージ)。
+  # **アプリ本体は CLI を持たない**。**ホストへポートを公開しない** ——
+  # 認証が無くトークンも読めるので、外から触れるとそのまま AI を使われる。
+  # **公開パッケージ**なので、このイメージだけは docker login 無しで pull できる
+  bridge:
+    image: "ghcr.io/rtcode337/chiezo-bridge:latest"
+    volumes:
+      # **読み取り専用**。ブリッジは書かない
+      - type: bind
+        source: *state-dir
+        target: /state
+        read_only: true
+    environment:
+      - CHIEZO_BRIDGE_CLI=claude
+      # MCP は繋がない(渡すのは自前のプロンプトで、知識ベースを引かせる用途ではない)
+      - CHIEZO_BRIDGE_MCP_URL=
+      - CHIEZO_BRIDGE_TIMEOUT=300
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:7013/health"]
+      interval: 60s

@@ -4,21 +4,15 @@ using TechAntenna.Core.Models;
 namespace TechAntenna.Infrastructure.Summarization;
 
 /// <summary>
-/// Claude Code のヘッドレス実行(<c>claude -p</c>)でタイトルを訳す。
+/// Claude Code(CLI ブリッジ経由)でタイトルを訳す。
 /// 要約と同じくサブスクリプションの枠で動き、呼び出しの作法は <see cref="ClaudeCodeBatch"/> に集約。
 ///
 /// **タイトルは1件あたりの入力が極端に小さい**ので、要約以上にまとめて渡す価値がある
 /// (呼び出し1回の固定費が3万トークン規模なのに、タイトルは数十トークンしかない)。
 /// </summary>
-public class ClaudeCodeTitleTranslator(
-    IProcessRunner processRunner,
-    string executablePath,
-    string? model,
-    TimeSpan timeout) : ITitleTranslator
+public class ClaudeCodeTitleTranslator(ICliBridge bridge) : ITitleTranslator
 {
-    // モデル名まで画面に出す —— どのモデルがサブスク枠を使っているか見えるようにする。
-    // model が null(CLI の既定に任せる)ときは、既定が何かこちらから分からないので付けない
-    public string Name => model is null ? "Claude Code" : $"Claude Code / {model}";
+    public string Name => bridge.Name;
 
     public async Task<IReadOnlyList<TitleTranslation>> TranslateAsync(
         IReadOnlyList<Article> articles,
@@ -37,10 +31,7 @@ public class ClaudeCodeTitleTranslator(
         }
 
         var entries = await ClaudeCodeBatch.RunAsync(
-            processRunner,
-            executablePath,
-            model,
-            timeout,
+            bridge,
             TitleTranslationPrompt.System,
             "titles",
             "title_ja",

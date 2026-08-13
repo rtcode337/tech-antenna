@@ -7,9 +7,23 @@ using TechAntenna.Web.Services;
 
 namespace TechAntenna.Tests.Web;
 
-public class LlmGatewayTests
+public class LlmGatewayTests : IDisposable
 {
-    static (LlmGateway Gateway, ApiCredentials Credentials) Build()
+    // ブリッジと共有する設定 DB の書き出し先。テストの成果物ディレクトリを汚さないよう
+    // 一時ディレクトリに逃がす(トークンを設定すると実際に書かれる)
+    readonly string _stateDirectory = Path.Combine(
+        Path.GetTempPath(), "tech-antenna-gateway-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        if (Directory.Exists(_stateDirectory))
+        {
+            Directory.Delete(_stateDirectory, recursive: true);
+        }
+    }
+
+    (LlmGateway Gateway, ApiCredentials Credentials) Build()
     {
         var credentials = new ApiCredentials(
             new InMemorySecretStore(TimeProvider.System),
@@ -17,9 +31,11 @@ public class LlmGatewayTests
             NullLogger<ApiCredentials>.Instance);
         var gateway = new LlmGateway(
             credentials,
-            Options.Create(new ClaudeCodeOptions()),
+            new UnusedHttpClientFactory(),
+            Options.Create(new ClaudeCodeOptions { StateDirectory = _stateDirectory }),
             Options.Create(new AnthropicOptions()),
-            TimeProvider.System);
+            TimeProvider.System,
+            NullLogger<LlmGateway>.Instance);
         return (gateway, credentials);
     }
 
@@ -43,6 +59,18 @@ public class LlmGatewayTests
         Assert.True(gateway.IsConfigured);
         // トークンがあるときは Anthropic API より優先(サブスクの枠を使う)
         Assert.Equal("Claude Code", gateway.Summarizer!.Name);
+    }
+
+    [Fact]
+    public async Task ClaudeCodeのトークンはブリッジが読む設定DBへ書き出す()
+    {
+        // CLI は別コンテナ(ブリッジ)で動くので、このプロセスの環境変数では渡せない
+        var (gateway, credentials) = Build();
+        await credentials.SetAsync(LlmGateway.ClaudeCodeTokenName, "token");
+
+        _ = gateway.Summarizer;
+
+        Assert.True(File.Exists(Path.Combine(_stateDirectory, "settings.db")));
     }
 
     [Fact]

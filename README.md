@@ -21,7 +21,7 @@ ntfy への通知にもできる)まで実装済み。
 | Web | ASP.NET Core + Blazor |
 | 収集ジョブ | `BackgroundService` |
 | DB | PostgreSQL + EF Core |
-| 要約 | Claude Code ヘッドレス(`claude -p`)/ Anthropic API |
+| 要約 | Claude Code(CLI ブリッジ経由)/ Anthropic API |
 
 ## データソース
 
@@ -245,7 +245,8 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 (`.env` では渡せない)。
 
 `http://<ホスト>:7020` で開く(`.env` の `PORT` で変更可)。データはリポジトリ直下の
-`data/`(Postgres は `data/postgres`、Data Protection の鍵は `data/keys`)に入る ——
+`data/`(Postgres は `data/postgres`、Data Protection の鍵は `data/keys`、
+CLI ブリッジと共有する設定は `data/state`)に入る ——
 **バックアップはこのディレクトリを丸ごとコピーするだけでよい**。逆に**まっさらに戻したいときは
 `docker compose down` してから `data/` の中身を消す**(次の起動で DB が初期化され、
 語彙の初期値も入り直す。鍵も再生成されるので発行済みトークンが無効になるだけ)。未適用のマイグレーションは
@@ -255,8 +256,14 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
   ([.github/workflows/build-and-push-image.yml](.github/workflows/build-and-push-image.yml))。
   タグは `latest` とコミット識別用の `sha-xxxxxxx`。デプロイ先はビルドせず
   `docker compose pull && docker compose up -d` でよい
+- **要約を Claude Code(サブスクの枠)で回すときは `bridge` サービスが要る** ——
+  CLI はアプリのイメージに入っておらず、chiezo リポジトリの公開イメージ
+  (`ghcr.io/rtcode337/chiezo-bridge`)が動かす。画面で入れたトークンは `data/state` の
+  設定ファイル経由で渡すので、入れ替えてもブリッジの再起動は要らない。
+  **ホストへポートを公開していない**(認証が無く、トークンも読めるため)
 - 非公開リポジトリなので GHCR のパッケージも非公開。pull 側では事前に
   `read:packages` 権限の PAT で `docker login ghcr.io` が必要
+  (`chiezo-bridge` は公開パッケージなので login 不要)
 - 障害時は `.env` の `TECH_ANTENNA_IMAGE` に `ghcr.io/rtcode337/tech-antenna:sha-xxxxxxx` を
   指定すれば任意の時点のイメージに戻せる
 - リポジトリを置けない環境(NAS のコンテナマネージャー等、管理画面に YAML を貼り付ける
@@ -293,6 +300,14 @@ dotnet run --project src/TechAntenna.Web   # http://localhost:7020
 # 画面を触るときはホットリロード付きで(保存すると再起動なしでブラウザに反映される)
 dotnet watch --project src/TechAntenna.Web --launch-profile watch   # http://localhost:7022
                                                                    # (0.0.0.0 で待つので他の端末からも見える)
+```
+
+要約を Claude Code 方式で試すときは CLI ブリッジが要る。`docker-compose.dev.yml` を重ねて
+`bridge` だけ上げると 127.0.0.1:7013 に口が開くので、そちらへ向ける:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d bridge
+ClaudeCode__BridgeUrl=http://127.0.0.1:7013/v1 dotnet run --project src/TechAntenna.Web
 ```
 
 DB は PostgreSQL。接続文字列 `ConnectionStrings:Default` を設定して起動すると

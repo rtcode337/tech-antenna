@@ -7,6 +7,7 @@ using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Topics;
 using TechAntenna.Infrastructure;
 using TechAntenna.Infrastructure.Books;
+using TechAntenna.Infrastructure.Bridge;
 using TechAntenna.Infrastructure.Events;
 using TechAntenna.Infrastructure.Feeds;
 using TechAntenna.Infrastructure.Notifications;
@@ -365,7 +366,8 @@ builder.Services.AddSingleton<IntegrationCatalog>();
 
 // --- LLM 要約 ---
 // 方式は2つあり、Claude Code(サブスクリプションの枠)を優先する。両方未設定なら要約しない。
-//  1. Claude Code のヘッドレス実行: OAuth トークンがあるとき。従量課金にならない
+//  1. Claude Code: OAuth トークンがあるとき。従量課金にならない。CLI はこのイメージに
+//     入っておらず、別コンテナの CLI ブリッジ(chiezo-bridge)へ HTTP で頼む
 //  2. Anthropic API: API キーがあるとき。呼び出しの固定費が小さい
 // キーはどちらも画面(外部連携)から設定する
 // **どちらを使うかは起動時ではなく実行のたびに LlmGateway が決める** —— キーは画面
@@ -376,6 +378,9 @@ builder.Services.Configure<ClaudeCodeOptions>(
     builder.Configuration.GetSection(ClaudeCodeOptions.SectionName));
 builder.Services.Configure<DigestOptions>(
     builder.Configuration.GetSection(DigestOptions.SectionName));
+// ブリッジへの1回の待ちは呼び出しごとに決める(CliBridgeClient が上限秒数を設定する)ので、
+// ここでは名前を登録するだけ
+builder.Services.AddHttpClient(CliBridgeClient.HttpClientName);
 
 builder.Services.AddSingleton<LlmGateway>();
 

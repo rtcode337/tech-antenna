@@ -178,23 +178,31 @@ public class AnthropicOptions
 }
 
 /// <summary>
-/// Claude Code のヘッドレス実行で要約する場合の設定。appsettings の ClaudeCode セクションから読む。
+/// Claude Code(CLI ブリッジ経由)で要約する場合の設定。appsettings の ClaudeCode セクションから読む。
 /// 認証トークンはここでは持たない —— 画面(外部連携)から設定した値を、LlmGateway が
-/// 子プロセスの環境変数 <c>CLAUDE_CODE_OAUTH_TOKEN</c> として CLI に渡す。
+/// 共有ディレクトリの設定 DB に書き、ブリッジがそこから読む。
 /// </summary>
 public class ClaudeCodeOptions
 {
     public const string SectionName = "ClaudeCode";
 
-    /// <summary>claude CLI のパス。PATH 上にあるなら名前だけでよい。</summary>
-    public string ExecutablePath { get; set; } = "claude";
+    /// <summary>CLI ブリッジ(chiezo-bridge)の URL。OpenAI 互換の口の根元まで。</summary>
+    public string BridgeUrl { get; set; } = "http://bridge:7013/v1";
+
+    /// <summary>
+    /// ブリッジと共有するディレクトリ。ここに設定 DB を書き、ブリッジが読み取り専用で読む
+    /// (<c>BridgeCredentialStore</c>)。**ブリッジ側のマウント元と同じ場所を指すこと。**
+    /// 相対パスは実行ディレクトリ基準(コンテナでは <c>/app/state</c>、
+    /// 手元の <c>dotnet run</c> ではプロジェクト直下の <c>state</c>)。
+    /// </summary>
+    public string StateDirectory { get; set; } = "state";
 
     /// <summary>使うモデル。**空にすると CLI の既定に任せる**が、その既定は重いモデル
     /// (実測 claude-fable-5)でサブスクの週間枠を消費しすぎるため、
     /// appsettings.json では claude-sonnet-5 を明示している。</summary>
     public string Model { get; set; } = "";
 
-    /// <summary>1回の呼び出しの上限(秒)。超えたらプロセスごと落として次の巡回で再試行する。</summary>
+    /// <summary>1回の呼び出しの上限(秒)。超えたらブリッジが CLI を落とし、次の巡回で再試行する。</summary>
     public int TimeoutSeconds { get; set; } = 300;
 }
 

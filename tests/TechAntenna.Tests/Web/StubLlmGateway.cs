@@ -21,9 +21,11 @@ public class StubLlmGateway(
     IDigestComposer? digestComposer = null)
     : LlmGateway(
         EmptyCredentials(),
+        new UnusedHttpClientFactory(),
         Options.Create(new ClaudeCodeOptions()),
         Options.Create(new AnthropicOptions()),
-        TimeProvider.System)
+        TimeProvider.System,
+        NullLogger<LlmGateway>.Instance)
 {
     public override ISummarizer? Summarizer => summarizer;
 
@@ -45,4 +47,13 @@ public class StubLlmGateway(
         new InMemorySecretStore(TimeProvider.System),
         new EphemeralDataProtectionProvider(),
         NullLogger<ApiCredentials>.Instance);
+}
+
+/// <summary>
+/// 実装を組み立てない(= ブリッジを呼ばない)テスト用の IHttpClientFactory。
+/// LlmGateway の組み立てを通すためだけに要る。
+/// </summary>
+public class UnusedHttpClientFactory : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name) => new();
 }

@@ -3,27 +3,28 @@ using System.Text.Json;
 namespace TechAntenna.Infrastructure.Summarization;
 
 /// <summary>
-/// `claude -p --output-format json` の応答から結果を取り出す。
-/// 要約とタイトル翻訳で同じ形(番号 + 文字列の配列)を使うので、
+/// CLI ブリッジの応答(テキスト)から結果を取り出す。
+/// 要約とタイトル翻訳は同じ形(番号 + 文字列の配列)を使うので、
 /// 配列と値のプロパティ名だけを差し替えられるようにしてある。
+///
+/// **応答は素のテキスト**なので、JSON の部分を自分で切り出す —— ブリッジ経由では
+/// 構造化出力(`--json-schema`)を通せず、モデルが前置きやコードフェンスを付けることが
+/// あるため。切り出せない・形が違うときは例外にする(**誤った結果を紐づけない**)。
 /// </summary>
 public static class ClaudeCodeResponseParser
 {
     /// <summary>結果1件。<c>Index</c> は入力で振った 1 始まりの記事番号。</summary>
     public record Entry(int Index, string Text);
 
-    /// <summary>
-    /// 応答 JSON から要約を取り出す。実行自体が失敗していた場合(<c>is_error</c>)は例外にして、
-    /// 呼び出し側がバッチごと再試行できるようにする。
-    /// </summary>
+    /// <summary>応答から要約(番号 + 文字列の配列)を取り出す。</summary>
     public static IReadOnlyList<Entry> Parse(
-        string json, string arrayName = "summaries", string valueName = "summary") =>
-        ReadStructuredOutput(json, output =>
+        string text, string arrayName = "summaries", string valueName = "summary") =>
+        ReadJson(text, root =>
         {
-            if (!output.TryGetProperty(arrayName, out var items)
+            if (!root.TryGetProperty(arrayName, out var items)
                 || items.ValueKind != JsonValueKind.Array)
             {
-                throw new FormatException($"claude の応答に structured_output.{arrayName} が無い。");
+                throw new FormatException($"応答の JSON に {arrayName} が無い。");
             }
 
             return (IReadOnlyList<Entry>)items.EnumerateArray()
@@ -33,79 +34,48 @@ public static class ClaudeCodeResponseParser
         });
 
     /// <summary>
-    /// 応答の外側(JSON の妥当性・<c>is_error</c>)を検査してから、
-    /// <c>structured_output</c> を <paramref name="read"/> に渡す。要約もトピック分類も
-    /// 外側は同じ形なので、スキーマごとの読み取りだけを差し替えられるようにしてある。
+    /// 応答から JSON を切り出し、その中身を <paramref name="read"/> に渡す。要約もトピック分類も
+    /// 外側は同じなので、スキーマごとの読み取りだけを差し替えられるようにしてある。
     /// </summary>
-    public static T ReadStructuredOutput<T>(string json, Func<JsonElement, T> read)
+    public static T ReadJson<T>(string text, Func<JsonElement, T> read)
     {
         JsonDocument doc;
         try
         {
-            doc = JsonDocument.Parse(json);
+            doc = JsonDocument.Parse(ExtractJson(text));
         }
         catch (JsonException ex)
         {
-            throw new FormatException("claude の応答が JSON として読めない。", ex);
+            throw new FormatException($"応答が JSON として読めない: {Excerpt(text)}", ex);
         }
 
         using (doc)
         {
-            var root = doc.RootElement;
-
-            if (root.TryGetProperty("is_error", out var isError)
-                && isError.ValueKind == JsonValueKind.True)
-            {
-                throw new InvalidOperationException(
-                    $"claude がエラーを返した: {Describe(root) ?? "詳細不明"}");
-            }
-
-            // --json-schema を渡しているので構造化出力に入る。text にフォールバックはしない
-            // (形式が崩れた応答を無理に読むと、誤った結果を紐づけてしまうため)
-            if (!root.TryGetProperty("structured_output", out var output))
-            {
-                throw new FormatException("claude の応答に structured_output が無い。");
-            }
-
-            return read(output);
+            return read(doc.RootElement);
         }
     }
 
     /// <summary>
-    /// 失敗したときの原因を応答から取り出す。読めなければ null。
+    /// 本文から JSON オブジェクトの部分を切り出す。
     ///
-    /// **claude は失敗の詳細を stderr ではなく stdout の JSON に書く**(認証エラーなら
-    /// result に「Failed to authenticate. API Error: 401 …」、api_error_status に 401)。
-    /// 終了コードだけを見ていると原因が分からないので、呼び出し側はこれを使う。
+    /// **前置きとコードフェンスを許す。** プロンプトでは「JSON だけ」と指示しているが、
+    /// 説明を1行添えてくる応答は実際にあり、そこで丸ごと捨てると1バッチ分の要約が消える。
+    /// 取るのは**最初の <c>{</c> から最後の <c>}</c> まで** —— 途中に文字列として
+    /// 波括弧が入っていても、外側の対応は保たれる。
     /// </summary>
-    public static string? DescribeError(string json)
+    public static string ExtractJson(string text)
     {
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            return Describe(doc.RootElement);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        var start = text.IndexOf('{');
+        var end = text.LastIndexOf('}');
+
+        return start >= 0 && end > start ? text[start..(end + 1)] : text.Trim();
     }
 
-    static string? Describe(JsonElement root)
+    /// <summary>例外メッセージにそのまま載せられる長さに切る。</summary>
+    static string Excerpt(string text)
     {
-        var message = root.TryGetProperty("result", out var result) ? result.GetString() : null;
-        var status = root.TryGetProperty("api_error_status", out var s)
-            && s.ValueKind == JsonValueKind.Number
-                ? s.GetInt32()
-                : (int?)null;
-
-        return (message, status) switch
-        {
-            (null, null) => null,
-            (null, { } code) => $"HTTP {code}",
-            ({ } text, null) => text,
-            ({ } text, { } code) => $"{text}(HTTP {code})",
-        };
+        var trimmed = text.Trim();
+        return trimmed.Length <= 300 ? trimmed : trimmed[..300] + "…";
     }
 
     static Entry? ToEntry(JsonElement element, string valueName)

@@ -5,18 +5,15 @@ namespace TechAntenna.Tests.Infrastructure;
 public class ClaudeCodeResponseParserTests
 {
     [Fact]
-    public void 構造化出力から要約を取り出す()
+    public void 応答から要約を取り出す()
     {
-        // claude -p --output-format json の応答(要約に関係しないフィールドは省いている)
-        const string json = """
-            {"is_error":false,"type":"result","total_cost_usd":0.34,
-             "result":"…",
-             "structured_output":{"summaries":[
-               {"index":1,"summary":"一つ目の要約"},
-               {"index":2,"summary":"二つ目の要約"}]}}
+        const string text = """
+            {"summaries":[
+              {"index":1,"summary":"一つ目の要約"},
+              {"index":2,"summary":"二つ目の要約"}]}
             """;
 
-        var entries = ClaudeCodeResponseParser.Parse(json);
+        var entries = ClaudeCodeResponseParser.Parse(text);
 
         Assert.Equal(2, entries.Count);
         Assert.Equal(1, entries[0].Index);
@@ -26,68 +23,51 @@ public class ClaudeCodeResponseParserTests
     [Fact]
     public void 空の要約は落とす()
     {
-        const string json = """
-            {"is_error":false,"structured_output":{"summaries":[
+        const string text = """
+            {"summaries":[
               {"index":1,"summary":"  "},
-              {"index":2,"summary":"二つ目の要約"}]}}
+              {"index":2,"summary":"二つ目の要約"}]}
             """;
 
-        var entries = ClaudeCodeParse(json);
+        var entries = ClaudeCodeResponseParser.Parse(text);
 
         Assert.Single(entries);
         Assert.Equal(2, entries[0].Index);
     }
 
     [Fact]
-    public void is_error_なら原因つきで例外にする()
+    public void コードフェンスと前置きが付いていても読める()
     {
-        // claude は失敗の詳細を result と api_error_status に書く(subtype は success のまま)
-        const string json = """
-            {"is_error":true,"subtype":"success","api_error_status":401,
-             "result":"Failed to authenticate. API Error: 401 OAuth access token is invalid."}
+        // ブリッジ経由ではスキーマを強制できないので、装飾された応答が来ることがある
+        const string text = """
+            結果は以下のとおりです。
+
+            ```json
+            {"summaries":[{"index":1,"summary":"一つ目の要約"}]}
+            ```
             """;
 
-        var ex = Assert.Throws<InvalidOperationException>(() => ClaudeCodeParse(json));
-        Assert.Contains("OAuth access token is invalid", ex.Message);
-        Assert.Contains("401", ex.Message);
+        var entries = ClaudeCodeResponseParser.Parse(text);
+
+        Assert.Equal("一つ目の要約", Assert.Single(entries).Text);
     }
 
     [Fact]
-    public void 終了コードだけ非ゼロのときも原因を取り出せる()
+    public void 想定した配列が無ければ例外にする()
     {
-        const string json = """
-            {"is_error":true,"api_error_status":401,
-             "result":"Failed to authenticate. API Error: 401 OAuth access token is invalid."}
-            """;
+        // 別の形で返してきたときに、それらしいテキストを要約として紐づけない
+        const string text = """{"result":"要約っぽいテキスト"}""";
 
-        var detail = ClaudeCodeResponseParser.DescribeError(json);
-
-        Assert.NotNull(detail);
-        Assert.Contains("OAuth access token is invalid", detail);
+        Assert.Throws<FormatException>(() => ClaudeCodeResponseParser.Parse(text));
     }
 
     [Fact]
-    public void JSON_でない出力からは原因を取り出せない()
+    public void JSON_が無ければ例外にする()
     {
-        Assert.Null(ClaudeCodeResponseParser.DescribeError("segmentation fault"));
+        var ex = Assert.Throws<FormatException>(
+            () => ClaudeCodeResponseParser.Parse("認証に失敗しました"));
+
+        // 原因を追えるよう、読めなかった本文を例外に載せる
+        Assert.Contains("認証に失敗しました", ex.Message);
     }
-
-    [Fact]
-    public void 構造化出力が無ければ例外にする()
-    {
-        // --json-schema を渡しているのに structured_output が無いのは想定外。
-        // result のテキストに勝手にフォールバックすると誤った要約を紐づけかねない
-        const string json = """{"is_error":false,"result":"要約っぽいテキスト"}""";
-
-        Assert.Throws<FormatException>(() => ClaudeCodeParse(json));
-    }
-
-    [Fact]
-    public void JSON_でなければ例外にする()
-    {
-        Assert.Throws<FormatException>(() => ClaudeCodeParse("Error: not logged in"));
-    }
-
-    static IReadOnlyList<ClaudeCodeResponseParser.Entry> ClaudeCodeParse(string json) =>
-        ClaudeCodeResponseParser.Parse(json);
 }

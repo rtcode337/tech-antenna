@@ -4,24 +4,17 @@ using TechAntenna.Core.Models;
 namespace TechAntenna.Infrastructure.Summarization;
 
 /// <summary>
-/// Claude Code のヘッドレス実行(<c>claude -p</c>)で要約を生成する。API の従量課金ではなく
-/// サブスクリプションの枠で動かすための実装。認証は CLI 自身が環境変数
-/// <c>CLAUDE_CODE_OAUTH_TOKEN</c> を読むので、このクラスはトークンを扱わない
-/// (子プロセスは親の環境変数を引き継ぐ)。
+/// Claude Code(CLI ブリッジ経由)で要約を生成する。API の従量課金ではなく
+/// サブスクリプションの枠で動かすための実装。認証はブリッジが共有ディレクトリの設定 DB から
+/// 読むので、このクラスはトークンを扱わない。
 ///
 /// **呼び出し1回の固定費が大きい**。記事1件だけ渡しても Claude Code のハーネスが
 /// 3万トークン規模で入力に乗るため、必ずバッチでまとめて渡すこと(実測: 1件だと 32,300 tok、
 /// 5件まとめると 1件あたり 6,584 tok)。呼び出しの作法は <see cref="ClaudeCodeBatch"/> に集約。
 /// </summary>
-public class ClaudeCodeSummarizer(
-    IProcessRunner processRunner,
-    string executablePath,
-    string? model,
-    TimeSpan timeout) : ISummarizer
+public class ClaudeCodeSummarizer(ICliBridge bridge) : ISummarizer
 {
-    // モデル名まで画面に出す —— どのモデルがサブスク枠を使っているか見えるようにする。
-    // model が null(CLI の既定に任せる)ときは、既定が何かこちらから分からないので付けない
-    public string Name => model is null ? "Claude Code" : $"Claude Code / {model}";
+    public string Name => bridge.Name;
 
     public async Task<IReadOnlyList<SummaryResult>> SummarizeAsync(
         IReadOnlyList<Article> articles,
@@ -40,10 +33,7 @@ public class ClaudeCodeSummarizer(
         }
 
         var entries = await ClaudeCodeBatch.RunAsync(
-            processRunner,
-            executablePath,
-            model,
-            timeout,
+            bridge,
             SummaryPrompt.System,
             "summaries",
             "summary",

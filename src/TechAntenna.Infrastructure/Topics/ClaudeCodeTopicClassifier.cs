@@ -5,25 +5,20 @@ using TechAntenna.Infrastructure.Summarization;
 namespace TechAntenna.Infrastructure.Topics;
 
 /// <summary>
-/// Claude Code のヘッドレス実行(<c>claude -p</c>)で未知タグを分類する。
+/// Claude Code(CLI ブリッジ経由)で未知タグを分類する。
 /// 呼び出し1回の固定費が大きいのでまとめて渡すが、**1回に詰めすぎない** ——
 /// 200 語を1回で渡したら応答(全語ぶんの構造化 JSON)の生成が長くなり、
 /// 300 秒のタイムアウトで丸ごと失敗した(実測)。バッチに分ければ、
 /// 途中で失敗してもそれまでのバッチの分類は生きる。
 /// (呼び出しの作法は要約と同じ <see cref="ClaudeCodeBatch"/> に集約してある)
 /// </summary>
-public class ClaudeCodeTopicClassifier(
-    IProcessRunner processRunner,
-    string executablePath,
-    string? model,
-    TimeSpan timeout) : ITopicClassifier, ITopicDescriber, ITopicMergeAdvisor
+public class ClaudeCodeTopicClassifier(ICliBridge bridge)
+    : ITopicClassifier, ITopicDescriber, ITopicMergeAdvisor
 {
     /// <summary>1回の呼び出しで渡す語数。固定費(1回3万トークン規模)と応答時間の折り合い。</summary>
     public const int BatchSize = 60;
 
-    // モデル名まで画面に出す —— どのモデルがサブスク枠を使っているか見えるようにする。
-    // model が null(CLI の既定に任せる)ときは、既定が何かこちらから分からないので付けない
-    public string Name => model is null ? "Claude Code" : $"Claude Code / {model}";
+    public string Name => bridge.Name;
 
     public async Task<IReadOnlyList<TopicClassifierVerdict>> ClassifyAsync(
         IReadOnlyList<string> tags,
@@ -38,14 +33,11 @@ public class ClaudeCodeTopicClassifier(
         {
             var batch = tags.Skip(offset).Take(BatchSize).ToList();
             progress?.Invoke($"バッチ {offset / BatchSize + 1}/{totalBatches}({batch.Count} 語)を分類中");
-            string stdout;
+            string text;
             try
             {
-                stdout = await ClaudeCodeBatch.RunRawAsync(
-                    processRunner,
-                    executablePath,
-                    model,
-                    timeout,
+                text = await ClaudeCodeBatch.RunRawAsync(
+                    bridge,
                     TopicClassificationPrompt.System,
                     TopicClassificationPrompt.Schema,
                     TopicClassificationPrompt.ForTags(batch, existingTopics),
@@ -66,7 +58,7 @@ public class ClaudeCodeTopicClassifier(
             // 応答の番号はバッチ内の 1 始まりなので、全体の番号へずらして返す
             var batchOffset = offset;
             verdicts.AddRange(ClaudeCodeResponseParser
-                .ReadStructuredOutput(stdout, TopicClassificationPrompt.ReadVerdicts)
+                .ReadJson(text, TopicClassificationPrompt.ReadVerdicts)
                 .Select(verdict => verdict with { Index = verdict.Index + batchOffset }));
         }
 
@@ -88,17 +80,14 @@ public class ClaudeCodeTopicClassifier(
         }
 
         progress?.Invoke($"{topics.Count} 件のトピックから重複を探索中");
-        var stdout = await ClaudeCodeBatch.RunRawAsync(
-            processRunner,
-            executablePath,
-            model,
-            timeout,
+        var text = await ClaudeCodeBatch.RunRawAsync(
+            bridge,
             TopicMergePrompt.System,
             TopicMergePrompt.Schema,
             TopicMergePrompt.ForTopics(topics),
             cancellationToken);
 
-        return ClaudeCodeResponseParser.ReadStructuredOutput(stdout, TopicMergePrompt.ReadMerges);
+        return ClaudeCodeResponseParser.ReadJson(text, TopicMergePrompt.ReadMerges);
     }
 
     /// <summary>
@@ -117,14 +106,11 @@ public class ClaudeCodeTopicClassifier(
         {
             var batch = terms.Skip(offset).Take(BatchSize).ToList();
             progress?.Invoke($"バッチ {offset / BatchSize + 1}/{totalBatches}({batch.Count} 語)を説明中");
-            string stdout;
+            string text;
             try
             {
-                stdout = await ClaudeCodeBatch.RunRawAsync(
-                    processRunner,
-                    executablePath,
-                    model,
-                    timeout,
+                text = await ClaudeCodeBatch.RunRawAsync(
+                    bridge,
                     TopicDescriptionPrompt.System,
                     TopicDescriptionPrompt.Schema,
                     TopicDescriptionPrompt.ForTerms(batch),
@@ -141,7 +127,7 @@ public class ClaudeCodeTopicClassifier(
 
             var batchOffset = offset;
             verdicts.AddRange(ClaudeCodeResponseParser
-                .ReadStructuredOutput(stdout, TopicDescriptionPrompt.ReadDescriptions)
+                .ReadJson(text, TopicDescriptionPrompt.ReadDescriptions)
                 .Select(verdict => verdict with { Index = verdict.Index + batchOffset }));
         }
 
