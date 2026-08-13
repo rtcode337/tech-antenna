@@ -32,7 +32,7 @@ public class GoogleBooksCoverEnricherTests
         RawTags = ["AI"],
     };
 
-    static GoogleBooksCoverEnricher NewEnricher(StubHttpClientFactory factory, string? apiKey = "test-key") =>
+    static GoogleBooksCoverEnricher NewEnricher(IHttpClientFactory factory, string? apiKey = "test-key") =>
         new(factory, () => apiKey, NullLogger<GoogleBooksCoverEnricher>.Instance,
             delayBetweenRequests: TimeSpan.Zero);
 
@@ -92,15 +92,83 @@ public class GoogleBooksCoverEnricherTests
     }
 
     [Fact]
-    public async Task 枠を使い切ったら理由の分かる例外にする()
+    public async Task 枠を使い切っても取れたぶんの書影は返す()
     {
-        // 収集ジョブ側は補完の失敗として記録し、集めた本はそのまま保存する
-        var factory = new StubHttpClientFactory(Response, HttpStatusCode.TooManyRequests);
+        // **ここが埋まらない原因だった。** 投げて抜けると呼び出し側は補完前の本を保存するので、
+        // 数百リクエストぶんの書影が毎回消えていた(冊数 > 1 日の枠なので枠切れは必ず起きる)
+        var factory = new SequenceHttpClientFactory(
+            (HttpStatusCode.OK, Response),
+            (HttpStatusCode.TooManyRequests, """{"error":{"message":"rateLimitExceeded"}}"""));
 
-        var error = await Assert.ThrowsAsync<HttpRequestException>(
-            () => NewEnricher(factory).EnrichAsync([NewBook("9784873115658")]));
+        var books = await NewEnricher(factory).EnrichAsync(
+            [NewBook("9784873115658"), NewBook("9784873119045")]);
 
-        Assert.Contains("429", error.Message);
+        Assert.Equal(
+            "https://books.google.com/books/content?id=abc&zoom=1", books[0].CoverUrl?.ToString());
+        Assert.Null(books[1].CoverUrl);
+        // 枠切れの後は投げない(叩いても同じものが並ぶだけ)
+        Assert.Equal(2, factory.RequestedUris.Count);
+    }
+
+    [Fact]
+    public async Task 枠切れが403で返っても諦める()
+    {
+        // Google の API は 1 日あたりの上限を 403 dailyLimitExceeded で返すことがある
+        var factory = new SequenceHttpClientFactory(
+            (HttpStatusCode.Forbidden, """{"error":{"message":"dailyLimitExceeded"}}"""),
+            (HttpStatusCode.OK, Response));
+
+        var books = await NewEnricher(factory).EnrichAsync(
+            [NewBook("9784873115658"), NewBook("9784873119045")]);
+
+        Assert.All(books, book => Assert.Null(book.CoverUrl));
+        Assert.Single(factory.RequestedUris);
+    }
+
+    [Fact]
+    public async Task 一冊の失敗では止めない()
+    {
+        // 見つからない本・一時的なエラーで、後続の本まで諦めてはいけない
+        var factory = new SequenceHttpClientFactory(
+            (HttpStatusCode.InternalServerError, "boom"),
+            (HttpStatusCode.OK, Response));
+
+        var books = await NewEnricher(factory).EnrichAsync(
+            [NewBook("9784873115658"), NewBook("9784873119045")]);
+
+        Assert.Null(books[0].CoverUrl);
+        Assert.Equal(
+            "https://books.google.com/books/content?id=abc&zoom=1", books[1].CoverUrl?.ToString());
+    }
+
+    /// <summary>呼ばれた順に応答を返す(最後の1つはそれ以降も使い回す)。</summary>
+    sealed class SequenceHttpClientFactory : IHttpClientFactory
+    {
+        readonly (HttpStatusCode Status, string Body)[] _responses;
+
+        public SequenceHttpClientFactory(params (HttpStatusCode Status, string Body)[] responses) =>
+            _responses = responses;
+
+        public List<Uri> RequestedUris { get; } = [];
+
+        public HttpClient CreateClient(string name) => new(new Handler(this));
+
+        sealed class Handler(SequenceHttpClientFactory owner) : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                if (request.RequestUri is { } uri)
+                {
+                    owner.RequestedUris.Add(uri);
+                }
+                var (status, body) = owner._responses[
+                    Math.Min(owner.RequestedUris.Count - 1, owner._responses.Length - 1)];
+
+                return Task.FromResult(
+                    new HttpResponseMessage(status) { Content = new StringContent(body) });
+            }
+        }
     }
 
     [Fact]

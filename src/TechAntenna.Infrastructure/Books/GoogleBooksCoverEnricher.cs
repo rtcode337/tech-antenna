@@ -33,6 +33,15 @@ public class GoogleBooksCoverEnricher(
 
     readonly TimeSpan _delay = delayBetweenRequests ?? TimeSpan.FromSeconds(1);
 
+    /// <summary>
+    /// この回数だけ続けて失敗したら打ち切る。1冊ずつの失敗(見つからない・一時的なエラー)で
+    /// 全体を止めたくはないが、相手が落ちているのに数百回投げ続けるのも困るため。
+    /// </summary>
+    const int MaxConsecutiveFailures = 5;
+
+    /// <summary>1日あたりの枠に達した(429 / 403)。**残りは諦めるが、取れたぶんは返す**。</summary>
+    sealed class QuotaReachedException(string message) : Exception(message);
+
     public string Name => "Google Books(書影)";
 
     public async Task<IReadOnlyList<Book>> EnrichAsync(
@@ -75,11 +84,40 @@ public class GoogleBooksCoverEnricher(
         using var client = httpClientFactory.CreateClient(HttpClientName);
         var covers = new Dictionary<string, Uri>(StringComparer.Ordinal);
 
+        var consecutiveFailures = 0;
         for (var i = 0; i < isbns.Count; i++)
         {
-            if (await FetchCoverAsync(client, isbns[i], apiKey, cancellationToken) is { } cover)
+            try
             {
-                covers[isbns[i]] = cover;
+                if (await FetchCoverAsync(client, isbns[i], apiKey, cancellationToken) is { } cover)
+                {
+                    covers[isbns[i]] = cover;
+                }
+                consecutiveFailures = 0;
+            }
+            catch (QuotaReachedException ex)
+            {
+                // **ここまでに取れた書影は捨てない。** 投げて抜けると呼び出し側は補完前の本を
+                // 保存するので、数百リクエストぶんの結果が毎回消えて**いつまでも埋まらない**
+                // (860 冊 > 1 日 1,000 の枠なので、枠切れは必ず途中で起きる)
+                logger.LogWarning(
+                    "{Filled}/{Count} 冊まで埋めたところで Google Books の枠に達した({Reason})。"
+                    + "取れたぶんは保存し、残りは次回の収集で埋める",
+                    covers.Count, isbns.Count, ex.Message);
+                break;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // 1 冊の失敗で全体を止めない(見つからない本・一時的なエラー)
+                consecutiveFailures++;
+                logger.LogWarning(ex, "書影を引けなかった(ISBN {Isbn})", isbns[i]);
+                if (consecutiveFailures >= MaxConsecutiveFailures)
+                {
+                    logger.LogWarning(
+                        "{Count} 回続けて失敗したので書影の補完を打ち切る({Filled} 冊は保存する)",
+                        consecutiveFailures, covers.Count);
+                    break;
+                }
             }
 
             // 最後の1件の後は待たない(手動実行で無駄に待たせないため)
@@ -104,13 +142,14 @@ public class GoogleBooksCoverEnricher(
             + $"&key={Uri.EscapeDataString(apiKey)}";
 
         using var response = await client.GetAsync(requestUri, cancellationToken);
-        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+        // **枠切れは 429 だけではない。** Google の API は 1 日あたりの上限を
+        // `403 dailyLimitExceeded` で返すことがある(429 は短時間に送りすぎたとき)。
+        // どちらも「叩き続けても同じものが並ぶだけ」なので、残りは諦める
+        if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Forbidden)
         {
-            // **残りも諦めて投げる。** 枠を使い切った状態で残りを叩いても 429 が並ぶだけで、
-            // 呼び出し側(収集ジョブ)は補完の失敗として記録し、集めた本はそのまま保存する
-            throw new HttpRequestException(
-                "Google Books API が 429 を返した(書影の補完)。1 日あたりの上限に達したか、"
-                + "短時間に送りすぎている。書影は次回の収集で埋め直す");
+            throw new QuotaReachedException(
+                $"HTTP {(int)response.StatusCode}: "
+                + Excerpt(await response.Content.ReadAsStringAsync(cancellationToken)));
         }
 
         response.EnsureSuccessStatusCode();
@@ -119,6 +158,13 @@ public class GoogleBooksCoverEnricher(
         return GoogleBooksResponseParser.Parse(json)
             .Select(entry => entry.CoverUrl)
             .FirstOrDefault(cover => cover is not null);
+    }
+
+    /// <summary>例外メッセージにそのまま載せられる長さに切る。</summary>
+    static string Excerpt(string text)
+    {
+        var trimmed = text.Trim();
+        return trimmed.Length <= 200 ? trimmed : trimmed[..200] + "…";
     }
 
     static Book Apply(Book book, IReadOnlyDictionary<string, Uri> covers)
