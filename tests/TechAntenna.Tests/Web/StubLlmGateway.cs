@@ -18,12 +18,14 @@ public class StubLlmGateway(
     ITopicClassifier? classifier = null,
     ITopicDescriber? describer = null,
     ITopicMergeAdvisor? mergeAdvisor = null,
-    IDigestComposer? digestComposer = null)
+    IDigestComposer? digestComposer = null,
+    IReadOnlyList<DigestGenerator>? digestGenerators = null)
     : LlmGateway(
         EmptyCredentials(),
         new UnusedHttpClientFactory(),
         Options.Create(new ClaudeCodeOptions()),
         Options.Create(new AnthropicOptions()),
+        new ChiezoAi(new UnusedHttpClientFactory(), Options.Create(new ChiezoOptions())),
         TimeProvider.System,
         NullLogger<LlmGateway>.Instance)
 {
@@ -38,6 +40,9 @@ public class StubLlmGateway(
     public override ITopicMergeAdvisor? MergeAdvisor => mergeAdvisor;
 
     public override IDigestComposer? DigestComposer => digestComposer;
+
+    /// <summary>空なら DigestRunner は DigestComposer 1 本で走る(相手を選べない経路と同じ)。</summary>
+    public override IReadOnlyList<DigestGenerator> DigestGenerators => digestGenerators ?? [];
 
     public override bool IsConfigured =>
         summarizer is not null || titleTranslator is not null

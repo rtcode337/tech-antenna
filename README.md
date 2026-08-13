@@ -21,7 +21,7 @@ ntfy への通知にもできる)まで実装済み。
 | Web | ASP.NET Core + Blazor |
 | 収集ジョブ | `BackgroundService` |
 | DB | PostgreSQL + EF Core |
-| 要約 | Claude Code(CLI ブリッジ経由)/ Anthropic API |
+| 要約 | Chiezo 経由(相手を画面で選ぶ)/ Claude Code(CLI ブリッジ経由)/ Anthropic API |
 
 ## データソース
 
@@ -256,6 +256,10 @@ CLI ブリッジと共有する設定は `data/state`)に入る ——
   ([.github/workflows/build-and-push-image.yml](.github/workflows/build-and-push-image.yml))。
   タグは `latest` とコミット識別用の `sha-xxxxxxx`。デプロイ先はビルドせず
   `docker compose pull && docker compose up -d` でよい
+- **`CHIEZO_URL` を入れると、LLM の相手を画面(設定 → AI)から選べる**。Chiezo
+  (LAN 内の知識サーバー)が Gemini・Claude Code・推論サーバ…の鍵を持っているので、
+  こちらにキーは要らない。**サブの AI を選ぶと、今日のサマリーをメインと同時に書き、
+  ホームでタブを切り替えて読み比べられる**。未設定なら従来どおり下の bridge を使う
 - **要約を Claude Code(サブスクの枠)で回すときは `bridge` サービスが要る** ——
   CLI はアプリのイメージに入っておらず、chiezo リポジトリの公開イメージ
   (`ghcr.io/rtcode337/chiezo-bridge`)が動かす。画面で入れたトークンは `data/state` の

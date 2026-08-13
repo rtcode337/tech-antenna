@@ -49,8 +49,27 @@ public class Digest
     /// <summary>押さえておく項目。多すぎると読まれないので生成時に数個へ絞らせる。</summary>
     public required IReadOnlyList<DigestItem> Items { get; init; }
 
-    /// <summary>生成した方式(Claude Code / Anthropic API)。画面の但し書きに出す。</summary>
+    /// <summary>生成した方式(Claude Code / Anthropic API / Gemini …)。画面の但し書きに出す。</summary>
     public required string GeneratorName { get; init; }
+
+    /// <summary>
+    /// 生成に使った相手の識別子(`chiezo:gemini` / `default` など)。**表示名とは別に持つ** ——
+    /// 表示名はモデル名まで含んで変わりうるので、突き合わせのキーには使えない。
+    ///
+    /// **入れるのは生成を頼んだ側**(<c>DigestRunner</c>)。誰に頼んだか・何本目かは
+    /// 呼び出し側の都合で、書き手(<c>IDigestComposer</c>)の知る話ではない。
+    /// </summary>
+    public string GeneratorKey { get; set; } = "";
+
+    /// <summary>
+    /// 同じ回で作った束の識別子。**複数の AI で同時に作る**ので、比較する相手は
+    /// 「同じ回のもの」でなければならない —— 生成時刻で寄せると、失敗した AI の
+    /// 前日ぶんが今日のものと並んでしまう。
+    /// </summary>
+    public Guid RunId { get; set; }
+
+    /// <summary>メインの AI で作ったか。ホームの既定の表示と、通知に使う1本を選ぶ。</summary>
+    public bool IsPrimary { get; set; }
 }
 
 /// <summary>ダイジェストの1項目。</summary>

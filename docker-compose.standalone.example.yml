@@ -70,6 +70,11 @@ x-app-env: &app-env
   # ホストへは公開していないので、サービス名で内部ネットワーク越しに呼ぶ
   ClaudeCode__BridgeUrl: "http://bridge:7013/v1"
 
+  # ---- ここだけ編集(任意): Chiezo(LAN 内の知識サーバー)の URL ----
+  # 入れると LLM の相手を画面から選べる(設定 → AI)。鍵は Chiezo が持っている。
+  # 空なら従来どおり bridge / Anthropic API を使う
+  Chiezo__BaseUrl: ""
+
   # 今日のサマリーの ntfy 通知。接続先(URL・トピック・トークン)は画面から設定する。
   # タップで開く URL だけは「この環境の公開 URL」というデプロイ側の事実なのでここに残す
   Ntfy__ClickUrl: ""

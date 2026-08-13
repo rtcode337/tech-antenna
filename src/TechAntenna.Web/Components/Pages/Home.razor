@@ -72,6 +72,32 @@
 
 @* サマリー1枚。中身は範囲によらず同じ形なので、見出しと文言だけ差し替える *@
 @{
+    RenderFragment DigestBody(Digest digest) =>
+    @<text>
+        @if (digest.Lead is { Length: > 0 })
+        {
+            <p class="digest-lead">@digest.Lead</p>
+        }
+        <ul class="digest-items list-unstyled">
+            @foreach (var item in digest.Items)
+            {
+                <li>
+                    <strong>@item.Title</strong>
+                    <p>
+                        @item.Body
+                        @if (item.Url is { Length: > 0 } url)
+                        {
+                            <a href="@url" target="_blank" rel="noopener">出典 →</a>
+                        }
+                    </p>
+                </li>
+            }
+        </ul>
+        <p class="digest-meta">
+            @digest.GeneratorName で生成。再生成は<a href="/settings/general">設定</a>から。
+        </p>
+    </text>;
+
     RenderFragment SummaryCard(DigestScope scope, string eyebrow, string id) =>
     @<text>
         <section class="summary-card" aria-labelledby="summary-heading-@id">
@@ -81,7 +107,8 @@
                     <h2 id="summary-heading-@id">今日のサマリー<small>@scope.Label()</small></h2>
                 </div>
                 @{
-                    var digest = Latest(scope);
+                    var digests = LatestRun(scope);
+                    var digest = digests.FirstOrDefault();
                 }
                 @if (digest is not null)
                 {
@@ -119,30 +146,36 @@
                     </p>
                 </div>
             }
+            else if (digests.Count == 1)
+            {
+                @DigestBody(digest)
+            }
             else
             {
-                @if (digest.Lead is { Length: > 0 })
-                {
-                    <p class="digest-lead">@digest.Lead</p>
-                }
-                <ul class="digest-items list-unstyled">
-                    @foreach (var item in digest.Items)
+                @* **複数の AI に同じ材料で書かせた回**。タブで切り替えて読み比べる ——
+                   縦に並べるとホームが AI の数だけ伸び、横に並べるとスマホで読めない。
+                   切り替えは**ラジオ + CSS**(`:checked ~`)—— 静的 SSR のまま JS を使わずに済む *@
+                <div class="digest-compare">
+                    @for (var i = 0; i < digests.Count; i++)
                     {
-                        <li>
-                            <strong>@item.Title</strong>
-                            <p>
-                                @item.Body
-                                @if (item.Url is { Length: > 0 } url)
-                                {
-                                    <a href="@url" target="_blank" rel="noopener">出典 →</a>
-                                }
-                            </p>
-                        </li>
+                        <input type="radio" class="digest-tab-input" name="@($"digest-{id}")"
+                               id="@($"digest-{id}-{i}")" checked="@(i == 0)" />
                     }
-                </ul>
-                <p class="digest-meta">
-                    @digest.GeneratorName で生成。再生成は<a href="/settings/general">設定</a>から。
-                </p>
+                    <div class="digest-tabs" role="tablist">
+                        @for (var i = 0; i < digests.Count; i++)
+                        {
+                            <label class="digest-tab" for="@($"digest-{id}-{i}")">
+                                @digests[i].GeneratorName
+                            </label>
+                        }
+                    </div>
+                    <div class="digest-panels">
+                        @foreach (var one in digests)
+                        {
+                            <div class="digest-panel">@DigestBody(one)</div>
+                        }
+                    </div>
+                </div>
             }
         </section>
     </text>;
@@ -151,18 +184,19 @@
 @code {
     IReadOnlyList<Topic>? _topics;
 
-    /// <summary>技術界隈全体のサマリー(最新の1件)。</summary>
-    Digest? _overall;
+    /// <summary>技術界隈全体のサマリー(最新の回。メインが先頭、後ろにサブの AI の分)。</summary>
+    IReadOnlyList<Digest> _overall = [];
 
-    /// <summary>興味トピックのサマリー(最新の1件)。トピック未選択なら作られないので null のまま。</summary>
-    Digest? _interests;
+    /// <summary>興味トピックのサマリー(同上)。トピック未選択なら作られないので空のまま。</summary>
+    IReadOnlyList<Digest> _interests = [];
 
     /// <summary>興味トピックが1つでも選ばれているか。**未生成の枠を出すかの判断に使う** ——
     /// 選んでいなければ生成もされないので、枠ごと出さない。</summary>
     bool _hasSelectedTopics;
 
-    /// <summary>範囲に対応する最新の1件(枚ごとの描画から引く)。</summary>
-    Digest? Latest(DigestScope scope) => scope == DigestScope.Interests ? _interests : _overall;
+    /// <summary>範囲に対応する最新の回(枚ごとの描画から引く)。先頭がメイン。</summary>
+    IReadOnlyList<Digest> LatestRun(DigestScope scope) =>
+        scope == DigestScope.Interests ? _interests : _overall;
 
     /// <summary>ホームに並べるトピックの数。</summary>
     const int Limit = 10;
@@ -182,9 +216,10 @@
             .ThenBy(topic => topic.Key, StringComparer.Ordinal)
             .Take(Limit)
             .ToList();
-        // 出すのは範囲ごとに最新の1件だけ(履歴は保存してあるが、ホームは「いま」に答える場所)
-        _overall = await DigestStore.GetLatestAsync(DigestScope.Overall);
-        _interests = await DigestStore.GetLatestAsync(DigestScope.Interests);
+        // 出すのは範囲ごとに**最新の回**だけ(履歴は保存してあるが、ホームは「いま」に答える場所)。
+        // 複数の AI に書かせている場合はその回の全員が入る(先頭がメイン)
+        _overall = await DigestStore.GetLatestRunAsync(DigestScope.Overall);
+        _interests = await DigestStore.GetLatestRunAsync(DigestScope.Interests);
         _hasSelectedTopics = (await TopicStore.GetSelectedAsync()).Count > 0;
     }
 }

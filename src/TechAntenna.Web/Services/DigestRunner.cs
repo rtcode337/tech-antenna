@@ -10,7 +10,9 @@ namespace TechAntenna.Web.Services;
 /// <param name="Items">生成した項目数。</param>
 /// <param name="Notified">通知した先の数。</param>
 /// <param name="NotifyFailed">通知に失敗した先の数(生成自体は成功のまま)。</param>
-public record DigestPart(DigestScope Scope, int Items, int Notified, int NotifyFailed);
+/// <param name="Generators">書かせた AI の数(メイン + サブ)。1 なら文言に出さない。</param>
+public record DigestPart(
+    DigestScope Scope, int Items, int Notified, int NotifyFailed, int Generators = 1);
 
 /// <summary>ダイジェストを1回実行した結果(全体・興味トピックの最大2本)。</summary>
 /// <param name="Parts">生成できたぶんだけ入る。材料が無い範囲は入らない。</param>
@@ -30,7 +32,8 @@ public record DigestRunResult(IReadOnlyList<DigestPart> Parts)
     /// 合計だけだと、興味トピック側が作られなかったことに気づけない。</summary>
     public string Describe() => Composed
         ? "今日のサマリーを生成しました("
-            + string.Join("・", Parts.Select(part => $"{part.Scope.Label()} {part.Items} 項目"))
+            + string.Join("・", Parts.Select(part => $"{part.Scope.Label()} {part.Items} 項目"
+                + (part.Generators > 1 ? $"(AI {part.Generators} 本)" : "")))
             + ")。"
             + (Notified > 0 ? $" ntfy へ {Notified} 通 通知しました。" : "")
             + (NotifyFailed > 0 ? " 通知に失敗しました(詳細はログ)。" : "")
@@ -78,6 +81,7 @@ public class DigestRunner(
         IDigestComposer composer, CancellationToken cancellationToken)
     {
         var composed = new List<Digest>();
+        var generatorCounts = new Dictionary<DigestScope, int>();
 
         // 全体 → 興味トピックの順に作る。**片方の材料が無くても、もう片方は作る** ——
         // トレンドの収集だけ済んでいる日と、興味トピック側だけ動いた日のどちらもあるため。
@@ -89,7 +93,15 @@ public class DigestRunner(
                 continue;
             }
 
-            composed.Add(await ComposeOneAsync(composer, materials, cancellationToken));
+            var digests = await ComposeWithAllAsync(composer, materials, cancellationToken);
+            if (digests.Count == 0)
+            {
+                continue;
+            }
+
+            generatorCounts[materials.Scope] = digests.Count;
+            // 通知とホームの既定に使うのはメイン。保存はサブの分も含めて全部
+            composed.Add(digests[0]);
         }
 
         if (composed.Count == 0)
@@ -112,24 +124,85 @@ public class DigestRunner(
                 digest.Scope,
                 digest.Items.Count,
                 notifications[digest.Scope].Notified,
-                notifications[digest.Scope].Failed))
+                notifications[digest.Scope].Failed,
+                generatorCounts.GetValueOrDefault(digest.Scope, 1)))
             .ToList());
     }
 
-    async Task<Digest> ComposeOneAsync(
+    /// <summary>
+    /// 同じ材料を**選ばれた AI 全部に同時に書かせて**保存する(戻り値の先頭がメイン)。
+    ///
+    /// **同時に投げるのは、比べる相手を同じ材料・同じ回にそろえるため。** 順に走らせると
+    /// 後ろの相手ほど時間が空き、途中で収集が走れば材料まで変わる。
+    /// **サブが失敗してもメインは残す** —— 読みたいのはメインで、比較はおまけ。
+    /// </summary>
+    async Task<IReadOnlyList<Digest>> ComposeWithAllAsync(
         IDigestComposer composer, DigestMaterials materials, CancellationToken cancellationToken)
     {
         var scope = materials.Scope;
+        // 相手を選べない経路(CLI ブリッジ / Anthropic API)では 1 本だけ
+        var generators = llm.DigestGenerators.Count > 0
+            ? llm.DigestGenerators
+            : [new DigestGenerator(LlmGateway.DefaultGeneratorKey, composer.Name, true, composer)];
 
-        Progress = $"LLM でダイジェストを生成中…({scope.Label()})";
-        var digest = await composer.ComposeAsync(materials, cancellationToken);
-        await digestStore.SaveAsync(digest, cancellationToken);
+        Progress = generators.Count > 1
+            ? $"LLM でダイジェストを生成中…({scope.Label()}・AI {generators.Count} 本)"
+            : $"LLM でダイジェストを生成中…({scope.Label()})";
 
-        logger.LogInformation(
-            "{Composer}: ダイジェストを生成({Scope}・{Items} 項目)",
-            composer.Name, scope, digest.Items.Count);
+        // **回の識別子は先に決める。** 保存の順ではなく「同じ回で作った束」で寄せたいので、
+        // 生成の成否に関わらず同じ値を全員に配る
+        var runId = Guid.NewGuid();
+        var results = await Task.WhenAll(generators.Select(generator =>
+            ComposeOneAsync(generator, materials, runId, cancellationToken)));
 
-        return digest;
+        var digests = results.OfType<Digest>().ToList();
+        foreach (var digest in digests)
+        {
+            await digestStore.SaveAsync(digest, cancellationToken);
+        }
+
+        // メインが失敗していたら、残ったサブの先頭をメインに繰り上げる ——
+        // 通知もホームも「1本目」を使うので、空にすると何も出なくなる
+        if (digests.Count > 0 && !digests[0].IsPrimary)
+        {
+            digests[0].IsPrimary = true;
+        }
+
+        return digests;
+    }
+
+    /// <summary>1 本ぶん。失敗したら null(呼び出し側が残りを活かす)。</summary>
+    async Task<Digest?> ComposeOneAsync(
+        DigestGenerator generator,
+        DigestMaterials materials,
+        Guid runId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var digest = await generator.Composer.ComposeAsync(materials, cancellationToken);
+            digest.RunId = runId;
+            digest.GeneratorKey = generator.Key;
+            digest.IsPrimary = generator.IsPrimary;
+
+            logger.LogInformation(
+                "{Composer}: ダイジェストを生成({Scope}・{Items} 項目)",
+                generator.Name, materials.Scope, digest.Items.Count);
+
+            return digest;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (!generator.IsPrimary)
+        {
+            // **サブの失敗で全体を止めない。** 比較のための1本が欠けるだけ
+            logger.LogWarning(ex,
+                "{Composer} でのダイジェスト生成に失敗({Scope})。この相手ぶんは飛ばす",
+                generator.Name, materials.Scope);
+            return null;
+        }
     }
 
     /// <summary>

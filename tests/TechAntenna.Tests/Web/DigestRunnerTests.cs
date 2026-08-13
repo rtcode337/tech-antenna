@@ -16,11 +16,11 @@ public class DigestRunnerTests
 
     /// <summary>受け取った材料を記録し、固定のダイジェストを返す IDigestComposer。
     /// **1回の実行で2本呼ばれる**ことがあるので、材料は範囲ごとに残す。</summary>
-    class StubComposer : IDigestComposer
+    class StubComposer(string name = "スタブ", Exception? failure = null) : IDigestComposer
     {
         public List<DigestMaterials> Received { get; } = [];
 
-        public string Name => "スタブ";
+        public string Name => name;
 
         /// <summary>その範囲で呼ばれていれば材料、呼ばれていなければ null。</summary>
         public DigestMaterials? For(DigestScope scope) =>
@@ -30,6 +30,11 @@ public class DigestRunnerTests
             DigestMaterials materials, CancellationToken cancellationToken = default)
         {
             Received.Add(materials);
+            if (failure is not null)
+            {
+                return Task.FromException<Digest>(failure);
+            }
+
             return Task.FromResult(new Digest
             {
                 Scope = materials.Scope,
@@ -76,8 +81,9 @@ public class DigestRunnerTests
         InMemoryTopicStore topics,
         InMemoryDigestStore digests,
         TopicCatalog catalog,
-        StubNotifier? notifier = null) =>
-        new(new StubLlmGateway(digestComposer: composer),
+        StubNotifier? notifier = null,
+        IReadOnlyList<DigestGenerator>? generators = null) =>
+        new(new StubLlmGateway(digestComposer: composer, digestGenerators: generators),
             notifier is null ? [] : [notifier],
             articles,
             events,
@@ -269,4 +275,99 @@ public class DigestRunnerTests
         Tags = ["llm"],
         CollectedAt = Now,
     };
+
+    [Fact]
+    public async Task 複数のAIに同じ材料で書かせて全部保存する()
+    {
+        // ホームで読み比べるので、**同じ回・同じ材料**でそろっていることが要点
+        var articles = new InMemoryArticleStore();
+        await articles.AddRangeAsync([Article("話題の記事", ArticleKind.News)]);
+        var digests = new InMemoryDigestStore();
+        var main = new StubComposer("メインAI");
+        var sub = new StubComposer("サブAI");
+        var runner = Runner(
+            main,
+            articles,
+            new InMemoryEventStore(),
+            new InMemoryTopicStore(),
+            digests,
+            TopicCatalog.Empty,
+            generators:
+            [
+                new DigestGenerator("chiezo:main", main.Name, true, main),
+                new DigestGenerator("chiezo:sub", sub.Name, false, sub),
+            ]);
+
+        var result = await runner.RunOnceAsync();
+
+        var run = await digests.GetLatestRunAsync(DigestScope.Overall);
+        Assert.Equal(2, run.Count);
+        // 先頭はメイン(ホームの既定の表示と通知に使う)
+        Assert.True(run[0].IsPrimary);
+        Assert.Equal("chiezo:main", run[0].GeneratorKey);
+        Assert.False(run[1].IsPrimary);
+        // 同じ回として寄せられる(時刻ではなく回で比べる)
+        Assert.Equal(run[0].RunId, run[1].RunId);
+        // 材料は同じものを渡す
+        Assert.Single(main.Received);
+        Assert.Single(sub.Received);
+        Assert.Contains("AI 2 本", result.Describe());
+    }
+
+    [Fact]
+    public async Task サブが失敗してもメインは残す()
+    {
+        // 読みたいのはメインで、比較はおまけ
+        var articles = new InMemoryArticleStore();
+        await articles.AddRangeAsync([Article("話題の記事", ArticleKind.News)]);
+        var digests = new InMemoryDigestStore();
+        var main = new StubComposer("メインAI");
+        var sub = new StubComposer("サブAI", new HttpRequestException("落ちた"));
+        var notifier = new StubNotifier();
+        var runner = Runner(
+            main,
+            articles,
+            new InMemoryEventStore(),
+            new InMemoryTopicStore(),
+            digests,
+            TopicCatalog.Empty,
+            notifier,
+            generators:
+            [
+                new DigestGenerator("chiezo:main", main.Name, true, main),
+                new DigestGenerator("chiezo:sub", sub.Name, false, sub),
+            ]);
+
+        await runner.RunOnceAsync();
+
+        var run = await digests.GetLatestRunAsync(DigestScope.Overall);
+        Assert.Equal("chiezo:main", Assert.Single(run).GeneratorKey);
+        // 通知はメインの 1 本だけ(サブは比較のためのもの)
+        Assert.Equal(1, notifier.CallCount);
+    }
+
+    [Fact]
+    public async Task メインが失敗したらサブを繰り上げる()
+    {
+        // 1 本も出さないより、書けたものを出す(ホームも通知も「先頭」を使う)
+        var articles = new InMemoryArticleStore();
+        await articles.AddRangeAsync([Article("話題の記事", ArticleKind.News)]);
+        var digests = new InMemoryDigestStore();
+        var main = new StubComposer("メインAI", new HttpRequestException("落ちた"));
+        var sub = new StubComposer("サブAI");
+        var runner = Runner(
+            main,
+            articles,
+            new InMemoryEventStore(),
+            new InMemoryTopicStore(),
+            digests,
+            TopicCatalog.Empty,
+            generators:
+            [
+                new DigestGenerator("chiezo:main", main.Name, true, main),
+                new DigestGenerator("chiezo:sub", sub.Name, false, sub),
+            ]);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => runner.RunOnceAsync());
+    }
 }

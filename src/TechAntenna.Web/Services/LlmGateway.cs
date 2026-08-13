@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Infrastructure.Bridge;
+using TechAntenna.Infrastructure.Chiezo;
 using TechAntenna.Infrastructure.Summarization;
 using TechAntenna.Infrastructure.Topics;
 
@@ -11,8 +12,13 @@ namespace TechAntenna.Web.Services;
 /// **実行のたびにキーの状態から選ぶ**。かつては起動時に環境変数を見て DI 登録を
 /// 分岐していたが、それだと画面からキーを設定しても再起動するまで効かない。
 ///
-/// 方式の優先は従来と同じ: Claude Code のトークン(サブスクの枠)>
-/// Anthropic API キー(従量課金)> どちらも無ければ null(ボタンは disabled で出る)。
+/// 方式の優先: **Chiezo(URL を設定し、画面でメインの AI を選んである)** >
+/// Claude Code のトークン(サブスクの枠)> Anthropic API キー(従量課金)>
+/// どれも無ければ null(ボタンは disabled で出る)。
+///
+/// **Chiezo を先に見るのは、そこが「相手を選べる」唯一の経路だから** —— わざわざ選んだ
+/// 相手より、同居のサイドカーを優先する理由が無い。URL が無い・メインを選んでいない
+/// 環境では今までどおり動く。
 ///
 /// 組み立ては <see cref="ApiCredentials.Version"/> が変わったときだけ ——
 /// キーが変わらない限り同じインスタンスを返し続ける(Anthropic のクライアントや
@@ -28,6 +34,7 @@ public class LlmGateway(
     IHttpClientFactory httpClientFactory,
     IOptions<ClaudeCodeOptions> claudeCodeOptions,
     IOptions<AnthropicOptions> anthropicOptions,
+    ChiezoAi chiezo,
     TimeProvider timeProvider,
     ILogger<LlmGateway> logger)
 {
@@ -37,6 +44,12 @@ public class LlmGateway(
     /// 同じ言葉を使えるようにするため。
     /// </summary>
     public const string ClaudeCodeTokenName = "CLAUDE_CODE_OAUTH_TOKEN";
+
+    /// <summary>
+    /// Chiezo を使っていないときの生成者のキー。**相手を選べない経路はこれ 1 つ**
+    /// (Claude Code / Anthropic API のどちらでも、同時に走るのは 1 本)。
+    /// </summary>
+    public const string DefaultGeneratorKey = "default";
 
     /// <summary>Anthropic API キーの設定キー。</summary>
     public const string AnthropicApiKeyName = "Anthropic:ApiKey";
@@ -48,7 +61,8 @@ public class LlmGateway(
         ITopicClassifier? Classifier,
         ITopicDescriber? Describer,
         ITopicMergeAdvisor? MergeAdvisor,
-        IDigestComposer? DigestComposer);
+        IDigestComposer? DigestComposer,
+        IReadOnlyList<DigestGenerator> DigestGenerators);
 
     readonly object _gate = new();
     Built? _built;
@@ -64,6 +78,12 @@ public class LlmGateway(
     public virtual ITopicMergeAdvisor? MergeAdvisor => Current().MergeAdvisor;
 
     public virtual IDigestComposer? DigestComposer => Current().DigestComposer;
+
+    /// <summary>
+    /// 今日のサマリーを書かせる相手(**メインが先頭**)。Chiezo でサブを選んでいれば、
+    /// その相手ぶんも並ぶ —— ホームで読み比べるため。
+    /// </summary>
+    public virtual IReadOnlyList<DigestGenerator> DigestGenerators => Current().DigestGenerators;
 
     /// <summary>いずれかの方式が使えるか。</summary>
     public virtual bool IsConfigured => Current().Summarizer is not null;
@@ -94,6 +114,11 @@ public class LlmGateway(
 
     Built Build(int version)
     {
+        if (BuildFromChiezo(version) is { } fromChiezo)
+        {
+            return fromChiezo;
+        }
+
         var claudeCode = claudeCodeOptions.Value;
         var token = credentials.Get(ClaudeCodeTokenName);
         // **トークンを消したときも書く。** 書かないと、共有ディレクトリに残った古い
@@ -116,7 +141,9 @@ public class LlmGateway(
                 classifier,
                 classifier,
                 classifier,
-                new ClaudeCodeDigestComposer(bridge, timeProvider));
+                new ClaudeCodeDigestComposer(bridge, timeProvider),
+                [new DigestGenerator(DefaultGeneratorKey, bridge.Name, true,
+                    new ClaudeCodeDigestComposer(bridge, timeProvider))]);
         }
 
         var apiKey = credentials.Get(AnthropicApiKeyName);
@@ -131,10 +158,45 @@ public class LlmGateway(
                 classifier,
                 classifier,
                 classifier,
-                new AnthropicDigestComposer(apiKey, anthropic.Model, timeProvider));
+                new AnthropicDigestComposer(apiKey, anthropic.Model, timeProvider),
+                [new DigestGenerator(DefaultGeneratorKey, "Anthropic API", true,
+                    new AnthropicDigestComposer(apiKey, anthropic.Model, timeProvider))]);
         }
 
-        return new Built(version, null, null, null, null, null, null);
+        return new Built(version, null, null, null, null, null, null, []);
+    }
+
+    /// <summary>
+    /// Chiezo 経由の実装。URL が未設定・メインを選んでいなければ null(呼び出し側が次の方式へ)。
+    /// **サブはダイジェストにだけ効かせる**(要約や翻訳まで相手の数だけ走らせない)。
+    /// </summary>
+    Built? BuildFromChiezo(int version)
+    {
+        var config = AiSettings.Load(credentials);
+        if (chiezo.Client() is not { } client || config.Main is not { } main)
+        {
+            return null;
+        }
+        var mainBridge = new ChiezoAiBridge(client, main.ToSelection());
+        var classifier = new ClaudeCodeTopicClassifier(mainBridge);
+
+        var generators = config.All()
+            .Select(choice => new DigestGenerator(
+                choice.Key,
+                choice.ToSelection().DisplayName,
+                choice.Backend == main.Backend,
+                new ClaudeCodeDigestComposer(new ChiezoAiBridge(client, choice.ToSelection()), timeProvider)))
+            .ToList();
+
+        return new Built(
+            version,
+            new ClaudeCodeSummarizer(mainBridge),
+            new ClaudeCodeTitleTranslator(mainBridge),
+            classifier,
+            classifier,
+            classifier,
+            new ClaudeCodeDigestComposer(mainBridge, timeProvider),
+            generators);
     }
 
     /// <summary>

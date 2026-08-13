@@ -29,7 +29,30 @@ public class InMemoryDigestStore : IDigestStore
             return Task.FromResult(_digests
                 .Where(d => d.Scope == scope)
                 .OrderByDescending(d => d.GeneratedAt)
+                .ThenByDescending(d => d.IsPrimary)
                 .FirstOrDefault());
+        }
+    }
+
+    public Task<IReadOnlyList<Digest>> GetLatestRunAsync(
+        DigestScope scope, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            var latest = _digests
+                .Where(d => d.Scope == scope)
+                .OrderByDescending(d => d.GeneratedAt)
+                .FirstOrDefault();
+
+            IReadOnlyList<Digest> run = latest is null
+                ? []
+                : _digests
+                    .Where(d => d.RunId == latest.RunId)
+                    .OrderByDescending(d => d.IsPrimary)
+                    .ThenBy(d => d.GeneratedAt)
+                    .ToList();
+
+            return Task.FromResult(run);
         }
     }
 }

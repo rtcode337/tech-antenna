@@ -8,6 +8,7 @@ using TechAntenna.Core.Topics;
 using TechAntenna.Infrastructure;
 using TechAntenna.Infrastructure.Books;
 using TechAntenna.Infrastructure.Bridge;
+using TechAntenna.Infrastructure.Chiezo;
 using TechAntenna.Infrastructure.Events;
 using TechAntenna.Infrastructure.Feeds;
 using TechAntenna.Infrastructure.Notifications;
@@ -379,6 +380,12 @@ builder.Services.Configure<ClaudeCodeOptions>(
     builder.Configuration.GetSection(ClaudeCodeOptions.SectionName));
 builder.Services.Configure<DigestOptions>(
     builder.Configuration.GetSection(DigestOptions.SectionName));
+// Chiezo(LAN 内の知識サーバー)経由で相手を選ぶ経路。**URL を設定したときだけ使う** ——
+// あちらが Gemini・Claude Code・推論サーバの鍵を持っているので、こちらは相手を選ぶだけでよい
+builder.Services.Configure<ChiezoOptions>(
+    builder.Configuration.GetSection(ChiezoOptions.SectionName));
+builder.Services.AddHttpClient(ChiezoAiClient.HttpClientName);
+builder.Services.AddSingleton<ChiezoAi>();
 // ブリッジへの1回の待ちは呼び出しごとに決める(CliBridgeClient が上限秒数を設定する)ので、
 // ここでは名前を登録するだけ
 builder.Services.AddHttpClient(CliBridgeClient.HttpClientName);

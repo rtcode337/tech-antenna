@@ -285,3 +285,22 @@ public class NewReleaseOptions
     /// <summary>ページの合間に空ける待ち時間(秒)。無料で開かれた API への礼儀。</summary>
     public int DelayBetweenPagesSeconds { get; set; } = 1;
 }
+
+/// <summary>
+/// Chiezo(LAN 内の知識サーバー)の設定。appsettings の Chiezo セクションから読む。
+///
+/// **URL を入れると LLM の相手を Chiezo から選べるようになる。** Chiezo は Gemini・
+/// Claude Code・推論サーバ…の認証情報を持っているので、こちらは鍵を持たずに
+/// 相手を選ぶだけでよい(サイドカーの CLI ブリッジは Claude Code 1 つしか包めない)。
+/// 未設定なら従来どおり CLI ブリッジ / Anthropic API を使う。
+/// </summary>
+public class ChiezoOptions
+{
+    public const string SectionName = "Chiezo";
+
+    /// <summary>Chiezo の URL(例 `http://chiezo-api:7010`)。空なら使わない。</summary>
+    public string BaseUrl { get; set; } = "";
+
+    /// <summary>1回の生成の上限(秒)。相手が CLI や大きいモデルだと数分かかる。</summary>
+    public int TimeoutSeconds { get; set; } = 300;
+}

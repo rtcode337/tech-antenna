@@ -164,6 +164,7 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
 
             digest.Property(d => d.Lead).IsRequired();
             digest.Property(d => d.GeneratorName).IsRequired();
+            digest.Property(d => d.GeneratorKey).IsRequired();
 
             // 守備範囲は数値ではなく名前で持つ(記事の種別と同じ流儀 —— SQL で覗いたときに読める)
             digest.Property(d => d.Scope)
@@ -172,6 +173,9 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
 
             // 「守備範囲ごとの最新の1件」を引くための索引(ホームが範囲ごとに引くため)
             digest.HasIndex(d => new { d.Scope, d.GeneratedAt });
+
+            // 同じ回で作った束(複数の AI で同時に作ったもの)をまとめて引くための索引
+            digest.HasIndex(d => d.RunId);
 
             // 項目は行を分けず JSON 1 列で持つ。項目単体を検索・集計する予定が無く、
             // 常にダイジェスト丸ごとで読み書きするため(正規化してもテーブルが増えるだけ)
