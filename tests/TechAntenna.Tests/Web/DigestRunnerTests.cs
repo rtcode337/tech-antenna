@@ -181,7 +181,9 @@ public class DigestRunnerTests
             [DigestScope.Overall, DigestScope.Interests],
             result.Parts.Select(part => part.Scope));
         Assert.Equal(2, result.Notified);
-        Assert.Equal([DigestScope.Overall, DigestScope.Interests], notifier.Notified);
+        // **通知は生成と逆順。** ntfy のアプリは新着が上に並ぶので、最後に送った
+        // 「技術界隈全体」が一番上に出る(画面の文言は生成順のまま)
+        Assert.Equal([DigestScope.Interests, DigestScope.Overall], notifier.Notified);
         Assert.NotNull(await digests.GetLatestAsync(DigestScope.Overall));
         Assert.NotNull(await digests.GetLatestAsync(DigestScope.Interests));
     }

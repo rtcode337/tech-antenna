@@ -77,10 +77,11 @@ public class DigestRunner(
     async Task<DigestRunResult> ComposeAllAsync(
         IDigestComposer composer, CancellationToken cancellationToken)
     {
-        var parts = new List<DigestPart>();
+        var composed = new List<Digest>();
 
         // 全体 → 興味トピックの順に作る。**片方の材料が無くても、もう片方は作る** ——
-        // トレンドの収集だけ済んでいる日と、興味トピック側だけ動いた日のどちらもあるため
+        // トレンドの収集だけ済んでいる日と、興味トピック側だけ動いた日のどちらもあるため。
+        // **生成が先で通知は後**(下の NotifyAsync)—— 順序を決める理由が両者で違う
         foreach (var materials in await CollectMaterialsAsync(cancellationToken))
         {
             if (materials.IsEmpty)
@@ -88,13 +89,34 @@ public class DigestRunner(
                 continue;
             }
 
-            parts.Add(await ComposeOneAsync(composer, materials, cancellationToken));
+            composed.Add(await ComposeOneAsync(composer, materials, cancellationToken));
         }
 
-        return parts.Count == 0 ? DigestRunResult.Nothing : new DigestRunResult(parts);
+        if (composed.Count == 0)
+        {
+            return DigestRunResult.Nothing;
+        }
+
+        // **通知は生成と逆順に送る。** ntfy のアプリは新着が上に並ぶので、**最後に送ったものが
+        // 一番上に出る** —— 技術界隈全体を先頭に置きたいので、興味トピック → 全体 の順に送る。
+        // 生成の順は変えない(全体を先に作るので、途中で失敗しても価値の大きいほうが残る)
+        var notifications = new Dictionary<DigestScope, (int Notified, int Failed)>();
+        foreach (var digest in Enumerable.Reverse(composed))
+        {
+            notifications[digest.Scope] = await NotifyAsync(digest, cancellationToken);
+        }
+
+        // 画面の文言は生成順(全体 → 興味トピック)のまま —— 読む順は通知の都合とは別
+        return new DigestRunResult(composed
+            .Select(digest => new DigestPart(
+                digest.Scope,
+                digest.Items.Count,
+                notifications[digest.Scope].Notified,
+                notifications[digest.Scope].Failed))
+            .ToList());
     }
 
-    async Task<DigestPart> ComposeOneAsync(
+    async Task<Digest> ComposeOneAsync(
         IDigestComposer composer, DigestMaterials materials, CancellationToken cancellationToken)
     {
         var scope = materials.Scope;
@@ -107,11 +129,22 @@ public class DigestRunner(
             "{Composer}: ダイジェストを生成({Scope}・{Items} 項目)",
             composer.Name, scope, digest.Items.Count);
 
-        // 通知は保存の後・失敗しても生成は成功のまま —— 通知先(ntfy)が落ちていることと、
-        // ダイジェストが作れたことは別の話。失敗はログと結果の文言に出す。
-        // **範囲ごとに1通ずつ送る**(まとめて1通にしない —— 読み分けられなくなる)
+        return digest;
+    }
+
+    /// <summary>
+    /// 1本ぶんを通知する。**通知は保存の後・失敗しても生成は成功のまま** ——
+    /// 通知先(ntfy)が落ちていることと、ダイジェストが作れたことは別の話。
+    /// 失敗はログと結果の文言に出す。
+    /// **範囲ごとに1通ずつ送る**(まとめて1通にしない —— 読み分けられなくなる)。
+    /// </summary>
+    async Task<(int Notified, int Failed)> NotifyAsync(
+        Digest digest, CancellationToken cancellationToken)
+    {
+        var scope = digest.Scope;
         var notified = 0;
-        var notifyFailed = 0;
+        var failed = 0;
+
         foreach (var notifier in _notifiers)
         {
             try
@@ -129,12 +162,12 @@ public class DigestRunner(
             }
             catch (Exception ex)
             {
-                notifyFailed++;
+                failed++;
                 logger.LogError(ex, "{Notifier} への通知に失敗({Scope})", notifier.Name, scope);
             }
         }
 
-        return new DigestPart(scope, digest.Items.Count, notified, notifyFailed);
+        return (notified, failed);
     }
 
     /// <summary>
