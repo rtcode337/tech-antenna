@@ -110,6 +110,39 @@ public class InMemoryBookStoreTests
     }
 
     [Fact]
+    public async Task 既にある本に書影が無ければ後から埋める()
+    {
+        // 書影の補完を足す前に保存した本は CoverUrl が null のまま残っている。
+        // ここで埋めないと、収集のたびに取り直しては捨てることになり表紙が出ない
+        var store = new InMemoryBookStore();
+        await store.AddRangeAsync([Tagged("A", "9784111111111", "ai", "AI")]);
+
+        var again = Tagged("A", "9784111111111", "ai", "AI");
+        again.CoverUrl = new Uri("https://books.google.com/cover.jpg");
+        await store.AddRangeAsync([again]);
+
+        var book = Assert.Single(await store.GetRecentAsync(10));
+        Assert.Equal("https://books.google.com/cover.jpg", book.CoverUrl?.ToString());
+    }
+
+    [Fact]
+    public async Task 既にある書影は上書きしない()
+    {
+        // 書誌情報と同じ扱い。取得元が変わるたびに表紙が入れ替わらないようにする
+        var store = new InMemoryBookStore();
+        var first = Tagged("A", "9784111111111", "ai", "AI");
+        first.CoverUrl = new Uri("https://thumbnail.image.rakuten.co.jp/medium.jpg");
+        await store.AddRangeAsync([first]);
+
+        var again = Tagged("A", "9784111111111", "ai", "AI");
+        again.CoverUrl = new Uri("https://books.google.com/cover.jpg");
+        await store.AddRangeAsync([again]);
+
+        var book = Assert.Single(await store.GetRecentAsync(10));
+        Assert.Equal("https://thumbnail.image.rakuten.co.jp/medium.jpg", book.CoverUrl?.ToString());
+    }
+
+    [Fact]
     public async Task 収集日時の新しい順に返す()
     {
         var store = new InMemoryBookStore();

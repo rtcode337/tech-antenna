@@ -19,8 +19,15 @@ public class Book
     /// <summary>書誌詳細ページの URL。</summary>
     public Uri? Url { get; init; }
 
-    /// <summary>書影の URL。画像そのものは保持せずリンクのみを持つ。</summary>
-    public Uri? CoverUrl { get; init; }
+    /// <summary>
+    /// 書影の URL。画像そのものは保持せずリンクのみを持つ。
+    ///
+    /// init ではなく set なのは、**後から埋まることがある**ため(<see cref="BookMerge"/>)。
+    /// 定番の書籍は ISBN から組み立てるので、書影の補完を足す前に保存した本は
+    /// 書影が null のまま残っている —— 合流のときに埋められないと、次の収集で
+    /// 取り直しても保存されず、いつまでも表紙の出ない一覧になる。
+    /// </summary>
+    public Uri? CoverUrl { get; set; }
 
     /// <summary>収集元の名前(例: openBD、Google Books)。</summary>
     public required string SourceName { get; init; }

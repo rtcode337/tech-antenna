@@ -30,7 +30,7 @@ public class EfBookStore(IDbContextFactory<TechAntennaDbContext> contextFactory)
             var key = BookKey.For(book);
             if (byKey.TryGetValue(key, out var stored))
             {
-                // 既にある本は書誌情報を上書きせず、タグとレビューだけ取り込む
+                // 既にある本は書誌情報を上書きせず、タグ・レビュー・欠けていた書影だけ取り込む
                 BookMerge.Merge(stored, book);
                 continue;
             }

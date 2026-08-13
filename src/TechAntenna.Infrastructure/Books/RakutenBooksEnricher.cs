@@ -101,7 +101,7 @@ public class RakutenBooksEnricher(
 
         // 書影は**欠けているときだけ**埋める(他の補完と同じ規則)。openBD は技術書の書影を
         // ほとんど持たないので、ISBN から起こす定番の書籍はここか Google Books が唯一の出どころ。
-        // CoverUrl は init なので、値を入れるには本を組み直すことになる
+        // 書誌情報の項目が init なので、値を入れるには本を組み直すことになる
         if (book.CoverUrl is not null || info.CoverUrl is null)
         {
             return book;

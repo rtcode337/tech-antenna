@@ -113,7 +113,7 @@ public class GoogleBooksCoverEnricher(
             return book;
         }
 
-        // CoverUrl は init なので、値を入れるには本を組み直すことになる
+        // 書誌情報の項目が init なので、値を入れるには本を組み直すことになる
         return new Book
         {
             Id = book.Id,
