@@ -45,6 +45,7 @@ public record ScheduledJob(
 /// </summary>
 public class ScheduledJobs(
     ArticleCollectionRunner trendCollection,
+    NewReleaseCollectionRunner newReleaseCollection,
     PaperCollectionRunner paperCollection,
     EventCollectionRunner eventCollection,
     BookCollectionRunner bookCollection,
@@ -66,6 +67,12 @@ public class ScheduledJobs(
         new("trend-collection", trendCollection.Name, JobGroup.Trend, trendCollection,
             ct => trendCollection.RunAndRecordAsync(
                 "trend-collection", trendCollection.RunOnceAsync, JobMessage.Describe, ct)),
+
+        // 出版トレンド(最近出た本からテーマを数える)。トレンドの軸なので収集の並びは
+        // サイドバーどおり —— 記事の収集とは互いに依存しない
+        new("new-release-collection", newReleaseCollection.Name, JobGroup.Trend, newReleaseCollection,
+            ct => newReleaseCollection.RunAndRecordAsync(
+                "new-release-collection", newReleaseCollection.RunOnceAsync, JobMessage.Describe, ct)),
 
         new("book-collection", bookCollection.Name, JobGroup.Interests, bookCollection,
             ct => bookCollection.RunAndRecordAsync(

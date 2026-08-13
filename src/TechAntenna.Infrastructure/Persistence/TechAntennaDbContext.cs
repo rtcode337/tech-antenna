@@ -20,6 +20,9 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
 
     public DbSet<Book> Books => Set<Book>();
 
+    /// <summary>最近出た本の観測(出版のテーマを数えるための材料)。</summary>
+    public DbSet<NewRelease> NewReleases => Set<NewRelease>();
+
     public DbSet<Tag> Tags => Set<Tag>();
 
     public DbSet<Topic> Topics => Set<Topic>();
@@ -50,6 +53,30 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
 
             ConfigureTags(article.Property(a => a.Tags));
             ConfigureTags(article.Property(a => a.RawTags));
+        });
+
+        // 最近出た本の観測。**書籍(Book)とは別の表**にしてある —— あちらは「読んでおくべき本」で
+        // レビュー・推薦・書影を伴って一覧に並ぶもの、こちらは数えるためだけに集める観測。
+        // 混ぜると書籍の一覧が新刊で埋まる(読み込みの窓を新刊が食う)
+        modelBuilder.Entity<NewRelease>(release =>
+        {
+            release.HasKey(r => r.Id);
+
+            release.Property(r => r.Title).IsRequired();
+
+            release.Property(r => r.Url)
+                .HasConversion(url => url.ToString(), value => new Uri(value))
+                .IsRequired();
+            // URL を重複判定のキーにする(INewReleaseStore の契約)
+            release.HasIndex(r => r.Url).IsUnique();
+
+            release.Property(r => r.SourceName).IsRequired();
+
+            // 集計はいつも「直近 N か月」で切るので、刊行日に索引を張る
+            release.HasIndex(r => r.PublishedOn);
+
+            ConfigureTags(release.Property(r => r.Tags));
+            ConfigureTags(release.Property(r => r.RawTags));
         });
 
         modelBuilder.Entity<TechEvent>(techEvent =>

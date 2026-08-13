@@ -1,12 +1,17 @@
 @page "/recent"
+@using System.Globalization
+@using Microsoft.Extensions.Options
+@using TechAntenna.Core
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
 @using TechAntenna.Core.Topics
 @using TechAntenna.Web.Services
 @inject IArticleStore ArticleStore
+@inject INewReleaseStore NewReleaseStore
 @inject ITopicStore TopicStore
 @inject TopicCatalog Catalog
 @inject TimeProvider Clock
+@inject IOptions<NewReleaseOptions> NewReleaseSettings
 
 @* 「トレンド」— このページだけは、**興味があるとマークしたトピックの外も含めて**
    直近の話題を一望する場所(そもそもトレンドの収集は選択で絞っていない)。
@@ -24,12 +29,16 @@
 {
     <p>読み込み中…</p>
 }
-else if (_sections.Count == 0)
-{
-    <p>まだ記事がありません。<a href="/settings">設定</a>の「トレンドの収集」を実行してください。</p>
-}
 else
 {
+    @* **記事が無くてもテーマの節は出す。** 材料も収集のボタンも別なので、
+       片方だけ集めた状態(記事はまだ、出版トレンドはある)が実際に起こる *@
+    if (_sections.Count == 0)
+    {
+        <p>まだ記事がありません。<a href="/settings">設定</a>の「トレンドの収集」を実行してください。</p>
+    }
+    else
+    {
     <p class="text-muted">
         直近 @WindowDays 日の話題を、興味のあるトピックに限らず<strong>話題度の高い順</strong>
         (ニュース・記事ははてなブックマーク数、論文は upvote)で並べています。
@@ -54,6 +63,45 @@ else
             }
         </ul>
     }
+    }
+
+    @* **出版のテーマ**。記事の話題度が「速い反応」なら、こちらは企画から刊行まで
+       数か月かかる**遅くて重い動き** —— 同じ「トレンド」でも別の時間軸なので、
+       記事のセクションとは見た目を変えて(カードではなく行)最後に置く *@
+    @if (_themes is { Count: > 0 })
+    {
+        <div class="section-heading">
+            <h2>本になっているテーマ</h2>
+        </div>
+        <p class="text-muted theme-note">
+            直近 @_themeWindowMonths か月に出た<strong>本・ムック @_releaseCount 冊</strong>の
+            タイトルから、語彙にあるテーマを数えたものです。反応の速さではなく
+            <strong>出版側が時間をかけて寄せている先</strong>が出ます
+            (出典: <a href="https://ndlsearch.ndl.go.jp/" target="_blank" rel="noopener">国立国会図書館サーチ</a>)。
+        </p>
+        <ul class="list-unstyled themes">
+            @foreach (var theme in _themes)
+            {
+                <li class="theme @(_selected.Contains(theme.Tag) ? "interested" : "")">
+                    <a class="theme-name" href="@($"/settings/topics/{Uri.EscapeDataString(theme.Tag)}")">
+                        @if (_selected.Contains(theme.Tag))
+                        {
+                            <span class="star" aria-hidden="true">★</span>
+                        }
+                        @Catalog.DisplayOf(theme.Tag)
+                    </a>
+                    <span class="theme-count">@theme.Count 冊</span>
+                    <span class="theme-examples text-muted">
+                        @foreach (var example in theme.Examples)
+                        {
+                            <a href="@example.Url" target="_blank" rel="noopener"
+                               title="@Describe(example)">@example.Title</a>
+                        }
+                    </span>
+                </li>
+            }
+        </ul>
+    }
 
     <p class="papers-link">
         <strong>選んだトピックを深掘る</strong>もの(書籍・イベント・トピック検索の論文)は
@@ -75,8 +123,19 @@ else
     /// <summary>「直近」とみなす公開からの日数。窓が無いと動きの止まった話題が居座る。</summary>
     const int WindowDays = 7;
 
+    /// <summary>テーマを数えるために読む新刊の冊数。NDC 007 は月に 100 件弱なので半年で足りる。</summary>
+    const int ReleasePool = 1000;
+
     IReadOnlyList<Section>? _sections;
     HashSet<string> _selected = new(StringComparer.Ordinal);
+
+    /// <summary>出版のテーマ(最近出た本をタイトルのタグで数えたもの)。</summary>
+    IReadOnlyList<PublishingTheme>? _themes;
+
+    /// <summary>集計に使った冊数と窓。**数の出どころを画面に書く**ため(何冊中の N 冊か)。</summary>
+    int _releaseCount;
+
+    int _themeWindowMonths;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -107,7 +166,32 @@ else
         _selected = Catalog
             .ExpandWithDescendants((await TopicStore.GetSelectedAsync()).Select(topic => topic.Key))
             .ToHashSet(StringComparer.Ordinal);
+
+        await LoadThemesAsync();
     }
+
+    /// <summary>
+    /// 出版のテーマを数える。**窓は記事より長い** —— 本は企画から刊行まで数か月かかるので、
+    /// 直近 7 日で切ると 1 冊も出てこない。窓は収集と同じ設定(`NewReleases:WindowMonths`)。
+    /// </summary>
+    async Task LoadThemesAsync()
+    {
+        _themeWindowMonths = Math.Max(1, NewReleaseSettings.Value.WindowMonths);
+        // 「最近」の境界も日本時間で数える
+        var since = DateOnly.FromDateTime(
+            JapanTime.To(Clock.GetUtcNow()).AddMonths(-_themeWindowMonths).Date);
+
+        var releases = await NewReleaseStore.GetPublishedSinceAsync(since, ReleasePool);
+        _releaseCount = releases.Count;
+        _themes = PublishingTrend.Themes(releases);
+    }
+
+    /// <summary>代表タイトルのツールチップ(出版者と刊行年月)。</summary>
+    static string Describe(NewRelease release) => string.Join(" / ", new[]
+    {
+        release.Publisher,
+        release.PublishedOn?.ToString("yyyy-MM", CultureInfo.InvariantCulture),
+    }.Where(part => part is { Length: > 0 }));
 
     /// <summary>ニュースが先 —— 動きの速いものから読む。</summary>
     /// <summary>

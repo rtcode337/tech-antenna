@@ -134,6 +134,7 @@ public class IntegrationCatalog(
         var jstage = Section<JstageOptions>(JstageOptions.SectionName);
         var qiita = Section<QiitaOptions>(QiitaOptions.SectionName);
         var books = Section<BooksOptions>(BooksOptions.SectionName);
+        var newReleases = Section<NewReleaseOptions>(NewReleaseOptions.SectionName);
         var techPlay = Section<TechPlayOptions>(TechPlayOptions.SectionName);
 
         var integrations = new List<Integration>();
@@ -165,6 +166,13 @@ public class IntegrationCatalog(
         integrations.Add(new Integration(
             IntegrationAxis.Interests, "論文", "J-STAGE", CredentialNeed.NotNeeded, true,
             "日本語の論文。直近 " + jstage.WithinYears + " 年ぶんに絞って引く", jstage.Enabled));
+
+        // 出版トレンド(最近出た本からテーマを数える)。**キーも検索語も要らない**ので
+        // トレンドの軸に置ける —— 分類(NDC)と刊行日で引く
+        integrations.Add(new Integration(
+            IntegrationAxis.Trending, "出版トレンド", "NDL サーチ", CredentialNeed.NotNeeded, true,
+            "最近出た本・ムックのタイトルからテーマを数える。申請もキーも要らない",
+            newReleases.Enabled));
 
         // --- 書籍 ---
         // 定番の軸にも出す —— 検索には使わないが、**書影が欠けている本を ISBN で引く**のがここ

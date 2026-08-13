@@ -86,6 +86,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
     builder.Services.AddSingleton<IArticleStore, InMemoryArticleStore>();
     builder.Services.AddSingleton<IEventStore, InMemoryEventStore>();
     builder.Services.AddSingleton<IBookStore, InMemoryBookStore>();
+    builder.Services.AddSingleton<INewReleaseStore, InMemoryNewReleaseStore>();
     builder.Services.AddSingleton<ITagStore, InMemoryTagStore>();
     builder.Services.AddSingleton<ITopicStore, InMemoryTopicStore>();
     builder.Services.AddSingleton<IDigestStore, InMemoryDigestStore>();
@@ -97,6 +98,7 @@ else
     builder.Services.AddSingleton<IArticleStore, EfArticleStore>();
     builder.Services.AddSingleton<IEventStore, EfEventStore>();
     builder.Services.AddSingleton<IBookStore, EfBookStore>();
+    builder.Services.AddSingleton<INewReleaseStore, EfNewReleaseStore>();
     builder.Services.AddSingleton<ITagStore, EfTagStore>();
     builder.Services.AddSingleton<ITopicStore, EfTopicStore>();
     builder.Services.AddSingleton<IDigestStore, EfDigestStore>();
@@ -318,6 +320,29 @@ if (qiita.Enabled && qiita.Queries.Count > 0)
 builder.Services.AddSingleton<BookCollectionRunner>();
 // 定番(推薦本)の収集。書籍の収集と分けてある —— トピックの選択に依存しない第三の軸
 builder.Services.AddSingleton<ClassicsCollectionRunner>();
+
+// --- 出版トレンド(最近出た本からテーマを数える)---
+// **キーも検索語も要らない**(NDC と刊行日で引く)ので、トレンドの軸に置ける。
+// 集めた本は書籍(Book)とは別の表に入る —— 読ませるためではなく数えるための観測
+builder.Services.Configure<NewReleaseOptions>(
+    builder.Configuration.GetSection(NewReleaseOptions.SectionName));
+
+var newReleases = builder.Configuration
+    .GetSection(NewReleaseOptions.SectionName)
+    .Get<NewReleaseOptions>() ?? new NewReleaseOptions();
+if (newReleases.Enabled)
+{
+    builder.Services.AddHttpClient(NdlSearchNewReleaseSource.HttpClientName, ConfigureFeedClient);
+    builder.Services.AddSingleton<INewReleaseSource>(sp => new NdlSearchNewReleaseSource(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<TimeProvider>(),
+        topicCatalog,
+        newReleases.NdcCodes,
+        newReleases.MaxItems,
+        TimeSpan.FromSeconds(newReleases.DelayBetweenPagesSeconds)));
+}
+
+builder.Services.AddSingleton<NewReleaseCollectionRunner>();
 // 論文は記事と別のボタン(検索なので収集対象のトピックが要る)
 builder.Services.AddSingleton<PaperCollectionRunner>();
 // 語彙のスナップショット(TopicCatalog)を DB から組み直す。起動時と整備のあとに呼ぶ

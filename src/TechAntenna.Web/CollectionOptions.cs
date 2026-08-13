@@ -246,3 +246,34 @@ public class ConnpassOptions
     /// <summary>いずれかに一致するイベントを収集するキーワード。</summary>
     public List<string> Keywords { get; set; } = [];
 }
+
+/// <summary>
+/// 出版トレンド(最近出た本からテーマを数える)の設定。appsettings の NewReleases セクション。
+/// **キーは要らない**(NDL サーチは申請もキーも不要)ので、ここにあるのは範囲と量だけ。
+/// </summary>
+public class NewReleaseOptions
+{
+    public const string SectionName = "NewReleases";
+
+    /// <summary>新刊を集めるか。</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// 何か月ぶんを「最近」とみなすか。収集の窓であり、画面の集計の窓でもある。
+    /// **短すぎると冊数が出ない** —— 本は企画から刊行まで数か月かかるので、
+    /// 記事の「直近 7 日」より長い窓で見る。
+    /// </summary>
+    public int WindowMonths { get; set; } = 6;
+
+    /// <summary>1 回の収集で拾う上限(冊)。NDC 007 は月に 100 件弱。</summary>
+    public int MaxItems { get; set; } = 600;
+
+    /// <summary>
+    /// 集める分類(日本十進分類法)。既定は 007(情報科学)。
+    /// 007 の下位(007.6 など)も含めて返る。
+    /// </summary>
+    public List<string> NdcCodes { get; set; } = ["007"];
+
+    /// <summary>ページの合間に空ける待ち時間(秒)。無料で開かれた API への礼儀。</summary>
+    public int DelayBetweenPagesSeconds { get; set; } = 1;
+}

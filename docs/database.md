@@ -97,6 +97,18 @@ erDiagram
         timestamptz UpdatedAt
     }
 
+    NewReleases {
+        uuid Id PK
+        text Title
+        text Url UK "収集元の書誌ページ。重複判定のキー"
+        text Publisher
+        date PublishedOn "刊行年月。集計の窓を切るキー（日が不明なら 1 日）"
+        text SourceName "NDL サーチ"
+        text_array Tags "タイトルから拾ったトピック（正規化済み）"
+        text_array RawTags
+        timestamptz CollectedAt
+    }
+
     Digests {
         uuid Id PK
         text Scope "守備範囲（Overall / Interests）"
@@ -115,6 +127,7 @@ erDiagram
     Tags }o..o{ Articles : "Articles.Tags に Key が含まれる"
     Tags }o..o{ Events : "Events.Tags に Key が含まれる"
     Tags }o..o{ Books : "Books.Tags に Key が含まれる"
+    Tags }o..o{ NewReleases : "NewReleases.Tags に Key が含まれる"
     Topics |o--o{ Tags : "TopicKey"
     Topics |o--o{ Topics : "Parent"
 ```
@@ -126,6 +139,14 @@ erDiagram
 で暗号化した文字列 —— **平文は DB に入らない**ので、DB のバックアップだけを持ち出しても
 キーは読めない。裏返しに、**鍵ディレクトリを失うと値は戻せない**(アプリは復号できない行を
 「未設定」として扱い、画面から入れ直してもらう。行は消さない —— 鍵を戻せば読める可能性を残す)。
+
+`NewReleases` は**最近出た本の観測**(トレンドの「本になっているテーマ」の材料)。
+**`Books` と分けてある** —— あちらは「読んでおくべき本」で、レビュー・推薦・書影を伴って
+一覧に並べるもの。こちらは<b>読ませるためではなく数えるため</b>に集めるので、持つのは
+タイトル・出版者・刊行日とタグだけ。混ぜると書籍の一覧が新刊で埋まる(読み込みの窓を
+新刊が食う)。**同じ窓(直近 N か月)を毎回引き直して上書きする**表なので、
+既存行は書誌もタグも上書きする(記事・イベント・書籍の「既存は上書きしない」とは方針が逆)——
+そのぶん、正規化の規則や語彙を変えても次の収集で揃い、再正規化のジョブを持たなくてよい。
 
 `Digests` はホームの「今日のサマリー」の生成履歴。**どのテーブルとも関係を持たない**
 (生成時点の記事・イベントから LLM が書いた文章のスナップショットで、元データが
@@ -175,6 +196,8 @@ erDiagram
 | Events | `Url`(ユニーク) | 重複取り込みの防止 |
 | Events | `StartsAt` | 開催日順の一覧 |
 | Books | `DedupKey`(ユニーク) | 重複取り込みの防止 |
+| NewReleases | `Url`(ユニーク) | 重複取り込みの防止 |
+| NewReleases | `PublishedOn` | 「直近 N か月」で切った集計 |
 | Topics | `IsSelected` | 収集キーワードの取得 |
 | Topics | `Parent` | ツリーの組み立て |
 | Tags | `Status` + `RetryAfter` | 「次に聞く語」の抽出 |
