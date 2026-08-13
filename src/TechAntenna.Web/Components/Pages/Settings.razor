@@ -1,4 +1,4 @@
-@page "/settings"
+@page "/settings/general"
 @using TechAntenna.Core
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Web.Services
@@ -54,7 +54,7 @@
     <h3>トレンド</h3>
     @Rows(JobGroup.Trend)
     <p class="page-note text-muted">
-        「トレンドの収集」で<strong>ニュース・記事・話題の論文</strong>(<a href="/recent">トレンド</a>の
+        「トレンドの収集」で<strong>ニュース・記事・話題の論文</strong>(<a href="/recent/general">トレンド</a>の
         下にあるもの)をまとめて 1 巡します(ブックマーク数の補完も含みます)。
         <strong>トピックの選択には依存しません</strong>。
         「記事の要約」は要約がまだ無いものに LLM で要約を付け、

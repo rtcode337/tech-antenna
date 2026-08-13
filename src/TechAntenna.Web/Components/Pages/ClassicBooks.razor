@@ -8,7 +8,7 @@
 @inject TopicCatalog Catalog
 
 @* 定番(第三の軸)の子ページ。中身は「読むべき技術書」を挙げた Qiita 記事から
-   名指しされた本を拾ったもの —— 親(/classics)は軸の入口で、一覧はこちらが受け持つ。
+   名指しされた本を拾ったもの —— 親(定番)はメニューの見出しで、軸の説明は /classics/general が受け持つ。
    興味トピック側の /books と違い、**トピックの選択には依存しない** *@
 
 <PageTitle>Tech Antenna — 定番の書籍</PageTitle>
@@ -33,7 +33,7 @@
 }
 else if (_books.Count == 0)
 {
-    <p>まだありません。<a href="/settings">設定</a>の「定番の収集」を実行してください。</p>
+    <p>まだありません。<a href="/settings/general">設定</a>の「定番の収集」を実行してください。</p>
 }
 else
 {

@@ -1,4 +1,8 @@
-// スマホ表示のメニュー(ハンバーガー)の開閉状態を、ページ遷移をまたいで保つ。
+// スマホ表示のメニュー(ハンバーガー)の開閉を、ページ遷移をまたいで扱う。
+//
+// **リンクで移ったら閉じる。** 開いたままだと遷移先の本文がメニューに隠れ、読むたびに
+// 閉じる操作が要る。**閉じるのはリンクを押したときだけ**で、グループの開閉(summary)や
+// メニューの外側では閉じない —— 子を探している最中に閉じられると困る。
 //
 // メニューの開閉は CSS だけで組んである(チェックボックス `.navbar-toggler` の :checked)。
 // 開閉の状態は DOM にしか無いので、**ページが差し替わると閉じた状態に戻る**。
@@ -50,6 +54,26 @@
             });
         }
     }
+
+    // **リンクで移ったらメニューを閉じる。**
+    //
+    // 押した時点で閉じ、記憶も閉じた状態にする —— 遷移先で apply() が復元するので、
+    // 記憶を更新しないと開き直ってしまう。
+    // **document に1回だけ付ける**(メニューの DOM は enhanced navigation で差し替わるので、
+    // メニュー側に付けると遷移のたびに付け直しが要る)。
+    // PC 幅ではチェックボックスが効かない(display:none)ので、閉じても見た目は変わらない。
+    document.addEventListener('click', function (event) {
+        var link = event.target.closest && event.target.closest('.nav-scrollable a');
+        if (!link) {
+            return;
+        }
+
+        var toggler = document.getElementById('navbar-toggler');
+        if (toggler) {
+            toggler.checked = false;
+        }
+        remember(false);
+    });
 
     // defer 付きで読むので、この時点で DOM は組み上がっている
     apply();

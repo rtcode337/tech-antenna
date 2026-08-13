@@ -13,7 +13,7 @@
 
 @* 記事・ニュース・論文の一覧ページ。種別ごとの違いは「どの Kind を出すか」と
    論文だけにある翻訳ボタンだけなので、3ルートを1コンポーネントにまとめている。
-   親(/recent「トレンド」)が一望のハブで、こちらは**全量**を受け持つ。
+   同じグループの「全般」(/recent/general)が一望のハブで、こちらは**全量**を受け持つ。
 
    **並びは新着順(既定)と話題度順をタブで切り替える**(`?sort=popular`。リンクなので
    静的 SSR のまま動く)。かつては新着順だけにしていたが、いま見ているのがどちらの並びか
@@ -37,7 +37,7 @@
         <strong>収集対象に選んだトピックを検索語</strong>にして arXiv(英語)と
         J-STAGE(日本語)へ問い合わせます —— <a href="/settings/topics">トピック</a>を選んでいないと
         1 件も集まりません。arXiv には<strong>英語表記</strong>を投げます(日本語のままだと 0 件)。
-        英語タイトルの翻訳は<a href="/settings">設定</a>の「論文タイトルの翻訳」で付きます。
+        英語タイトルの翻訳は<a href="/settings/general">設定</a>の「論文タイトルの翻訳」で付きます。
         トピックに関係なく話題のものを見たいときは<a href="/recent/papers">話題の論文</a>へ。
     </p>
 }
@@ -48,7 +48,7 @@ else if (_kind == ArticleKind.TrendingPaper)
     <CollectionHint />
     <p class="page-note text-muted">
         Hugging Face Daily Papers から<strong>トピックの選択に関係なく</strong>拾います
-        (投稿と upvote で選ばれた論文)。収集は<a href="/settings">設定</a>の「トレンドの収集」に、
+        (投稿と upvote で選ばれた論文)。収集は<a href="/settings/general">設定</a>の「トレンドの収集」に、
         英語タイトルの翻訳は同じく設定の「論文タイトルの翻訳」にあります。
         並びは<strong>新着順</strong>が既定で、上のタブで<strong>upvote の多い順</strong>にも
         切り替えられます(どちらの並びでも、upvote の多いものはカードの濃さで目立ちます)。
@@ -77,12 +77,12 @@ else if (_articles.Count == 0)
        ほかは設定の「トレンドの収集」で集まる *@
     @if (_kind == ArticleKind.Paper)
     {
-        <p>まだありません。<a href="/settings">設定</a>の「論文の収集」を実行してください
+        <p>まだありません。<a href="/settings/general">設定</a>の「論文の収集」を実行してください
             (<a href="/settings/topics">トピック</a>を選んでいないと集まりません)。</p>
     }
     else
     {
-        <p>まだありません。<a href="/settings">設定</a>の「トレンドの収集」を実行してください。</p>
+        <p>まだありません。<a href="/settings/general">設定</a>の「トレンドの収集」を実行してください。</p>
     }
 }
 else

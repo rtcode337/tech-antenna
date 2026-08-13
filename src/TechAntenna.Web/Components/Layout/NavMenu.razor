@@ -66,10 +66,16 @@
 
 @* 階層は details/summary の折りたたみ。**開いているページのグループを既定で開く**が、
    もう一方も三角を押せば開ける —— 開いているページのグループしか出さないと、設定の下に
-   いるあいだ記事や書籍へ辿れなくなる。静的 SSR のまま JS を使わずに済む。 *@
-@* リンクを押しても閉じない(雛形にあった onclick でのトグルは外した) —— スマホでは
-   メニューから続けて別のページへ移ることが多く、そのたびにハンバーガーを開き直すのは煩わしい。
-   開閉の状態は遷移後も保つ(復元は wwwroot/nav-menu.js) *@
+   いるあいだ記事や書籍へ辿れなくなる。静的 SSR のまま JS を使わずに済む。
+
+   **親の行はページではない**(リンクではなく、押すと開閉するだけ)。かつては親自体が
+   一覧のページで、押すと畳まれていた子が見えないまま遷移していた —— 親を押す動機は
+   「子を見たい」なので、行き先が1つに決まらない親をリンクにしない。
+   親が持っていた一覧は各グループの**「全般」**へ移してある(`/recent/general` など)。 *@
+@* **スマホではページへ移ったらメニューを閉じる**(wwwroot/nav-menu.js)。開いたままだと
+   遷移先の本文がメニューに隠れ、毎回閉じる操作が要る。**閉じるのはリンクを押したときだけ**で、
+   グループの開閉(summary)では閉じない —— 子を探している最中に閉じられると困る。
+   PC 幅ではメニューは畳まれないので関係しない *@
 <div class="nav-scrollable">
     <nav class="nav flex-column">
         @* **メニューは5本。** ホームは入口、そのあとに「外で何が話題か」(トレンド)・
@@ -88,10 +94,13 @@
         <details class="nav-group" open="@InTrending">
             <summary class="nav-item px-3">
                 <span class="caret" aria-hidden="true"></span>
-                <NavLink class="nav-link" href="recent" Match="NavLinkMatch.All">
+                <span class="nav-link nav-group-label">
                     <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> トレンド
-                </NavLink>
+                </span>
             </summary>
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="recent/general">全般</NavLink>
+            </div>
             @* ニュースが先 —— 動きの速いものから読む *@
             <div class="nav-item nav-child px-3">
                 <NavLink class="nav-link" href="recent/news">ニュース</NavLink>
@@ -107,10 +116,13 @@
         <details class="nav-group" open="@InInterests">
             <summary class="nav-item px-3">
                 <span class="caret" aria-hidden="true"></span>
-                <NavLink class="nav-link" href="interests" Match="NavLinkMatch.All">
+                <span class="nav-link nav-group-label">
                     <span class="bi bi-star-fill-nav-menu" aria-hidden="true"></span> 興味トピック
-                </NavLink>
+                </span>
             </summary>
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="interests/general">全般</NavLink>
+            </div>
             <div class="nav-item nav-child px-3">
                 <NavLink class="nav-link" href="interests/books">書籍</NavLink>
             </div>
@@ -127,10 +139,13 @@
         <details class="nav-group" open="@InClassics">
             <summary class="nav-item px-3">
                 <span class="caret" aria-hidden="true"></span>
-                <NavLink class="nav-link" href="classics" Match="NavLinkMatch.All">
+                <span class="nav-link nav-group-label">
                     <span class="bi bi-award-fill-nav-menu" aria-hidden="true"></span> 定番
-                </NavLink>
+                </span>
             </summary>
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="classics/general">全般</NavLink>
+            </div>
             <div class="nav-item nav-child px-3">
                 <NavLink class="nav-link" href="classics/books">書籍</NavLink>
             </div>
@@ -139,10 +154,13 @@
         <details class="nav-group" open="@InSettings">
             <summary class="nav-item px-3">
                 <span class="caret" aria-hidden="true"></span>
-                <NavLink class="nav-link" href="settings" Match="NavLinkMatch.All">
+                <span class="nav-link nav-group-label">
                     <span class="bi bi-gear-fill-nav-menu" aria-hidden="true"></span> 設定
-                </NavLink>
+                </span>
             </summary>
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="settings/general">全般</NavLink>
+            </div>
             @* トピック(何を集めるかの選択と語彙の整備)。トピックの詳細もこの下に属する。
                タグはその下 —— 語彙になる前の語の話なので、トピックの子にする *@
             <div class="nav-item nav-child px-3">
