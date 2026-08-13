@@ -34,6 +34,8 @@ else
         どちらも取れていない本は後ろに置いています。
         記事で薦められている本は、トピックの中でも<strong>強調</strong>しています
         (トピックに関係なく薦められている定番は<a href="/classics/books">定番 → 書籍</a>へ)。
+        <strong>雑誌・ムック・増刊は出していません</strong> —— 号を重ねるぶん数が多く、
+        「読んでおくべき本」を探すのに埋もれるためです。
     </p>
 
     @* 記事で薦められた本の枠はここには無い —— 第三の軸として /classics(定番)へ移した。
@@ -77,7 +79,12 @@ else
     // バックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
     async Task LoadAsync()
     {
-        var books = await BookStore.GetRecentAsync(Limit);
+        // **雑誌・ムックは出さない**(Periodical)。収集の側でも落としているが、
+        // **規則を入れる前に集めた本が DB に残っている**ので表示でも外す ——
+        // 号を重ねるぶん数の多い雑誌に一覧が埋まると、読むべき本が見つからない
+        var books = (await BookStore.GetRecentAsync(Limit))
+            .Where(book => !Periodical.IsLikely(book))
+            .ToList();
         _groups = Group(books, await TopicStore.GetSelectedAsync());
         // クレジット表記は楽天のデータを実際に出しているときだけ置く
         // レビューだけでなく書影も楽天由来のことがある(openBD は技術書の書影をほぼ持たない)

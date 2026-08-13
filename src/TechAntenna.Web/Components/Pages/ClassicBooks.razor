@@ -86,6 +86,8 @@ else
         var books = await BookStore.GetRecentAsync(Limit);
         // 並びは /books と同じ規則(推薦回数 → 読まれている度)
         _books = books
+            // 雑誌・ムックは定番の一覧にも出さない(規則を入れる前に集めた本が残っているため)
+            .Where(book => !Periodical.IsLikely(book))
             .Where(book => book.RecommendationCount >= MinRecommendations)
             .ByPopularity()
             .ToList();

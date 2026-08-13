@@ -75,8 +75,10 @@ public class ClassicsCollectionRunner(
                     .ToList();
 
                 Progress = $"{books.Count} 冊の書誌情報を補完しています…";
+                // 雑誌・ムックは定番にも入れない(記事が号を名指しすることがある)。
+                // タイトルは補完で入るので、判定は補完の後
                 var enriched = (await EnrichAsync(books, cancellationToken))
-                    .Where(book => book.Title.Length > 0)
+                    .Where(book => book.Title.Length > 0 && !Periodical.IsLikely(book))
                     .ToList();
 
                 // タイトルが入ったのでトピックのタグを付ける(記事と同じ規則)。

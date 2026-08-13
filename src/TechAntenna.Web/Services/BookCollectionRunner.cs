@@ -46,6 +46,7 @@ public class BookCollectionRunner(
             try
             {
                 var books = await catalog.SearchAsync(keyword, cancellationToken);
+                books = ExcludePeriodicals(books, keyword);
                 books = await EnrichAsync(books, cancellationToken);
                 books = ApplyReviewFloor(books);
 
@@ -79,6 +80,27 @@ public class BookCollectionRunner(
         await tagObserver.ObserveAsync(cancellationToken: cancellationToken);
 
         return new CollectionRunResult(found, added, failed);
+    }
+
+    /// <summary>
+    /// 雑誌・ムック・増刊を落とす(<see cref="Periodical"/>)。**補完より前に落とす** ——
+    /// 落とすと決めた本に openBD や楽天へ問い合わせても、外部を余計に叩くだけ。
+    ///
+    /// 集めたいのは「その分野で読んでおくべき本」なのに、号を重ねるぶん数の多い雑誌が
+    /// 検索結果を占めていた(実際に週刊アスキーの号が並んだ)。
+    /// **落とした数はログに出す** —— 黙って減らすと「検索したのに増えない」になる。
+    /// </summary>
+    IReadOnlyList<Book> ExcludePeriodicals(IReadOnlyList<Book> books, string keyword)
+    {
+        var kept = books.Where(book => !Periodical.IsLikely(book)).ToList();
+        if (kept.Count < books.Count)
+        {
+            logger.LogInformation(
+                "「{Keyword}」: 雑誌・ムックらしい {Excluded} 件を除いた(残り {Kept} 件)",
+                keyword, books.Count - kept.Count, kept.Count);
+        }
+
+        return kept;
     }
 
     /// <summary>
