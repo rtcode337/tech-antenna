@@ -26,6 +26,19 @@ main {
     padding-bottom: 4rem;
 }
 
+/* スマホでは**ロゴの帯(とメニュー)を画面の上端に貼り付ける** —— 一覧は数百行あるので、
+   下まで読んだあとメニューへ戻るのに一番上までスクロールし直すことになる。
+   `fixed` ではなく `sticky` にするのは、帯のぶんの高さが流れに残って本文が下から
+   始まるため —— `fixed` にすると本文の先頭が帯の下に潜り、余白で押し下げる調整が要る。
+   背面(メニューを閉じるための面。NavMenu の .nav-backdrop)より手前に置く */
+@media (max-width: 640px) {
+    .sidebar {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+    }
+}
+
 @media (min-width: 641px) {
     .page {
         flex-direction: row;

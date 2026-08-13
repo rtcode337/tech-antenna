@@ -19,29 +19,50 @@
             </svg>
         </button>
     </nav>
-    <a class="brand" href="">
-        @* アンテナ（支柱＋左右へ広がる電波）。マークとワードマークで 1 つのロゴ *@
-        <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <g class="mast" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
-                <path d="M12 11.2V20" />
-                <path d="M9.2 20h5.6" />
-            </g>
-            <g class="waves" fill="none" stroke-width="1.7" stroke-linecap="round">
-                <path d="M8.46 4.96A5 5 0 0 0 8.46 12.04" />
-                <path d="M15.54 4.96A5 5 0 0 1 15.54 12.04" />
-                <path d="M6.34 2.84A8 8 0 0 0 6.34 14.16" />
-                <path d="M17.66 2.84A8 8 0 0 1 17.66 14.16" />
-            </g>
-            <circle class="hub" cx="12" cy="8.5" r="2.1" />
-        </svg>
-        <span class="brand-text">
-            <span class="brand-name"><span class="brand-name-sub">Tech</span>Antenna</span>
-            <span class="brand-tagline">記事 / イベント / 書籍</span>
-        </span>
-    </a>
+    @* **スマホではロゴの帯がメニューの開閉を兼ねる。** 幅の狭い画面ではメニューが畳まれていて、
+       右端のハンバーガーだけが開く手がかりになる —— 帯のどこを押しても開くほうが探さずに済む。
+       重ねるのは `<label for>` で、押すと `.navbar-toggler`(チェックボックス)が反転する
+       ので、**JS も対話回線も要らない**(開閉は今までどおり CSS だけで成立する)。
+       ラベルは**ロゴの上にだけ**敷く —— 帯の左にある戻る/進む(PWA)まで覆うと押せなくなる。
+       PC 幅ではラベルを消し、ロゴは今までどおりホームへのリンクとして働く *@
+    <div class="brand-area">
+        <a class="brand" href="">
+            @* アンテナ（支柱＋左右へ広がる電波）。マークとワードマークで 1 つのロゴ *@
+            <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <g class="mast" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+                    <path d="M12 11.2V20" />
+                    <path d="M9.2 20h5.6" />
+                </g>
+                <g class="waves" fill="none" stroke-width="1.7" stroke-linecap="round">
+                    <path d="M8.46 4.96A5 5 0 0 0 8.46 12.04" />
+                    <path d="M15.54 4.96A5 5 0 0 1 15.54 12.04" />
+                    <path d="M6.34 2.84A8 8 0 0 0 6.34 14.16" />
+                    <path d="M17.66 2.84A8 8 0 0 1 17.66 14.16" />
+                </g>
+                <circle class="hub" cx="12" cy="8.5" r="2.1" />
+            </svg>
+            <span class="brand-text">
+                <span class="brand-name"><span class="brand-name-sub">Tech</span>Antenna</span>
+                <span class="brand-tagline">記事 / イベント / 書籍</span>
+            </span>
+        </a>
+        <label class="brand-toggle" for="navbar-toggler">
+            <span class="visually-hidden">メニューを開閉</span>
+        </label>
+    </div>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" id="navbar-toggler" />
+@* メニューの開閉そのもの。**チェックボックスの :checked を CSS が見る**だけの作りなので、
+   JS が無くても開閉する。押せる場所は右端のハンバーガーと、スマホではロゴの帯(上の label) *@
+<input type="checkbox" class="navbar-toggler" id="navbar-toggler"
+       aria-label="メニューを開閉" />
+
+@* **スマホでメニューの外を押したら閉じる。** 開いているあいだだけ画面いっぱいに敷く面で、
+   押すと(これも `<label for>` なので)チェックが外れて閉じる —— JS は要らない。
+   本文の側にリンクや一覧があるので、**面を敷かずに「外側の押下」を拾う方法が無い**
+   (敷かないと本文のリンクが反応してしまう)。
+   面はメニュー・ロゴの帯・ハンバーガーより後ろに置く(それらは `z-index` で手前に出す) *@
+<label class="nav-backdrop" for="navbar-toggler" aria-hidden="true"></label>
 
 @* 階層は details/summary の折りたたみ。**開いているページのグループを既定で開く**が、
    もう一方も三角を押せば開ける —— 開いているページのグループしか出さないと、設定の下に

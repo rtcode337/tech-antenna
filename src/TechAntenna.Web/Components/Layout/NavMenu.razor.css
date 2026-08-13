@@ -12,8 +12,88 @@
     background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.55%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") no-repeat center/1.75rem rgba(255, 255, 255, 0.1);
 }
 
+/* 開いているあいだは**印を ✕ に変える**(3本線のままだと、押した結果どうなったのかが
+   帯の見た目に出ない)。面も明るくして「押されている」ことを示す */
 .navbar-toggler:checked {
-    background-color: rgba(255, 255, 255, 0.5);
+    background-color: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.35);
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.85%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M7 7l16 16M23 7L7 23'/%3e%3c/svg%3e");
+}
+
+/* ロゴの帯。**スマホではここ全体がメニューの開閉ボタン**になる(下の .brand-toggle)。
+   ロゴのリンクとハンバーガーのあいだを埋めるので、幅は残り全部を取る */
+.brand-area {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* ロゴに重ねる開閉ボタン。**PC 幅では出さない**(ロゴはホームへのリンクのまま)。
+   スマホでだけ敷いて、ロゴの上を押しても開閉するようにする ——
+   `<a>` を `<label>` で包むのは HTML として不正(label に別の対話要素は入れられない)
+   なので、同じ位置に重ねて上から受け止める。
+   ハンバーガー(position:absolute で後ろに書いてある)はこの上に載るので、
+   そちらを直接押したときも今までどおり動く */
+.brand-toggle {
+    display: none;
+    position: absolute;
+    inset: 0;
+    /* 右端のハンバーガーの下までは伸ばさない(重なっても動くが、押し心地の
+       手がかり(:active の面)がボタンの上に出ると二重に見える) */
+    right: 4.5rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+/* 押している間だけ薄く光らせて、帯が押せることを分かるようにする */
+.brand-toggle:active {
+    background: rgb(255 255 255 / 0.08);
+}
+
+/* メニューを閉じるための面(スマホで開いているあいだだけ)。**メニューの外を押した**ことは
+   これで拾う。既定は出さない —— PC 幅ではメニューが常に開いていて「外側」が無いうえ、
+   開閉の状態は nav-menu.js が幅に関係なく復元するので、スマホで開いたまま PC 幅で
+   開くと面だけが残ってしまう */
+.nav-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 0.45);
+}
+
+@media (max-width: 640px) {
+    .brand-toggle {
+        display: block;
+    }
+
+    .navbar-toggler:checked ~ .nav-backdrop {
+        display: block;
+    }
+
+    /* **面より手前に出す3つ。** 面は position:fixed なので、何も指定しないと
+       静的な要素(ロゴの帯・メニュー)の上に載って押せなくなる。
+       ハンバーガー(これも positioned)は DOM の順で面より前にあるぶん後ろに回るので、
+       明示的にもう一段手前へ */
+    .top-row,
+    .nav-scrollable {
+        position: relative;
+        z-index: 1;
+    }
+
+    .navbar-toggler {
+        z-index: 2;
+    }
+
+    /* 上端に貼り付けた(MainLayout の .sidebar)ぶん、**メニュー自身が画面より
+       高くなったら中でスクロールさせる** —— はみ出したぶんは貼り付いていて届かない。
+       dvh はアドレスバーの伸縮を勘定に入れた高さ(対応していないブラウザは vh を使う) */
+    .nav-scrollable {
+        max-height: calc(100vh - 4rem);
+        max-height: calc(100dvh - 4rem);
+        overflow-y: auto;
+    }
 }
 
 /* 履歴の移動(戻る/進む)。**PWA でブラウザの戻る進むが無いときだけ出す** ——
