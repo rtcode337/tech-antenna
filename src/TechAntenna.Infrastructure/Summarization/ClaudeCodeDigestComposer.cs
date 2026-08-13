@@ -16,15 +16,12 @@ public class ClaudeCodeDigestComposer(ICliBridge bridge, TimeProvider clock) : I
     public async Task<Digest> ComposeAsync(
         DigestMaterials materials, CancellationToken cancellationToken = default)
     {
-        var text = await ClaudeCodeBatch.RunRawAsync(
+        return await ClaudeCodeBatch.RunJsonAsync(
             bridge,
             DigestPrompt.SystemFor(materials.Scope),
             DigestPrompt.Schema,
             DigestPrompt.ForMaterials(materials),
+            output => DigestPrompt.Read(output, materials, Name, clock.GetUtcNow()),
             cancellationToken);
-
-        return ClaudeCodeResponseParser.ReadJson(
-            text,
-            output => DigestPrompt.Read(output, materials, Name, clock.GetUtcNow()));
     }
 }

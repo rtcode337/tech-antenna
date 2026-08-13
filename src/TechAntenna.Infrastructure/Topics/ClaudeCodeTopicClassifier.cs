@@ -33,14 +33,15 @@ public class ClaudeCodeTopicClassifier(ICliBridge bridge)
         {
             var batch = tags.Skip(offset).Take(BatchSize).ToList();
             progress?.Invoke($"バッチ {offset / BatchSize + 1}/{totalBatches}({batch.Count} 語)を分類中");
-            string text;
+            IReadOnlyList<TopicClassifierVerdict> batchVerdicts;
             try
             {
-                text = await ClaudeCodeBatch.RunRawAsync(
+                batchVerdicts = await ClaudeCodeBatch.RunJsonAsync(
                     bridge,
                     TopicClassificationPrompt.System,
                     TopicClassificationPrompt.Schema,
                     TopicClassificationPrompt.ForTags(batch, existingTopics),
+                    TopicClassificationPrompt.ReadVerdicts,
                     cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -57,8 +58,7 @@ public class ClaudeCodeTopicClassifier(ICliBridge bridge)
 
             // 応答の番号はバッチ内の 1 始まりなので、全体の番号へずらして返す
             var batchOffset = offset;
-            verdicts.AddRange(ClaudeCodeResponseParser
-                .ReadJson(text, TopicClassificationPrompt.ReadVerdicts)
+            verdicts.AddRange(batchVerdicts
                 .Select(verdict => verdict with { Index = verdict.Index + batchOffset }));
         }
 
@@ -80,14 +80,13 @@ public class ClaudeCodeTopicClassifier(ICliBridge bridge)
         }
 
         progress?.Invoke($"{topics.Count} 件のトピックから重複を探索中");
-        var text = await ClaudeCodeBatch.RunRawAsync(
+        return await ClaudeCodeBatch.RunJsonAsync(
             bridge,
             TopicMergePrompt.System,
             TopicMergePrompt.Schema,
             TopicMergePrompt.ForTopics(topics),
+            TopicMergePrompt.ReadMerges,
             cancellationToken);
-
-        return ClaudeCodeResponseParser.ReadJson(text, TopicMergePrompt.ReadMerges);
     }
 
     /// <summary>
@@ -106,14 +105,15 @@ public class ClaudeCodeTopicClassifier(ICliBridge bridge)
         {
             var batch = terms.Skip(offset).Take(BatchSize).ToList();
             progress?.Invoke($"バッチ {offset / BatchSize + 1}/{totalBatches}({batch.Count} 語)を説明中");
-            string text;
+            IReadOnlyList<TopicDescriptionVerdict> batchVerdicts;
             try
             {
-                text = await ClaudeCodeBatch.RunRawAsync(
+                batchVerdicts = await ClaudeCodeBatch.RunJsonAsync(
                     bridge,
                     TopicDescriptionPrompt.System,
                     TopicDescriptionPrompt.Schema,
                     TopicDescriptionPrompt.ForTerms(batch),
+                    TopicDescriptionPrompt.ReadDescriptions,
                     cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -126,8 +126,7 @@ public class ClaudeCodeTopicClassifier(ICliBridge bridge)
             }
 
             var batchOffset = offset;
-            verdicts.AddRange(ClaudeCodeResponseParser
-                .ReadJson(text, TopicDescriptionPrompt.ReadDescriptions)
+            verdicts.AddRange(batchVerdicts
                 .Select(verdict => verdict with { Index = verdict.Index + batchOffset }));
         }
 

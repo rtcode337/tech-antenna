@@ -19,19 +19,23 @@ public static class ClaudeCodeResponseParser
     /// <summary>応答から要約(番号 + 文字列の配列)を取り出す。</summary>
     public static IReadOnlyList<Entry> Parse(
         string text, string arrayName = "summaries", string valueName = "summary") =>
-        ReadJson(text, root =>
-        {
-            if (!root.TryGetProperty(arrayName, out var items)
-                || items.ValueKind != JsonValueKind.Array)
-            {
-                throw new FormatException($"応答の JSON に {arrayName} が無い。");
-            }
+        ReadJson(text, root => ReadEntries(root, arrayName, valueName));
 
-            return (IReadOnlyList<Entry>)items.EnumerateArray()
-                .Select(item => ToEntry(item, valueName))
-                .OfType<Entry>()
-                .ToList();
-        });
+    /// <summary>JSON から「番号 + 文字列」の配列を読む(要約・タイトル翻訳で共通)。</summary>
+    public static IReadOnlyList<Entry> ReadEntries(
+        JsonElement root, string arrayName, string valueName)
+    {
+        if (!root.TryGetProperty(arrayName, out var items)
+            || items.ValueKind != JsonValueKind.Array)
+        {
+            throw new FormatException($"応答の JSON に {arrayName} が無い。");
+        }
+
+        return items.EnumerateArray()
+            .Select(item => ToEntry(item, valueName))
+            .OfType<Entry>()
+            .ToList();
+    }
 
     /// <summary>
     /// 応答から JSON を切り出し、その中身を <paramref name="read"/> に渡す。要約もトピック分類も

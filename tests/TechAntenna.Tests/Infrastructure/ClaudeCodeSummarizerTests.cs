@@ -111,12 +111,31 @@ public class ClaudeCodeSummarizerTests
     }
 
     [Fact]
-    public async Task 読めない応答は例外にする()
+    public async Task 説明文で返ってきたら一度だけ言い直させる()
+    {
+        // スキーマを強制できないので、断り書きや説明で返ってくることがある(実測)。
+        // 1 バッチ分を捨てる前に、JSON だけを返すよう言い直す
+        var bridge = StubCliBridge.Sequence(
+            "材料が少ないため要約を作成できません。", Response((1, "Aの要約")));
+
+        var results = await new ClaudeCodeSummarizer(bridge).SummarizeAsync([Article("一つ目", "本文A")]);
+
+        Assert.Equal("Aの要約", results.Single().Summary);
+        Assert.Equal(2, bridge.CallCount);
+        // 言い直しでは「作れない理由を書かない」ことまで伝える
+        Assert.DoesNotContain("前回の応答は JSON ではなかった", bridge.SystemPrompts[0]);
+        Assert.Contains("前回の応答は JSON ではなかった", bridge.SystemPrompts[1]);
+    }
+
+    [Fact]
+    public async Task 言い直しても読めなければ例外にする()
     {
         var bridge = new StubCliBridge("認証に失敗しました");
 
         await Assert.ThrowsAsync<FormatException>(
             () => new ClaudeCodeSummarizer(bridge).SummarizeAsync([Article("一つ目", "本文A")]));
+        // 言い直しは1回だけ(崩れ続ける相手に何度も投げない)
+        Assert.Equal(2, bridge.CallCount);
     }
 
     [Fact]

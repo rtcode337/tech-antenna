@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TechAntenna.Core.Abstractions;
 
 namespace TechAntenna.Infrastructure.Summarization;
@@ -25,32 +26,57 @@ public static class ClaudeCodeBatch
         + "{\"index\":{\"type\":\"integer\"},\"" + valueName + "\":{\"type\":\"string\"}},"
         + "\"required\":[\"index\",\"" + valueName + "\"]}}},\"required\":[\"" + arrayName + "\"]}";
 
-    public static async Task<IReadOnlyList<ClaudeCodeResponseParser.Entry>> RunAsync(
+    public static Task<IReadOnlyList<ClaudeCodeResponseParser.Entry>> RunAsync(
         ICliBridge bridge,
         string systemPrompt,
         string arrayName,
         string valueName,
         string input,
-        CancellationToken cancellationToken)
-    {
-        var text = await RunRawAsync(
-            bridge, systemPrompt, Schema(arrayName, valueName), input, cancellationToken);
-
-        return ClaudeCodeResponseParser.Parse(text, arrayName, valueName);
-    }
+        CancellationToken cancellationToken) =>
+        RunJsonAsync(
+            bridge,
+            systemPrompt,
+            Schema(arrayName, valueName),
+            input,
+            root => ClaudeCodeResponseParser.ReadEntries(root, arrayName, valueName),
+            cancellationToken);
 
     /// <summary>
-    /// ブリッジを1回呼んで応答の本文をそのまま返す。番号+文字列の形に収まらないスキーマ
-    /// (トピック分類など)はこちらを使い、呼び出し側で
-    /// <see cref="ClaudeCodeResponseParser.ReadJson{T}"/> する。
+    /// ブリッジを呼んで、応答の JSON を <paramref name="read"/> に渡す。番号+文字列の形に
+    /// 収まらないスキーマ(トピック分類・ダイジェスト)もこれで読む。
+    ///
+    /// **読めなかったら1回だけ言い直す。** スキーマを強制できない以上、
+    /// 「材料が少ないのでダイジェストを作れません」のような**説明文で返ってくることがある**
+    /// (実測)。2回目も駄目ならそのまま投げて、ジョブ側が失敗として記録する。
     /// </summary>
-    public static Task<string> RunRawAsync(
+    public static async Task<T> RunJsonAsync<T>(
         ICliBridge bridge,
         string systemPrompt,
         string schemaJson,
         string input,
-        CancellationToken cancellationToken) =>
-        bridge.RunAsync(WithSchema(systemPrompt, schemaJson), input, cancellationToken);
+        Func<JsonElement, T> read,
+        CancellationToken cancellationToken)
+    {
+        var system = WithSchema(systemPrompt, schemaJson);
+        var text = await bridge.RunAsync(system, input, cancellationToken);
+        try
+        {
+            return ClaudeCodeResponseParser.ReadJson(text, read);
+        }
+        catch (FormatException)
+        {
+            // 1 回目の応答は例外のメッセージに載るので、ここではログを足さない
+        }
+
+        var retry = await bridge.RunAsync(system + RetryNote, input, cancellationToken);
+        return ClaudeCodeResponseParser.ReadJson(retry, read);
+    }
+
+    /// <summary>言い直しのときに足す指示。**断る余地を残さない**のが要点。</summary>
+    const string RetryNote =
+        "\n\n**前回の応答は JSON ではなかった。** 説明・断り書き・前置きを書かず、"
+        + "上記スキーマの JSON だけを返す。材料が少ないときも、その範囲で組み立てて JSON で返す"
+        + "(作れない理由を文章で書かない)。";
 
     /// <summary>
     /// スキーマの指示をシステムプロンプトの末尾に足す。**コードフェンスを禁じておく** ——
