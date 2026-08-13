@@ -53,10 +53,10 @@ else
         }
     </ul>
 
-    @if (_hasReviews)
+    @if (_needsRakutenCredit)
     {
-        @* 楽天ウェブサービスのレビューを出すときはクレジット表記が要る(利用規約 Article 13)。
-           指定の HTML は改変不可なので、テキスト版をそのまま置いている *@
+        @* 楽天から取ったデータ(レビューと書影)を出すときはクレジット表記が要る
+           (利用規約 Article 13)。指定の HTML は改変不可なので、テキスト版をそのまま置いている *@
         <p class="credit">
             <a href="https://developers.rakuten.com/" target="_blank">Supported by Rakuten Developers</a>
         </p>
@@ -73,7 +73,7 @@ else
     const int Limit = 400;
 
     IReadOnlyList<Book>? _books;
-    bool _hasReviews;
+    bool _needsRakutenCredit;
 
     /// <summary>選んだトピック+その配下のキー。**一覧の絞り込みではなく強調にだけ使う**。</summary>
     HashSet<string> _interests = new(StringComparer.Ordinal);
@@ -89,8 +89,8 @@ else
             .Where(book => book.RecommendationCount >= MinRecommendations)
             .ByPopularity()
             .ToList();
-        // クレジット表記は楽天のデータを実際に出しているときだけ置く
-        _hasReviews = _books.Any(book => book.ReviewCount is > 0);
+        // クレジット表記は楽天のデータ(レビュー・書影)を実際に出しているときだけ置く
+        _needsRakutenCredit = RakutenCredit.IsRequiredFor(_books);
 
         // 強調は配下込み —— 親(AI)を選んだ人にとって、子(LLM・RAG)も興味の範囲
         _interests = Catalog

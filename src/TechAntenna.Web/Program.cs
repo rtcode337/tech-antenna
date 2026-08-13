@@ -292,6 +292,14 @@ builder.Services.AddSingleton<IBookEnricher>(sp => new RakutenBooksEnricher(
     () => sp.GetRequiredService<ApiCredentials>().Get("Rakuten:AccessKey"),
     TimeSpan.FromSeconds(rakuten.DelaySeconds)));
 
+// 書影の補完は**最後**に置く。openBD(技術書の書影をほとんど持たない)と楽天
+// (レビューと同じ応答に書影が入るので追加コスト無し)で埋まらなかったぶんだけを、
+// Google Books へ ISBN で引きに行く —— 1 冊 1 リクエストなので、他で埋まるなら引かない
+builder.Services.AddSingleton<IBookEnricher>(sp => new GoogleBooksCoverEnricher(
+    sp.GetRequiredService<IHttpClientFactory>(),
+    () => sp.GetRequiredService<ApiCredentials>().Get("Books:GoogleBooksApiKey"),
+    TimeSpan.FromSeconds(books.CoverLookupDelaySeconds)));
+
 // 「読むべき技術書」を挙げた記事から薦められている本を拾う。書籍の検索とは独立した経路
 var qiita = builder.Configuration
     .GetSection(QiitaOptions.SectionName)

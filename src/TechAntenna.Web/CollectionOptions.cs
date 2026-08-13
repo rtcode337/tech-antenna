@@ -101,6 +101,13 @@ public class BooksOptions
     public bool UseOpenBd { get; set; } = true;
 
     /// <summary>
+    /// 書影が欠けている本を Google Books へ ISBN で引きに行くときの間隔(秒)。
+    /// **1 冊 1 リクエスト**(ISBN の一括指定ができない)なので、間隔を空けて 1 冊ずつ引く。
+    /// openBD は技術書の書影をほとんど持たないので、定番の書籍にはこの補完が要る。
+    /// </summary>
+    public int CoverLookupDelaySeconds { get; set; } = 1;
+
+    /// <summary>
     /// 保存するのに必要なレビュー件数の下限。**レビューが取れた本だけが対象**で、
     /// 取れていない本(null)は通す —— 楽天のアプリ ID を設定していない状態で
     /// 足切りが効くと、1冊も保存されなくなるため。既定 0 は足切り無し。

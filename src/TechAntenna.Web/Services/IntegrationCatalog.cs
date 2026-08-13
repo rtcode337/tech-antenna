@@ -167,23 +167,28 @@ public class IntegrationCatalog(
             "日本語の論文。直近 " + jstage.WithinYears + " 年ぶんに絞って引く", jstage.Enabled));
 
         // --- 書籍 ---
+        // 定番の軸にも出す —— 検索には使わないが、**書影が欠けている本を ISBN で引く**のがここ
         integrations.Add(WithSecret(new Integration(
-            IntegrationAxis.Interests, "書籍", "Google Books", CredentialNeed.Required,
+            IntegrationAxis.Interests | IntegrationAxis.Classics,
+            "書籍", "Google Books", CredentialNeed.Required,
             false,
-            "未設定だと検索が毎回 429 になる(キー無しは共有の匿名プロジェクト扱いで上限 0 件)"),
+            "未設定だと検索が毎回 429 になる(キー無しは共有の匿名プロジェクト扱いで上限 0 件)。"
+            + "定番の書籍の書影もここから引く"),
             "Books:GoogleBooksApiKey"));
         // 補完(openBD・楽天)は興味トピックの検索でも定番の推薦本でも使う
         integrations.Add(new Integration(
             IntegrationAxis.Interests | IntegrationAxis.Classics,
             "書籍", "openBD", CredentialNeed.NotNeeded, true,
-            "ISBN から書誌情報を補う。日本の書誌が無料で引ける", books.UseOpenBd));
+            "ISBN から書誌情報を補う。日本の書誌が無料で引ける(技術書の書影はほとんど持たない)",
+            books.UseOpenBd));
         // 「必須」= この連携(レビュー取得)が動くのに必須。書籍そのものは Google Books が
         // 集めるので、アプリとしては無くても回る(それは Effect の側で言う)
         integrations.Add(WithSecret(new Integration(
             IntegrationAxis.Interests | IntegrationAxis.Classics,
             "書籍", "楽天ブックス", CredentialNeed.Required,
             false,
-            "未設定でも書籍は集まるが、レビュー(読まれている度合い)が取れず並べ替えができない"),
+            "未設定でも書籍は集まるが、レビュー(読まれている度合い)が取れず並べ替えができない。"
+            + "設定すると書影も同じ応答から埋まる(Google Books への問い合わせが減る)"),
             "Rakuten:ApplicationId"));
         // 推薦本は定番の軸。**トピックの選択とは無関係**(固定クエリで「読むべき本」記事を掘る)
         integrations.Add(WithSecret(new Integration(

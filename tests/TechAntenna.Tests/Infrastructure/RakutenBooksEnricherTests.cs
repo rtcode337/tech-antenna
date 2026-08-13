@@ -108,6 +108,54 @@ public class RakutenBooksEnricherTests
     }
 
     [Fact]
+    public async Task 書影が無い本には楽天の画像を入れる()
+    {
+        // openBD は技術書の書影をほとんど持たない(実測 10 冊中 0 冊)。楽天の応答には
+        // レビューと同じリクエストで画像 URL が入ってくるので、そこから埋める
+        var enricher = NewEnricher(new StubHttpClientFactory("""
+            {"Items":[{"Item":{
+              "isbn":"9784123456789","reviewCount":3,"reviewAverage":"4.0",
+              "smallImageUrl":"https://thumbnail.image.rakuten.co.jp/small.jpg",
+              "mediumImageUrl":"https://thumbnail.image.rakuten.co.jp/medium.jpg",
+              "largeImageUrl":"https://thumbnail.image.rakuten.co.jp/large.jpg"
+            }}]}
+            """));
+
+        var book = Assert.Single(await enricher.EnrichAsync([NewBook("9784123456789")]));
+
+        // 一覧の書影は小さいので中サイズを使う
+        Assert.Equal("https://thumbnail.image.rakuten.co.jp/medium.jpg", book.CoverUrl?.ToString());
+        // 書影を入れるために本を組み直すので、他の値が落ちていないことも見る
+        Assert.Equal("検索側のタイトル", book.Title);
+        Assert.Equal(["AI"], book.RawTags);
+        Assert.Equal(3, book.ReviewCount);
+    }
+
+    [Fact]
+    public async Task 既に書影がある本は上書きしない()
+    {
+        var enricher = NewEnricher(new StubHttpClientFactory("""
+            {"Items":[{"Item":{"isbn":"9784123456789","reviewCount":3,
+              "mediumImageUrl":"https://thumbnail.image.rakuten.co.jp/medium.jpg"}}]}
+            """));
+        var book = NewBook("9784123456789");
+        book = new Book
+        {
+            Title = book.Title,
+            Isbn13 = book.Isbn13,
+            CoverUrl = new Uri("https://books.google.com/cover.jpg"),
+            SourceName = book.SourceName,
+            CollectedAt = book.CollectedAt,
+            Tags = book.Tags,
+            RawTags = book.RawTags,
+        };
+
+        var enriched = Assert.Single(await enricher.EnrichAsync([book]));
+
+        Assert.Equal("https://books.google.com/cover.jpg", enriched.CoverUrl?.ToString());
+    }
+
+    [Fact]
     public void Itemで包まない形も読める()
     {
         var review = Assert.Single(RakutenBooksResponseParser.Parse("""

@@ -25,6 +25,9 @@ public class ClassicsCollectionRunner(
 {
     readonly IReadOnlyList<IBookRecommendationSource> _sources = sources.ToList();
 
+    /// <summary>書影の引き継ぎのために読み込む保存済みの冊数。推薦本は多くても数百冊。</summary>
+    const int StoredBookLimit = 2000;
+
     public override string Name => "定番の収集";
 
     public override bool IsConfigured => _sources.Count > 0;
@@ -53,12 +56,18 @@ public class ClassicsCollectionRunner(
                 }
 
                 var collectedAt = clock.GetUtcNow();
+                // **保存済みの書影は引き継ぐ。** 拾えるのは ISBN だけなので毎回まっさらな本を
+                // 組み立てることになるが、そのまま補完へ渡すと**同じ本の書影を毎回 Google Books へ
+                // 問い合わせる**(1 冊 1 リクエスト・無料枠 1 日 1,000)。一度埋まった本は
+                // 二度と引かないようにする
+                var knownCovers = await KnownCoversAsync(cancellationToken);
                 var books = recommendations
                     .Select(recommendation => new Book
                     {
                         // タイトルは openBD が埋める(この時点では ISBN しか分かっていない)
                         Title = "",
                         Isbn13 = recommendation.Isbn13,
+                        CoverUrl = knownCovers.GetValueOrDefault(recommendation.Isbn13),
                         SourceName = source.Name,
                         CollectedAt = collectedAt,
                         RecommendedBy = recommendation.ArticleUrls,
@@ -101,6 +110,20 @@ public class ClassicsCollectionRunner(
         await tagObserver.ObserveAsync(cancellationToken: cancellationToken);
 
         return new CollectionRunResult(found, added, failed);
+    }
+
+    /// <summary>
+    /// 保存済みの本の ISBN → 書影 URL。**同じ本の書影を毎回外部へ問い合わせないため**に使う。
+    /// 推薦本は多くても数百冊なので全件読んで構わない。
+    /// </summary>
+    async Task<IReadOnlyDictionary<string, Uri?>> KnownCoversAsync(CancellationToken cancellationToken)
+    {
+        var stored = await store.GetRecentAsync(StoredBookLimit, cancellationToken);
+
+        return stored
+            .Where(book => book.CoverUrl is not null && book.Isbn13 is { Length: > 0 })
+            .GroupBy(book => book.Isbn13!, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First().CoverUrl, StringComparer.Ordinal);
     }
 
     async Task<IReadOnlyList<Book>> EnrichAsync(

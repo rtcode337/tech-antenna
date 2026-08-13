@@ -1,21 +1,25 @@
 using System.Globalization;
 using System.Text.Json;
+using TechAntenna.Core;
 
 namespace TechAntenna.Infrastructure.Books;
 
-/// <summary>楽天ブックスから取り出した1冊分のレビュー。</summary>
-public record RakutenReview(string Isbn, int ReviewCount, double? ReviewAverage);
+/// <summary>楽天ブックスから取り出した1冊分(レビューと書影)。</summary>
+public record RakutenBookInfo(string Isbn, int ReviewCount, double? ReviewAverage, Uri? CoverUrl);
 
 /// <summary>
 /// 楽天ブックス書籍検索API のレスポンスを解析する。
 ///
-/// 取り出すのは**レビュー件数と平均評価だけ**。書誌情報は Google Books と openBD で
-/// 足りているうえ、楽天の商品情報(商品説明・価格)まで取り込むと、
-/// 表示に別の条件が付いてくるため。
+/// 取り出すのは**レビュー件数・平均評価と書影の URL だけ**。商品説明や価格まで取り込むと
+/// 表示に別の条件が付いてくるし、書誌情報(タイトル・著者)は Google Books と openBD で足りる。
+///
+/// **書影を読むのは openBD が技術書の書影をほとんど持っていないため**
+/// (実測: リーダブルコード・達人プログラマー・SQL アンチパターン等 10 冊すべて `cover` が空)。
+/// ISBN から書誌を起こす定番の書籍は、これが無いと表紙の出ない一覧になる。
 /// </summary>
 public static class RakutenBooksResponseParser
 {
-    public static IReadOnlyList<RakutenReview> Parse(string json)
+    public static IReadOnlyList<RakutenBookInfo> Parse(string json)
     {
         using var doc = JsonDocument.Parse(json);
 
@@ -27,11 +31,11 @@ public static class RakutenBooksResponseParser
 
         return items.EnumerateArray()
             .Select(ParseItem)
-            .OfType<RakutenReview>()
+            .OfType<RakutenBookInfo>()
             .ToList();
     }
 
-    static RakutenReview? ParseItem(JsonElement element)
+    static RakutenBookInfo? ParseItem(JsonElement element)
     {
         // 楽天の API は要素を {"Item": {...}} で包む形と、包まない形の両方がある
         var item = element.TryGetProperty("Item", out var wrapped) ? wrapped : element;
@@ -42,8 +46,20 @@ public static class RakutenBooksResponseParser
             return null;
         }
 
-        return new RakutenReview(isbn, GetInt(item, "reviewCount") ?? 0, GetDouble(item, "reviewAverage"));
+        return new RakutenBookInfo(
+            isbn,
+            GetInt(item, "reviewCount") ?? 0,
+            GetDouble(item, "reviewAverage"),
+            // 一覧の書影は 48px 幅なので中サイズ(128px)で足りる。
+            // 大・小は保険 —— 商品によって欠けている段があるため
+            ParseUri(GetString(item, "mediumImageUrl")
+                ?? GetString(item, "largeImageUrl")
+                ?? GetString(item, "smallImageUrl")));
     }
+
+    // http/https 以外(javascript: 等)は img src に出すと XSS になるため WebUrl で弾く
+    static Uri? ParseUri(string? value) =>
+        WebUrl.TryCreate(value, out var uri) ? uri : null;
 
     static string? GetString(JsonElement e, string name) =>
         e.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
