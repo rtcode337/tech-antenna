@@ -135,6 +135,9 @@ public class ClassicsCollectionRunner(
         {
             try
             {
+                // **どの補完で待っているのかを画面に出す。** 書影の補完は 1 冊 1 リクエスト・
+                // 1 秒間隔なので数百冊なら数分かかる —— 名前が出ていないと止まって見える
+                Progress = $"{enricher.Name} で {books.Count} 冊を補完しています…";
                 books = await enricher.EnrichAsync(books, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

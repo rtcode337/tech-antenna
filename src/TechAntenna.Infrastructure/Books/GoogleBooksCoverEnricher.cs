@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Logging;
 using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Models;
 
@@ -24,6 +25,7 @@ namespace TechAntenna.Infrastructure.Books;
 public class GoogleBooksCoverEnricher(
     IHttpClientFactory httpClientFactory,
     Func<string?> apiKeyProvider,
+    ILogger<GoogleBooksCoverEnricher> logger,
     TimeSpan? delayBetweenRequests = null) : IBookEnricher
 {
     /// <summary>検索と同じ HttpClient を使う(相手も枠も同じ)。</summary>
@@ -42,6 +44,11 @@ public class GoogleBooksCoverEnricher(
         var apiKey = apiKeyProvider();
         if (string.IsNullOrWhiteSpace(apiKey))
         {
+            // **黙って素通りしない。** 収集は成功として終わるので、ログに出さないと
+            // 「補完したのに埋まらなかった」のか「そもそも問い合わせていない」のかが分からない
+            logger.LogWarning(
+                "Google Books の API キーが未設定のため、書影の補完をしません"
+                + "(画面の「設定 → 外部連携」から入れる)");
             return books;
         }
 
@@ -55,8 +62,15 @@ public class GoogleBooksCoverEnricher(
 
         if (isbns.Count == 0)
         {
+            logger.LogInformation("書影の欠けている本が無いので、Google Books へは問い合わせません");
             return books;
         }
+
+        // 1 冊 1 リクエスト・既定 1 秒間隔なので、冊数がそのまま所要時間になる。
+        // 「動いていないのでは」と見えないよう、始める前に見込みを出す
+        logger.LogInformation(
+            "{Count} 冊の書影を Google Books に問い合わせます(1 冊 1 リクエスト・{Delay} 秒間隔)",
+            isbns.Count, _delay.TotalSeconds);
 
         using var client = httpClientFactory.CreateClient(HttpClientName);
         var covers = new Dictionary<string, Uri>(StringComparer.Ordinal);
@@ -74,6 +88,9 @@ public class GoogleBooksCoverEnricher(
                 await Task.Delay(_delay, cancellationToken);
             }
         }
+
+        logger.LogInformation(
+            "{Filled}/{Count} 冊の書影が Google Books で埋まりました", covers.Count, isbns.Count);
 
         return books.Select(book => Apply(book, covers)).ToList();
     }

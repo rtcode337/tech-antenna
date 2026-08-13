@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Logging.Abstractions;
 using TechAntenna.Core.Models;
 using TechAntenna.Infrastructure.Books;
 
@@ -32,7 +33,8 @@ public class GoogleBooksCoverEnricherTests
     };
 
     static GoogleBooksCoverEnricher NewEnricher(StubHttpClientFactory factory, string? apiKey = "test-key") =>
-        new(factory, () => apiKey, delayBetweenRequests: TimeSpan.Zero);
+        new(factory, () => apiKey, NullLogger<GoogleBooksCoverEnricher>.Instance,
+            delayBetweenRequests: TimeSpan.Zero);
 
     [Fact]
     public async Task 書影が無い本をISBNで引いて埋める()

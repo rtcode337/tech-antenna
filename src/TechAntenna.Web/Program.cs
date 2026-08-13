@@ -301,6 +301,7 @@ builder.Services.AddSingleton<IBookEnricher>(sp => new RakutenBooksEnricher(
 builder.Services.AddSingleton<IBookEnricher>(sp => new GoogleBooksCoverEnricher(
     sp.GetRequiredService<IHttpClientFactory>(),
     () => sp.GetRequiredService<ApiCredentials>().Get("Books:GoogleBooksApiKey"),
+    sp.GetRequiredService<ILogger<GoogleBooksCoverEnricher>>(),
     TimeSpan.FromSeconds(books.CoverLookupDelaySeconds)));
 
 // 「読むべき技術書」を挙げた記事から薦められている本を拾う。書籍の検索とは独立した経路
