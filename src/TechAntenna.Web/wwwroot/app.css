@@ -103,6 +103,15 @@ html {
     -webkit-text-size-adjust: 100%;
 }
 
+/* **`hidden` を必ず効かせる。** ブラウザ既定の `[hidden] { display: none }` は
+   作者スタイルに負けるので、`display` を持つクラス(`.btn` は inline-flex)が付いた
+   要素は `hidden` を付けても出たままになる —— 「JS が動いたときだけ出す/隠す」作りが
+   静かに壊れる(コピーのボタンが JS 無しでも出る、トピックの「選択を保存」が
+   その場保存の効いている画面にも残る)。 */
+[hidden] {
+    display: none !important;
+}
+
 html,
 body {
     /* 日本語を含む端末標準のフォントを順に当てる。Helvetica 指定のままだと

@@ -74,6 +74,37 @@ public class InMemoryTopicStoreTests
     }
 
     [Fact]
+    public async Task 一件だけ切り替えても他の選択は触らない()
+    {
+        // 画面のチェックはその場で 1 件ずつ保存する(POST /api/topics/select)。
+        // ここで他の行まで触ると、閉じた枝や検索で絞られている行の選択が巻き添えで外れる
+        var store = new InMemoryTopicStore();
+        await store.UpsertAsync([NewTopic("生成ai", 10, "生成AI"), NewTopic("rag", 5)], UpdatedAt);
+        await store.UpdateSelectionAsync(["生成ai"]);
+
+        Assert.True(await store.SetSelectedAsync("rag", true));
+
+        Assert.Equal(["rag", "生成ai"], (await store.GetSelectedAsync()).Select(topic => topic.Key));
+
+        Assert.True(await store.SetSelectedAsync("生成ai", false));
+
+        Assert.Equal(["rag"], (await store.GetSelectedAsync()).Select(topic => topic.Key));
+    }
+
+    [Fact]
+    public async Task 一件の切り替えも正規化して突き合わせ_無い語は切り替えない()
+    {
+        // 正式表記(生成AI)で来ても当てる。語彙に無い語は false を返して画面が元に戻せるようにする
+        var store = new InMemoryTopicStore();
+        await store.UpsertAsync([NewTopic("生成ai", 10, "生成AI")], UpdatedAt);
+
+        Assert.True(await store.SetSelectedAsync("生成AI", true));
+        Assert.False(await store.SetSelectedAsync("知らない語", true));
+
+        Assert.Equal(["生成ai"], (await store.GetSelectedAsync()).Select(topic => topic.Key));
+    }
+
+    [Fact]
     public async Task 更新でも選択は触らない()
     {
         // 選択を変えるのは画面の操作だけ。整備が上書きすると収集対象が勝手に変わる

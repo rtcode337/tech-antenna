@@ -50,6 +50,15 @@ public interface ITopicStore
     Task UpdateSelectionAsync(IReadOnlyList<string> keys, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 1 件だけ収集対象の入り切りを切り替える。**<see cref="UpdateSelectionAsync"/> と違って
+    /// 他の行に触らない** —— 画面のチェックボックスをその場で保存する入口
+    /// (<c>POST /api/topics/select</c>)で使う。一覧に出ていない行の選択を、
+    /// 1 個の操作の巻き添えで落とさないため。
+    /// そのトピックがあったか(= 実際に切り替えたか)を返す。
+    /// </summary>
+    Task<bool> SetSelectedAsync(string key, bool selected, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 収集キーワードとして選択されたトピックを返す。
     ///
     /// **キーと表記の両方を返す**。用途が 2 つあり、どちらか一方では足りないため:

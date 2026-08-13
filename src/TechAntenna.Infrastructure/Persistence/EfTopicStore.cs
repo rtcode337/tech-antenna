@@ -109,6 +109,30 @@ public class EfTopicStore(IDbContextFactory<TechAntennaDbContext> contextFactory
         }
     }
 
+    public async Task<bool> SetSelectedAsync(
+        string key, bool selected, CancellationToken cancellationToken = default)
+    {
+        // 画面から来るのは正規化済みのキーだが、念のため同じ規則を通してから当てる
+        var normalized = TagNormalizer.Normalize([key]);
+        if (normalized.Count != 1)
+        {
+            return false;
+        }
+
+        // 添字のままクエリに書かず、いったん変数へ出す(EF がパラメータとして扱えるように)
+        var target = normalized[0];
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // **その 1 行だけを更新する。** 一覧を丸ごと置き換える UpdateSelectionAsync と違い、
+        // 画面に出ていない行の選択には触らない
+        var updated = await db.Topics
+            .Where(topic => topic.Key == target)
+            .ExecuteUpdateAsync(
+                set => set.SetProperty(topic => topic.IsSelected, selected), cancellationToken);
+
+        return updated > 0;
+    }
+
     public async Task<IReadOnlyList<SelectedTopic>> GetSelectedAsync(
         CancellationToken cancellationToken = default)
     {

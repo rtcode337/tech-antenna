@@ -54,7 +54,9 @@ else
             }
         </form>
         <p>
-            チェックボックスで選び、「選択を保存」を押してください。効き方は 2 つあります。
+            チェックを入れた／外した<strong>その場で保存されます</strong>
+            （JavaScript が動かない環境では、一覧の下の「選択を保存」を押してください）。
+            効き方は 2 つあります。
             <strong>選んだトピックそのもの</strong>が<strong>興味トピックの収集対象</strong>
             （書籍・イベント・論文の検索語）です —— この 3 つはトピック 1 つごとに外部へ
             問い合わせるため、<strong>配下までは検索しません</strong>（配下も集めたいときは
@@ -90,7 +92,12 @@ else
         </p>
     }
 
-    <form method="post" @formname="save-topic-selection" @onsubmit="SaveSelectionAsync" class="mb-3">
+    @* **チェックはその場で保存する**(wwwroot/topic-select.js が 1 件ずつ
+       `POST /api/topics/select` へ送る)。このフォームは**その JS が動かないときの経路**として
+       残してある —— 押せる保存の手段が画面から消えないようにするため。
+       JS が効いているあいだは「選択を保存」を隠し、結果は下の状態表示に出す *@
+    <form method="post" @formname="save-topic-selection" @onsubmit="SaveSelectionAsync" class="mb-3"
+          data-topic-select>
         <AntiforgeryToken />
 
         @if (IsRanking)
@@ -142,11 +149,16 @@ else
             </div>
         }
 
-        <button type="submit" class="btn btn-primary">選択を保存</button>
+        <button type="submit" class="btn btn-primary" data-save-selection>選択を保存</button>
         @if (_selectionMessage is { Length: > 0 })
         {
             <span class="ms-2 text-body-secondary">@_selectionMessage</span>
         }
+
+        @* その場保存の結果。**画面の下端に固定して出す** —— 一覧は数百行あり、
+           上や下に置くと、いま押した行のそばに出てこない。成功の知らせは数秒で消え、
+           失敗は残す(気づかないまま保存されたと思われないように) *@
+        <p class="select-status" data-select-status role="status" hidden></p>
     </form>
 }
 

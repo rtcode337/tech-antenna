@@ -452,6 +452,39 @@ app.MapGet("/export/topics.json", async (
         $"tech-antenna-topics-{JapanTime.FormatStamp(clock.GetUtcNow())}.json");
 });
 
+// 収集対象のチェックを**押した瞬間に保存する**入口(wwwroot/topic-select.js が fetch で叩く)。
+// JS が無い環境では従来どおり `/settings/topics` のフォーム(「選択を保存」)が効くので、
+// これは上乗せ —— 1000 行のページで 1 個チェックするたびに再読み込みしないためにある。
+//
+// **1 件だけを切り替える**(一覧を丸ごと置き換える保存とは別の経路)。
+// パスを `/settings/topics/…` の下に置かないのは、`/settings/topics/{tag}`(トピックの詳細)と
+// 紛れないようにするため —— 書き出しの `/export/topics.json` と同じ理由。
+//
+// **フォーム形式で受ける**のは、`UseAntiforgery()` が自動で検証してくれるのがこの形だから
+// (JSON の本文だと検証されない)。トークンは画面のフォームの隠しフィールドから写して送る。
+app.MapPost("/api/topics/select", async (
+    IFormCollection form, ITopicStore topics, CancellationToken cancellationToken) =>
+{
+    var key = form["key"].ToString();
+    var selected = form["selected"] == "true";
+
+    if (string.IsNullOrWhiteSpace(key))
+    {
+        return Results.BadRequest(new { error = "トピックが指定されていません。" });
+    }
+
+    if (!await topics.SetSelectedAsync(key, selected, cancellationToken))
+    {
+        // 語彙から消えた語をチェックしようとした場合。**画面側で元に戻せるよう理由を返す**
+        return Results.NotFound(new { error = $"「{key}」は語彙にありませんでした。" });
+    }
+
+    // 「収集対象 N 件」を画面に出すため、保存のたびに数え直す(語彙は数百件なので安い)
+    var count = (await topics.GetSelectedAsync(cancellationToken)).Count;
+
+    return Results.Ok(new { key, selected, count });
+});
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

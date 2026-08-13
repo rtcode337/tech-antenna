@@ -108,6 +108,30 @@ public class InMemoryTopicStore : ITopicStore
         return Task.CompletedTask;
     }
 
+    public Task<bool> SetSelectedAsync(
+        string key, bool selected, CancellationToken cancellationToken = default)
+    {
+        // 画面から来るのは正規化済みのキーだが、念のため同じ規則を通してから当てる
+        // (`Normalize` はカンマで語を分けるので、1 語に落ちないものは受け付けない)
+        var normalized = TagNormalizer.Normalize([key]);
+        if (normalized.Count != 1)
+        {
+            return Task.FromResult(false);
+        }
+
+        lock (_gate)
+        {
+            if (!_byKey.TryGetValue(normalized[0], out var topic))
+            {
+                return Task.FromResult(false);
+            }
+
+            topic.IsSelected = selected;
+
+            return Task.FromResult(true);
+        }
+    }
+
     public Task<IReadOnlyList<SelectedTopic>> GetSelectedAsync(CancellationToken cancellationToken = default)
     {
         lock (_gate)
