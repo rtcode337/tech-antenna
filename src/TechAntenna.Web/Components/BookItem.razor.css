@@ -48,14 +48,25 @@ small {
 }
 
 /* 記事で薦められた回数。レビューとは別軸なので色を分ける */
+/* 記事で薦められた回数と、その出典へのリンク(番号)。**回数自体はリンクではない** ——
+   出典は複数あるので、押した先が1つに決まらない */
 .recommended {
     color: var(--accent);
     font-weight: 650;
-    text-decoration: none;
     white-space: nowrap;
 }
 
-.recommended:hover {
+/* 出典の番号。小さくても押せるよう、字の周りに余白を取る(スマホの指で押す) */
+.recommended a {
+    display: inline-block;
+    min-width: 1.2rem;
+    padding: 0 0.15rem;
+    color: var(--accent);
+    text-align: center;
+    text-decoration: none;
+}
+
+.recommended a:hover {
     text-decoration: underline;
 }
 

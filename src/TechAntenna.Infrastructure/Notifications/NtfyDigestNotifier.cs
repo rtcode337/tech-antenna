@@ -83,7 +83,7 @@ public class NtfyDigestNotifier(
     }
 
     /// <summary>
-    /// 通知の本文を組む。導入 → 項目(見出し+本文+出典)の順で、スマホの通知でも
+    /// 通知の本文を組む。導入 → 項目(見出し+本文+出典)→ **署名**の順で、スマホの通知でも
     /// 読める素のテキストにする(ntfy に Markdown 表示はあるが、既定の Android/iOS の
     /// 通知面ではただの文字列なので装飾に頼らない)。
     /// </summary>
@@ -107,6 +107,13 @@ public class NtfyDigestNotifier(
         }
 
         var message = builder.ToString().Trim();
-        return message.Length <= MaxMessageChars ? message : message[..MaxMessageChars] + "…";
+        if (message.Length > MaxMessageChars)
+        {
+            message = message[..MaxMessageChars] + "…";
+        }
+
+        // **署名は切り詰めの後に足す。** 複数の AI に書かせていると「どれが書いたものか」が
+        // 分からないと読み比べられず、長い日にだけ署名が消えるのでは意味が無い
+        return $"{message}\n\n— {digest.GeneratorName}";
     }
 }

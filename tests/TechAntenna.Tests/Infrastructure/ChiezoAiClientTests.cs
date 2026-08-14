@@ -40,10 +40,10 @@ public class ChiezoAiClientTests
         // **知識ベースは引かせない**(/v1/chat ではなく /v1/ai/complete)
         var factory = new RecordingFactory("""{"content":"  まとめ  ","model":"gemini-2.5-flash"}""");
 
-        var text = await Client(factory).CompleteAsync(
+        var completion = await Client(factory).CompleteAsync(
             "gemini", "gemini-2.5-flash", "high", "システム", "本文");
 
-        Assert.Equal("まとめ", text);
+        Assert.Equal("まとめ", completion.Content);
         Assert.Equal("http://chiezo:7010/v1/ai/complete", factory.RequestedUris.Single().ToString());
 
         using var request = JsonDocument.Parse(factory.RequestBody);
@@ -65,6 +65,18 @@ public class ChiezoAiClientTests
         using var request = JsonDocument.Parse(factory.RequestBody);
         Assert.Equal(JsonValueKind.Null, request.RootElement.GetProperty("model").ValueKind);
         Assert.Equal(JsonValueKind.Null, request.RootElement.GetProperty("effort").ValueKind);
+    }
+
+    [Fact]
+    public async Task 実際に使われたモデルを名乗る()
+    {
+        // 「相手の既定に任せる」で頼んだときに、何が書いたのかを知る唯一の手がかり
+        var factory = new RecordingFactory("""{"content":"はい","model":"claude-sonnet-5"}""");
+
+        var completion = await Client(factory).CompleteAsync(
+            "claude", null, null, "システム", "本文");
+
+        Assert.Equal("claude-sonnet-5", completion.Model);
     }
 
     [Fact]

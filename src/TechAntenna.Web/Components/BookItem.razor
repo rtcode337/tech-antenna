@@ -36,11 +36,19 @@
             }
             @if (Book.RecommendationCount > 0)
             {
-                @* レビュー(読まれた量)とは別軸なので、並べて別々に出す *@
-                <a class="recommended ms-1" href="@Book.RecommendedBy[0]"
-                   target="_blank" rel="noopener" title="この本を薦めている記事へ">
+                @* レビュー(読まれた量)とは別軸なので、並べて別々に出す。
+                   **出典は全部たどれるようにする** —— 1 本目だけをリンクにしていた頃は、
+                   「3 件」と数だけ見えて残り 2 本へ行けなかった(どこで薦められているかは
+                   本を選ぶ材料そのもの)。記事の題名は保存していない(複製にしないため)ので、
+                   番号で並べる *@
+                <span class="recommended ms-1">
                     推薦 @Book.RecommendationCount 件
-                </a>
+                    @for (var i = 0; i < Book.RecommendedBy.Count; i++)
+                    {
+                        <a href="@Book.RecommendedBy[i]" target="_blank" rel="noopener"
+                           title="この本を薦めている記事 @(i + 1)">@(i + 1)</a>
+                    }
+                </span>
             }
             @if (Book.ReviewCount is { } reviewCount and > 0)
             {

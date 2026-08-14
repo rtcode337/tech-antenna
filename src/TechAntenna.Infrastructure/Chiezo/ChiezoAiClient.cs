@@ -19,6 +19,12 @@ public record ChiezoBackend(
     IReadOnlyList<string> Efforts,
     bool ModelRequired);
 
+/// <summary>Chiezo が1回の問い合わせで返したもの。</summary>
+/// <param name="Content">応答の本文。</param>
+/// <param name="Model">**実際に使われたモデル**。「相手の既定に任せる」で頼んだときに、
+/// 何が書いたのかを知る唯一の手がかり(こちらは名前を指定していないため)。</param>
+public record ChiezoCompletion(string Content, string? Model);
+
 /// <summary>
 /// Chiezo(LAN 内の知識サーバー)の「素の問い合わせ」の口を叩く。
 ///
@@ -85,7 +91,7 @@ public class ChiezoAiClient(IHttpClientFactory httpClientFactory, string baseUrl
     }
 
     /// <summary>1 往復投げて本文を受け取る。</summary>
-    public async Task<string> CompleteAsync(
+    public async Task<ChiezoCompletion> CompleteAsync(
         string backend,
         string? model,
         string? effort,
@@ -107,7 +113,7 @@ public class ChiezoAiClient(IHttpClientFactory httpClientFactory, string baseUrl
         var body = await ReadAsync<CompleteResponse>(response, cancellationToken);
 
         return body?.Content?.Trim() is { Length: > 0 } text
-            ? text
+            ? new ChiezoCompletion(text, body.Model)
             : throw new FormatException("Chiezo が空の応答を返した。");
     }
 

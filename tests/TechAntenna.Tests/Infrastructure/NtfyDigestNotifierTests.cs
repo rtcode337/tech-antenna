@@ -62,8 +62,19 @@ public class NtfyDigestNotifierTests
                 .Select(i => new DigestItem($"見出し{i}", new string('あ', 100), null))
                 .ToArray()));
 
-        Assert.True(message.Length <= NtfyDigestNotifier.MaxMessageChars + 1);
-        Assert.EndsWith("…", message);
+        // 署名のぶんだけ上限を超える(切るのは本文で、署名は後から足すため)
+        Assert.Contains("…", message);
+        Assert.EndsWith("— テスト", message);
+    }
+
+    [Fact]
+    public void 末尾に書いたAIの署名を入れる()
+    {
+        // 複数の AI に書かせていると、どれが書いたものか分からないと読み比べられない
+        var message = NtfyDigestNotifier.BuildMessage(Digest(
+            new DigestItem("見出し", "本文。", null)));
+
+        Assert.EndsWith("— テスト", message);
     }
 
     [Fact]
