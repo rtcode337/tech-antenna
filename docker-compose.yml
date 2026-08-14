@@ -81,7 +81,12 @@ services:
       # **Chiezo(LAN 内の知識サーバー)の URL。入れると LLM の相手を画面から選べる**
       # (設定 → AI)。Gemini・Claude Code・推論サーバ…の鍵は Chiezo が持っているので、
       # こちらは相手を選ぶだけでよい。空なら従来どおり下の bridge / Anthropic API を使う。
-      # 値は .env の CHIEZO_URL(例 http://192.168.1.10:7010。**`/v1` は付けない**)
+      # 値は .env の CHIEZO_URL(例 http://192.168.1.10:7010。**`/v1` は付けない**)。
+      # **同じホストで chiezo が動いているのに時間内に応答しないときは、コンテナから
+      # ホストの公開ポートへ戻る経路が塞がれている**(NAS のファイアウォール等)。
+      # その場合は chiezo のネットワークに相乗りする —— 手順と注意点は
+      # docker-compose.standalone.example.yml の「同じホストで chiezo が動いているのに
+      # 届かないとき」に書いてある(CHIEZO_URL は http://chiezo-api:7010 になる)
       Chiezo__BaseUrl: ${CHIEZO_URL:-}
       # 今日のサマリーの ntfy 通知。接続先(URL・トピック・トークン)は画面から設定する。
       # タップで開く URL だけは「この環境の公開 URL」というデプロイ側の事実なのでここに残す
