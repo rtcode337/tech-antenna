@@ -298,7 +298,10 @@ public class ChiezoOptions
 {
     public const string SectionName = "Chiezo";
 
-    /// <summary>Chiezo の URL(例 `http://chiezo-api:7010`)。空なら使わない。</summary>
+    /// <summary>
+    /// Chiezo の**ルート URL**(例 `http://192.168.1.10:7010`、同居なら `http://chiezo-api:7010`)。
+    /// **`/v1` は付けない** —— 呼ぶ側が `/v1/ai/...` を足す。空なら使わない。
+    /// </summary>
     public string BaseUrl { get; set; } = "";
 
     /// <summary>1回の生成の上限(秒)。相手が CLI や大きいモデルだと数分かかる。</summary>

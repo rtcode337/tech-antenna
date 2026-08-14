@@ -72,8 +72,14 @@ x-app-env: &app-env
 
   # ---- ここだけ編集(任意): Chiezo(LAN 内の知識サーバー)の URL ----
   # 入れると LLM の相手を画面から選べる(設定 → AI)。鍵は Chiezo が持っている。
-  # 空なら従来どおり bridge / Anthropic API を使う
-  Chiezo__BaseUrl: ""
+  # 使わないなら空文字("")にする —— 従来どおり bridge / Anthropic API で動く。
+  #
+  # 書くのは chiezo-api の**ルート URL**。**`/v1` は付けない**
+  # (こちらが `/v1/ai/...` を足すので、付けると `/v1/v1/...` になって 404)。
+  # 値は「**このコンテナから** chiezo に届くアドレス」—— 別のホストで動いているなら
+  # そのホストの IP、同じホストなら LAN の IP(`localhost` はコンテナ自身を指すので不可)。
+  # 届くかどうかは `docker exec <このコンテナ> curl -s <URL>/v1/ai/backends` で確かめられる
+  Chiezo__BaseUrl: "http://192.168.1.10:7010"
 
   # 今日のサマリーの ntfy 通知。接続先(URL・トピック・トークン)は画面から設定する。
   # タップで開く URL だけは「この環境の公開 URL」というデプロイ側の事実なのでここに残す

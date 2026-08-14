@@ -80,7 +80,8 @@ services:
       ClaudeCode__BridgeUrl: ${CLAUDE_CODE_BRIDGE_URL:-http://bridge:7013/v1}
       # **Chiezo(LAN 内の知識サーバー)の URL。入れると LLM の相手を画面から選べる**
       # (設定 → AI)。Gemini・Claude Code・推論サーバ…の鍵は Chiezo が持っているので、
-      # こちらは相手を選ぶだけでよい。空なら従来どおり下の bridge / Anthropic API を使う
+      # こちらは相手を選ぶだけでよい。空なら従来どおり下の bridge / Anthropic API を使う。
+      # 値は .env の CHIEZO_URL(例 http://192.168.1.10:7010。**`/v1` は付けない**)
       Chiezo__BaseUrl: ${CHIEZO_URL:-}
       # 今日のサマリーの ntfy 通知。接続先(URL・トピック・トークン)は画面から設定する。
       # タップで開く URL だけは「この環境の公開 URL」というデプロイ側の事実なのでここに残す
