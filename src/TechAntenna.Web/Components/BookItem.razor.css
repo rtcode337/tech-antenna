@@ -17,8 +17,13 @@ li + li {
     border-top: 1px solid var(--border);
 }
 
+/* 書影。**`align-self` を指定しないと縦に伸びる** —— 親の行は `d-flex` で、
+   flex の既定(`align-items: stretch`)が効くと画像の高さが行の高さまで引き伸ばされる
+   (グローバルの `img { height: auto }` は stretch に負ける)。本の表紙は縦横比が
+   崩れると別の本に見えるので、頭で揃えて幅だけを決める */
 img {
     flex: none;
+    align-self: flex-start;
     border-radius: var(--radius-sm);
     background: var(--surface-sunken);
 }
