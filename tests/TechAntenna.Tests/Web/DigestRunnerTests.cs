@@ -75,7 +75,7 @@ public class DigestRunnerTests
     }
 
     static DigestRunner Runner(
-        StubComposer? composer,
+        IDigestComposer? composer,
         InMemoryArticleStore articles,
         InMemoryEventStore events,
         InMemoryTopicStore topics,
@@ -347,27 +347,109 @@ public class DigestRunnerTests
     }
 
     [Fact]
-    public async Task メインが失敗したらサブを繰り上げる()
+    public async Task メインが失敗しても同じ回のサブは保存する()
     {
-        // 1 本も出さないより、書けたものを出す(ホームも通知も「先頭」を使う)
+        // **以前はここで捨てていた。** Task.WhenAll がメインの例外で待ち合わせごと
+        // 投げるので、同じ回に書けていたサブまで受け取れなかった ——
+        // 読み比べ用の相手がいちばん要る日に、記録が何も残らなかった
         var articles = new InMemoryArticleStore();
         await articles.AddRangeAsync([Article("話題の記事", ArticleKind.News)]);
         var digests = new InMemoryDigestStore();
-        var main = new StubComposer("メインAI", new HttpRequestException("落ちた"));
+        var main = new StubComposer("メインAI", new HttpRequestException("Chiezo がエラーを返した(HTTP 502)"));
         var sub = new StubComposer("サブAI");
+        var notifier = new StubNotifier();
         var runner = Runner(
-            main,
-            articles,
-            new InMemoryEventStore(),
-            new InMemoryTopicStore(),
-            digests,
-            TopicCatalog.Empty,
+            main, articles, new InMemoryEventStore(), new InMemoryTopicStore(), digests,
+            TopicCatalog.Empty, notifier,
             generators:
             [
                 new DigestGenerator("chiezo:main", main.Name, true, main),
                 new DigestGenerator("chiezo:sub", sub.Name, false, sub),
             ]);
 
-        await Assert.ThrowsAsync<HttpRequestException>(() => runner.RunOnceAsync());
+        // メインが書けなかった回はジョブとしては失敗(定期実行のログと画面に出す)
+        var error = await Assert.ThrowsAsync<DigestPrimaryFailedException>(
+            () => runner.RunOnceAsync());
+
+        // …が、サブの書いたものは残っていて、通知も届いている
+        var saved = Assert.Single(await digests.GetLatestRunAsync(DigestScope.Overall));
+        Assert.Equal("chiezo:sub", saved.GeneratorKey);
+        // 通知とホームは「1本目」を使うので、残ったサブをメインに繰り上げる
+        Assert.True(saved.IsPrimary);
+        Assert.Equal([DigestScope.Overall], notifier.Notified);
+        // 何が落ちて何が残ったかを1文で言い切る(画面には「失敗: 」を付けて出る)。
+        // **全文を固定する** —— ここは運用中に読む唯一の手掛かりなので、
+        // 直すときは「読んで打つ手が分かるか」を見てから直す
+        Assert.Equal(
+            "メインの AI が書けませんでした(技術界隈全体: メインAI — "
+            + "Chiezo がエラーを返した(HTTP 502))。"
+            + " その範囲はサブの AI が書いたもので代替して保存しています。"
+            + " 保存できたぶん: 技術界隈全体 1 項目。 ntfy へ 1 通 通知しました。",
+            error.Message);
+    }
+
+    [Fact]
+    public async Task 全体が失敗しても興味トピックは作る()
+    {
+        // **以前は道連れになっていた。** 先に作る「全体」で例外が上がると、
+        // 2本目の「興味トピック」は試すことすらできなかった
+        var articles = new InMemoryArticleStore();
+        await articles.AddRangeAsync([Article("LLMの記事", ArticleKind.Article, "llm")]);
+        var (topics, catalog) = await SelectedTopicsAsync();
+        var digests = new InMemoryDigestStore();
+        var composer = new ScopeFailingComposer("メインAI", DigestScope.Overall);
+        var runner = Runner(
+            composer, articles, new InMemoryEventStore(), topics, digests, catalog,
+            new StubNotifier());
+
+        var error = await Assert.ThrowsAsync<DigestPrimaryFailedException>(
+            () => runner.RunOnceAsync());
+
+        Assert.Null(await digests.GetLatestAsync(DigestScope.Overall));
+        Assert.NotNull(await digests.GetLatestAsync(DigestScope.Interests));
+        // 失敗した範囲と、作れた範囲の両方を文言に出す
+        Assert.Contains("技術界隈全体", error.Message);
+        Assert.Contains("興味トピック", error.Message);
+    }
+
+    [Fact]
+    public async Task 両方の範囲でメインが失敗したら両方を文言に出す()
+    {
+        var articles = new InMemoryArticleStore();
+        await articles.AddRangeAsync([Article("LLMの記事", ArticleKind.Article, "llm")]);
+        var (topics, catalog) = await SelectedTopicsAsync();
+        var digests = new InMemoryDigestStore();
+        var composer = new StubComposer("メインAI", new HttpRequestException("落ちた"));
+        var runner = Runner(
+            composer, articles, new InMemoryEventStore(), topics, digests, catalog,
+            new StubNotifier());
+
+        var error = await Assert.ThrowsAsync<DigestPrimaryFailedException>(
+            () => runner.RunOnceAsync());
+
+        // 片方だけ落ちたのか両方なのかで打つ手が違う
+        Assert.Contains("技術界隈全体", error.Message);
+        Assert.Contains("興味トピック", error.Message);
+        // 代替が1本も無いので、そう書かない
+        Assert.DoesNotContain("サブの AI が書いたもの", error.Message);
+    }
+
+    /// <summary>指定した範囲でだけ失敗する IDigestComposer(範囲どうしの独立を見るため)。</summary>
+    class ScopeFailingComposer(string name, DigestScope failing) : IDigestComposer
+    {
+        public string Name => name;
+
+        public Task<Digest> ComposeAsync(
+            DigestMaterials materials, CancellationToken cancellationToken = default) =>
+            materials.Scope == failing
+                ? Task.FromException<Digest>(new HttpRequestException("落ちた"))
+                : Task.FromResult(new Digest
+                {
+                    Scope = materials.Scope,
+                    GeneratedAt = Now,
+                    Lead = "導入。",
+                    Items = [new DigestItem("見出し", "本文。", null)],
+                    GeneratorName = name,
+                });
     }
 }

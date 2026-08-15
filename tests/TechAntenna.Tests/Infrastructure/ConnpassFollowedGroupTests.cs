@@ -127,7 +127,7 @@ public class ConnpassFollowedGroupTests
         await source.FetchAsync();
 
         // グループの ID は変わらないので、収集のたびに引き直すのは相手を無駄に叩くだけ
-        Assert.Single(factory.RequestedUris.Where(uri => uri.ToString().Contains("/groups/")));
+        Assert.Single(factory.RequestedUris, uri => uri.ToString().Contains("/groups/"));
     }
 
     [Fact]
