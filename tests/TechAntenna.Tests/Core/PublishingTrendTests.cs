@@ -32,7 +32,7 @@ public class PublishingTrendTests
     }
 
     [Fact]
-    public void 代表タイトルは新しい順に数件だけ返す()
+    public void テーマの本は刊行の新しい順に全部返す()
     {
         var themes = PublishingTrend.Themes([
             Release("古い本", new DateOnly(2026, 3, 1), "生成ai"),
@@ -42,7 +42,9 @@ public class PublishingTrendTests
 
         var theme = Assert.Single(themes);
         Assert.Equal(3, theme.Count);
-        Assert.Equal(["新しい本", "中くらいの本"], theme.Examples.Select(release => release.Title));
+        // まとめの節は先頭 ExamplesPerTheme 冊だけを代表に使い、書籍ページは全部を並べる
+        Assert.Equal(
+            ["新しい本", "中くらいの本", "古い本"], theme.Books.Select(release => release.Title));
     }
 
     [Fact]

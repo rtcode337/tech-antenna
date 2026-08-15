@@ -1,0 +1,150 @@
+@page "/recent/books"
+@using Microsoft.Extensions.Options
+@using TechAntenna.Core
+@using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Models
+@using TechAntenna.Core.Topics
+@using TechAntenna.Web.Services
+@inject INewReleaseStore NewReleaseStore
+@inject ITopicStore TopicStore
+@inject TopicCatalog Catalog
+@inject TimeProvider Clock
+@inject IOptions<NewReleaseOptions> NewReleaseSettings
+
+@* 「トレンド / 書籍」— **本になっているテーマ**の全量。まとめ(/recent/general)には
+   上位のテーマと代表タイトルだけを置き、ここが「どのテーマに何冊出たのか、その本は何か」を受け持つ
+   (ニュース・記事・論文の一覧と同じ、まとめ ⇔ 子ページの分担)。
+
+   **興味トピックの書籍(/interests/books)と同じ見た目**にそろえてある —— 折りたたみの見出しに
+   まとまりの名前と冊数、中は 1 冊ずつの行(<see cref="BookItem"/>)。違うのは
+   **まとまりの単位**で、あちらは「収集対象に選んだトピック」、こちらは
+   **出版側が寄せているテーマ**(選択に依存しない)。
+
+   出しているのは<b>読ませるために集めた書籍</b>ではなく<b>数えるために集めた新刊</b>
+   (<see cref="NewRelease"/>)なので、書影・著者・レビューは付かない *@
+
+<PageTitle>Tech Antenna — トレンド / 書籍</PageTitle>
+
+<h1>トレンド / 書籍</h1>
+
+<CollectionHint Job="出版トレンドの収集" />
+
+@if (_themes is null)
+{
+    <p>読み込み中…</p>
+}
+else if (_themes.Count == 0)
+{
+    <p>まだ新刊がありません。<a href="/settings/general">設定</a>の「出版トレンドの収集」を実行してください。</p>
+}
+else
+{
+    <p class="text-muted">
+        直近 @_themeWindowMonths か月に出た<strong>本・ムック @_releaseCount 冊</strong>の
+        タイトルから、語彙にあるテーマを数えたものです。反応の速さではなく
+        <strong>出版側が時間をかけて寄せている先</strong>が出ます
+        (出典: <a href="https://ndlsearch.ndl.go.jp/" target="_blank" rel="noopener">国立国会図書館サーチ</a>)。
+        テーマ名の横の数字が<strong>そのテーマになっている冊数</strong>で、開くとその本が並びます。
+        <strong>@MinCount 冊未満のテーマは出していません</strong> —— 1 冊だけでは偶然が混じるためです。
+        <span class="star" aria-hidden="true">★</span> は
+        <a href="/settings/topics">収集対象に選んだトピック</a>に当たるテーマです。
+        <strong>雑誌の号も数えています</strong> —— ムック・入門書のタイトルにテーマが出るので、
+        「読んでおくべき本」を選ぶ<a href="/interests/books">興味トピック → 書籍</a>とは母集団が違います。
+    </p>
+
+    @* 折りたたみは details/summary。静的 SSR のまま、JS も対話回線も無しで開閉できる
+       (興味トピックの書籍と同じ作り) *@
+    @foreach (var theme in _themes)
+    {
+        <details class="theme-group" open="@(theme == _themes[0])">
+            <summary class="@(_selected.Contains(theme.Tag) ? "interested" : "")">
+                <span class="theme-name">
+                    @if (_selected.Contains(theme.Tag))
+                    {
+                        <span class="star" aria-hidden="true">★</span>
+                    }
+                    @Catalog.DisplayOf(theme.Tag)
+                </span>
+                <span class="badge bg-secondary ms-1">@theme.Count 冊</span>
+                @* テーマ名そのものはリンクにしない(押す動機は「中を見る」なので開閉に使う)。
+                   語彙としての姿を見たい人のために、トピックの詳細へは別のリンクを置く *@
+                <a class="topic-link" href="@($"/settings/topics/{Uri.EscapeDataString(theme.Tag)}")"
+                   title="このテーマの詳細">詳細 →</a>
+            </summary>
+            <ul class="list-unstyled">
+                @foreach (var release in theme.Books)
+                {
+                    <BookItem Book="AsBook(release)" HighlightTags="Highlight(theme)" />
+                }
+            </ul>
+        </details>
+    }
+}
+
+@code {
+    /// <summary>
+    /// テーマを数えるために読む新刊の冊数。NDC 007 は月に 100 件弱なので半年で足りる。
+    /// **まとめ(/recent/general)と同じ母集団**にする —— 違うと同じテーマの冊数が
+    /// ページによって食い違う。
+    /// </summary>
+    const int ReleasePool = 1000;
+
+    /// <summary>これ未満のテーマは出さない(<see cref="PublishingTrend.Themes"/> の既定と同じ)。</summary>
+    const int MinCount = 2;
+
+    /// <summary>出版のテーマ。**まとめと違って上位で切らない**(このページが全量の担当)。</summary>
+    IReadOnlyList<PublishingTheme>? _themes;
+
+    /// <summary>集計に使った冊数と窓。**数の出どころを画面に書く**ため(何冊中の N 冊か)。</summary>
+    int _releaseCount;
+
+    int _themeWindowMonths;
+
+    /// <summary>選んだトピック+その配下のキー。★を付ける判定にだけ使う(収集では絞らない)。</summary>
+    HashSet<string> _selected = new(StringComparer.Ordinal);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    // ジョブはバックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
+    async Task LoadAsync()
+    {
+        _themeWindowMonths = Math.Max(1, NewReleaseSettings.Value.WindowMonths);
+        // 「最近」の境界も日本時間で数える
+        var since = DateOnly.FromDateTime(
+            JapanTime.To(Clock.GetUtcNow()).AddMonths(-_themeWindowMonths).Date);
+
+        var releases = await NewReleaseStore.GetPublishedSinceAsync(since, ReleasePool);
+        _releaseCount = releases.Count;
+        _themes = PublishingTrend.Themes(releases, MinCount, limit: int.MaxValue);
+
+        // ★の判定は配下込み —— 親(AI)を選んだ人にとって、子(LLM・RAG)のテーマも興味の範囲
+        _selected = Catalog
+            .ExpandWithDescendants((await TopicStore.GetSelectedAsync()).Select(topic => topic.Key))
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// 行のタグの帯で強調するタグ。**そのグループの見出しになっているテーマだけ**を光らせる
+    /// (興味トピックの書籍が「そのグループに反応したタグ」を光らせるのと同じ文法)——
+    /// 1 冊が複数のテーマに出るので、どのテーマで載っている行なのかが読めるようにする。
+    /// </summary>
+    static IReadOnlySet<string> Highlight(PublishingTheme theme) =>
+        new HashSet<string>(StringComparer.Ordinal) { theme.Tag };
+
+    /// <summary>
+    /// 新刊の観測(<see cref="NewRelease"/>)を、書籍の行(<see cref="BookItem"/>)に渡すための姿。
+    /// **保存はしない、表示のためだけの変換** —— 行の組み立てを 1 か所に保って、
+    /// 興味トピックの書籍と見た目がずれないようにする。新刊は書影・著者・レビューを持たないので、
+    /// 出るのはタイトル・出版者・刊行年月・タグだけになる(BookItem は無い項目を出さない)。
+    /// </summary>
+    static Book AsBook(NewRelease release) => new()
+    {
+        Title = release.Title,
+        Url = release.Url,
+        Publisher = release.Publisher,
+        PublishedOn = release.PublishedOn,
+        SourceName = release.SourceName,
+        CollectedAt = release.CollectedAt,
+        Tags = release.Tags,
+    };
+}

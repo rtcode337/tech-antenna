@@ -2,9 +2,17 @@ namespace TechAntenna.Core.Models;
 
 /// <summary>出版のテーマ 1 つぶん。</summary>
 /// <param name="Tag">正規化済みのタグ(トピックのキー)。</param>
-/// <param name="Count">その窓のあいだに出た冊数。</param>
-/// <param name="Examples">代表のタイトル(新しい順)。数字だけだと何の話か分からないため。</param>
-public record PublishingTheme(string Tag, int Count, IReadOnlyList<NewRelease> Examples);
+/// <param name="Books">
+/// そのテーマの本(刊行の新しい順)。**窓に入った分がすべて入っている** ——
+/// トレンドのまとめは先頭の数冊だけを代表として出し(<see cref="PublishingTrend.ExamplesPerTheme"/>)、
+/// トレンドの書籍ページは全部を並べる。冊数を数えたのと同じ集合をそのまま持つので、
+/// 見出しの「N 冊」と中身の行数が食い違わない。
+/// </param>
+public record PublishingTheme(string Tag, IReadOnlyList<NewRelease> Books)
+{
+    /// <summary>その窓のあいだに出た冊数。</summary>
+    public int Count => Books.Count;
+}
 
 /// <summary>
 /// 最近出た本を**テーマ(タグ)ごとに数える**。「出版側がいまどのテーマに寄せているか」を、
@@ -17,7 +25,7 @@ public record PublishingTheme(string Tag, int Count, IReadOnlyList<NewRelease> E
 /// </summary>
 public static class PublishingTrend
 {
-    /// <summary>1 テーマにつき出す代表タイトルの数。</summary>
+    /// <summary>まとめの節で 1 テーマにつき出す代表タイトルの数(全部は書籍ページの担当)。</summary>
     public const int ExamplesPerTheme = 2;
 
     /// <summary>
@@ -26,7 +34,7 @@ public static class PublishingTrend
     /// </summary>
     /// <param name="releases">窓で切った新刊(刊行日の新しい順)。</param>
     /// <param name="minCount">これ未満のテーマは出さない。1 冊だけのテーマは偶然が混じる。</param>
-    /// <param name="limit">返すテーマの数。</param>
+    /// <param name="limit">返すテーマの数(全部欲しいときは <see cref="int.MaxValue"/>)。</param>
     public static IReadOnlyList<PublishingTheme> Themes(
         IEnumerable<NewRelease> releases, int minCount = 2, int limit = 12)
     {
@@ -51,13 +59,11 @@ public static class PublishingTrend
             .Where(pair => pair.Value.Count >= minCount)
             .Select(pair => new PublishingTheme(
                 pair.Key,
-                pair.Value.Count,
                 pair.Value
                     .OrderByDescending(release => release.PublishedOn)
-                    .Take(ExamplesPerTheme)
                     .ToList()))
             .OrderByDescending(theme => theme.Count)
-            .ThenByDescending(theme => theme.Examples.Max(release => release.PublishedOn))
+            .ThenByDescending(theme => theme.Books.Max(release => release.PublishedOn))
             .ThenBy(theme => theme.Tag, StringComparer.Ordinal)
             .Take(limit)
             .ToList();

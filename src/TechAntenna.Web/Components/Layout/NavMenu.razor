@@ -71,7 +71,8 @@
    **親の行はページではない**(リンクではなく、押すと開閉するだけ)。かつては親自体が
    一覧のページで、押すと畳まれていた子が見えないまま遷移していた —— 親を押す動機は
    「子を見たい」なので、行き先が1つに決まらない親をリンクにしない。
-   親が持っていた一覧は各グループの**「全般」**へ移してある(`/recent/general` など)。 *@
+   親が持っていた一覧は各グループの**「まとめ」**へ移してある(`/recent/general` など)。
+   設定だけは「全般」のまま —— あそこはジョブのボタンの置き場で、内容のまとめではない *@
 @* **スマホではページへ移ったらメニューを閉じる**(wwwroot/nav-menu.js)。開いたままだと
    遷移先の本文がメニューに隠れ、毎回閉じる操作が要る。**閉じるのはリンクを押したときだけ**で、
    グループの開閉(summary)では閉じない —— 子を探している最中に閉じられると困る。
@@ -99,7 +100,7 @@
                 </span>
             </summary>
             <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="recent/general">全般</NavLink>
+                <NavLink class="nav-link" href="recent/general">まとめ</NavLink>
             </div>
             @* ニュースが先 —— 動きの速いものから読む *@
             <div class="nav-item nav-child px-3">
@@ -108,8 +109,13 @@
             <div class="nav-item nav-child px-3">
                 <NavLink class="nav-link" href="recent/articles">記事</NavLink>
             </div>
+            @* 書籍(出版側が寄せているテーマ)。記事・ニュースが「速い反応」なのに対して、
+               こちらは企画から刊行まで数か月かかる**遅くて重い動き** *@
             <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="recent/papers">話題の論文</NavLink>
+                <NavLink class="nav-link" href="recent/books">書籍</NavLink>
+            </div>
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="recent/papers">論文</NavLink>
             </div>
         </details>
 
@@ -121,13 +127,13 @@
                 </span>
             </summary>
             <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="interests/general">全般</NavLink>
-            </div>
-            <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="interests/books">書籍</NavLink>
+                <NavLink class="nav-link" href="interests/general">まとめ</NavLink>
             </div>
             <div class="nav-item nav-child px-3">
                 <NavLink class="nav-link" href="interests/events">イベント</NavLink>
+            </div>
+            <div class="nav-item nav-child px-3">
+                <NavLink class="nav-link" href="interests/books">書籍</NavLink>
             </div>
             <div class="nav-item nav-child px-3">
                 <NavLink class="nav-link" href="interests/papers">論文</NavLink>
@@ -144,7 +150,7 @@
                 </span>
             </summary>
             <div class="nav-item nav-child px-3">
-                <NavLink class="nav-link" href="classics/general">全般</NavLink>
+                <NavLink class="nav-link" href="classics/general">まとめ</NavLink>
             </div>
             <div class="nav-item nav-child px-3">
                 <NavLink class="nav-link" href="classics/books">書籍</NavLink>

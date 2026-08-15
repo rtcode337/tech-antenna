@@ -16,7 +16,7 @@
    月の移動(?month=2026-09)と並び順(?sort=popular)はどちらもリンクなので、
    全ページ静的 SSR のまま動く(JS も対話回線も使わない)。 *@
 
-<PageTitle>Tech Antenna — イベント</PageTitle>
+<PageTitle>Tech Antenna — 興味トピック / イベント</PageTitle>
 
 <h1>@Heading</h1>
 
@@ -159,10 +159,13 @@ else
     HashSet<string> _selected = new(StringComparer.Ordinal);
     OfficialOrganizers _official = OfficialOrganizers.Default;
 
-    /// <summary>月を指定しているときは、何月を見ているのかを見出しに出す(読み込み中は既定の見出し)。</summary>
+    /// <summary>
+    /// 月を指定しているときは、何月を見ているのかを見出しに出す(読み込み中は既定の見出し)。
+    /// 頭に付く「興味トピック /」は<b>メニューでの親</b>(どの軸のページかを見出しで示す)。
+    /// </summary>
     string Heading => Month is null || _calendar is null
-        ? "これからのイベント"
-        : $"{_calendar.Title}のイベント";
+        ? "興味トピック / これからのイベント"
+        : $"興味トピック / {_calendar.Title}のイベント";
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 

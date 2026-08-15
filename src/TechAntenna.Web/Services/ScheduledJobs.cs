@@ -74,13 +74,13 @@ public class ScheduledJobs(
             ct => newReleaseCollection.RunAndRecordAsync(
                 "new-release-collection", newReleaseCollection.RunOnceAsync, JobMessage.Describe, ct)),
 
-        new("book-collection", bookCollection.Name, JobGroup.Interests, bookCollection,
-            ct => bookCollection.RunAndRecordAsync(
-                "book-collection", bookCollection.RunOnceAsync, JobMessage.Describe, ct)),
-
         new("event-collection", eventCollection.Name, JobGroup.Interests, eventCollection,
             ct => eventCollection.RunAndRecordAsync(
                 "event-collection", eventCollection.RunOnceAsync, JobMessage.Describe, ct)),
+
+        new("book-collection", bookCollection.Name, JobGroup.Interests, bookCollection,
+            ct => bookCollection.RunAndRecordAsync(
+                "book-collection", bookCollection.RunOnceAsync, JobMessage.Describe, ct)),
 
         new("paper-collection", paperCollection.Name, JobGroup.Interests, paperCollection,
             ct => paperCollection.RunAndRecordAsync(

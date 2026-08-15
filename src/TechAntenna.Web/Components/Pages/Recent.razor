@@ -13,15 +13,18 @@
 @inject TimeProvider Clock
 @inject IOptions<NewReleaseOptions> NewReleaseSettings
 
-@* 「トレンド」— メニューの「トレンド → 全般」。このページだけは、**興味があるとマークしたトピックの外も含めて**
+@* 「トレンド / まとめ」— メニューの「トレンド → まとめ」。このページだけは、**興味があるとマークしたトピックの外も含めて**
    直近の話題を一望する場所(そもそもトレンドの収集は選択で絞っていない)。
    **並びは3セクションとも話題度の高い順**(ニュース・記事ははてブ数、論文は upvote)——
-   ここは「何が話題か」に答えるページで、新着順は子ページ(/news・/articles・
-   /trending-papers)の担当。役割を分けたので、どちらのページも並びが1つで読める *@
+   ここは「何が話題か」に答えるページで、新着順は子ページ(/recent/news・/recent/articles・
+   /recent/papers)の担当。役割を分けたので、どちらのページも並びが1つで読める。
 
-<PageTitle>Tech Antenna — トレンド</PageTitle>
+   **どの節も全量は子ページが持つ**(「すべて見る →」で渡す)—— 出版のテーマも
+   /recent/books へ全部を出すようにしたので、ここに残すのは上位のテーマだけ *@
 
-<h1>トレンド</h1>
+<PageTitle>Tech Antenna — トレンド / まとめ</PageTitle>
+
+<h1>トレンド / まとめ</h1>
 
 <CollectionHint />
 
@@ -44,7 +47,7 @@ else
         (ニュース・記事ははてなブックマーク数、論文は upvote)で並べています。
         新着順で全部見るには各セクションの「すべて見る」へ。
         <span class="star" aria-hidden="true">★</span> は興味のあるトピックに当たる記事です。
-        <strong>話題の論文</strong>も Hugging Face Daily Papers から
+        <strong>論文</strong>も Hugging Face Daily Papers から
         トピックに関係なく拾っています。
     </p>
 
@@ -67,11 +70,13 @@ else
 
     @* **出版のテーマ**。記事の話題度が「速い反応」なら、こちらは企画から刊行まで
        数か月かかる**遅くて重い動き** —— 同じ「トレンド」でも別の時間軸なので、
-       記事のセクションとは見た目を変えて(カードではなく行)最後に置く *@
+       記事のセクションとは見た目を変えて(カードではなく行)最後に置く。
+       ここは**上位のテーマと代表タイトルだけ**で、テーマごとの全冊は /recent/books の担当 *@
     @if (_themes is { Count: > 0 })
     {
         <div class="section-heading">
             <h2>本になっているテーマ</h2>
+            <a class="see-all" href="/recent/books">すべて見る →</a>
         </div>
         <p class="text-muted theme-note">
             直近 @_themeWindowMonths か月に出た<strong>本・ムック @_releaseCount 冊</strong>の
@@ -92,7 +97,8 @@ else
                     </a>
                     <span class="theme-count">@theme.Count 冊</span>
                     <span class="theme-examples text-muted">
-                        @foreach (var example in theme.Examples)
+                        @* 代表は新しいほうから数冊だけ。全部は「すべて見る →」の先(/recent/books) *@
+                        @foreach (var example in theme.Books.Take(PublishingTrend.ExamplesPerTheme))
                         {
                             <a href="@example.Url" target="_blank" rel="noopener"
                                title="@Describe(example)">@example.Title</a>
@@ -195,7 +201,7 @@ else
 
     /// <summary>ニュースが先 —— 動きの速いものから読む。</summary>
     /// <summary>
-    /// 出す種別と順番。**話題の論文もここに入れる** —— トピックの選択に依存せず
+    /// 出す種別と順番。**トレンドの論文(HF Daily Papers)もここに入れる** —— トピックの選択に依存せず
     /// 「外で何が話題か」を映すものなので、トレンドの担当。
     /// 検索で取る論文(<see cref="ArticleKind.Paper"/>)は興味トピック側に置く。
     /// </summary>
@@ -203,7 +209,7 @@ else
     [
         (ArticleKind.News, "ニュース", "/recent/news"),
         (ArticleKind.Article, "記事", "/recent/articles"),
-        (ArticleKind.TrendingPaper, "話題の論文", "/recent/papers"),
+        (ArticleKind.TrendingPaper, "論文", "/recent/papers"),
     ];
 
     record Section(string Title, string AllHref, IReadOnlyList<Article> Articles);

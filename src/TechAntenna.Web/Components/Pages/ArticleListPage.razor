@@ -13,7 +13,7 @@
 
 @* 記事・ニュース・論文の一覧ページ。種別ごとの違いは「どの Kind を出すか」と
    論文だけにある翻訳ボタンだけなので、3ルートを1コンポーネントにまとめている。
-   同じグループの「全般」(/recent/general)が一望のハブで、こちらは**全量**を受け持つ。
+   同じグループの「まとめ」(/recent/general)が一望のハブで、こちらは**全量**を受け持つ。
 
    **並びは新着順(既定)と話題度順をタブで切り替える**(`?sort=popular`。リンクなので
    静的 SSR のまま動く)。かつては新着順だけにしていたが、いま見ているのがどちらの並びか
@@ -38,12 +38,12 @@
         J-STAGE(日本語)へ問い合わせます —— <a href="/settings/topics">トピック</a>を選んでいないと
         1 件も集まりません。arXiv には<strong>英語表記</strong>を投げます(日本語のままだと 0 件)。
         英語タイトルの翻訳は<a href="/settings/general">設定</a>の「論文タイトルの翻訳」で付きます。
-        トピックに関係なく話題のものを見たいときは<a href="/recent/papers">話題の論文</a>へ。
+        トピックに関係なく話題のものを見たいときは<a href="/recent/papers">トレンド → 論文</a>へ。
     </p>
 }
 else if (_kind == ArticleKind.TrendingPaper)
 {
-    @* 話題の論文。**収集は「トレンドの収集」、翻訳は「論文タイトルの翻訳」でどちらも設定にある**
+    @* トレンド側の論文(HF Daily Papers)。**収集は「トレンドの収集」、翻訳は「論文タイトルの翻訳」でどちらも設定にある**
        (トピックの選択に依存しない巡回なので、ニュース・記事と同じ扱い) *@
     <CollectionHint />
     <p class="page-note text-muted">
@@ -52,7 +52,7 @@ else if (_kind == ArticleKind.TrendingPaper)
         英語タイトルの翻訳は同じく設定の「論文タイトルの翻訳」にあります。
         並びは<strong>新着順</strong>が既定で、上のタブで<strong>upvote の多い順</strong>にも
         切り替えられます(どちらの並びでも、upvote の多いものはカードの濃さで目立ちます)。
-        日本語の論文は<a href="/interests/papers">論文(興味トピック)</a>の担当です。
+        日本語の論文は<a href="/interests/papers">興味トピック → 論文</a>の担当です。
     </p>
 }
 
@@ -129,7 +129,13 @@ else
     const int Limit = 100;
 
     ArticleKind _kind = ArticleKind.Article;
-    string _title = "記事";
+
+    /// <summary>
+    /// 見出し(と `<PageTitle>`)。**メニューの親の名前を「/」で頭に付ける** ——
+    /// 「論文」は軸で2つある(トレンド / 論文 と 興味トピック / 論文)ので、
+    /// 名前だけだと開いているのがどちらか読めない。
+    /// </summary>
+    string _title = "トレンド / 記事";
     string _path = "/recent/articles";
     IReadOnlyList<Article>? _articles;
 
@@ -156,15 +162,15 @@ else
     protected override async Task OnInitializedAsync()
     {
         // どの Kind を出すかはルートで決まる(4ルートを1コンポーネントで受けている)。
-        // **「論文」は軸で2つある** —— トレンド側(/recent/papers)が話題の論文、
+        // **「論文」は軸で2つある** —— トレンド側(/recent/papers)が HF Daily Papers、
         // 興味トピック側(/interests/papers)がトピック検索の論文。
         // 末尾だけを見ると両方 "papers" で見分けられないので、パス全体で分ける
         (_kind, _title, _path) = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/') switch
         {
-            "recent/news" => (ArticleKind.News, "ニュース", "/recent/news"),
-            "interests/papers" => (ArticleKind.Paper, "論文（興味トピック）", "/interests/papers"),
-            "recent/papers" => (ArticleKind.TrendingPaper, "話題の論文", "/recent/papers"),
-            _ => (ArticleKind.Article, "記事", "/recent/articles"),
+            "recent/news" => (ArticleKind.News, "トレンド / ニュース", "/recent/news"),
+            "interests/papers" => (ArticleKind.Paper, "興味トピック / 論文", "/interests/papers"),
+            "recent/papers" => (ArticleKind.TrendingPaper, "トレンド / 論文", "/recent/papers"),
+            _ => (ArticleKind.Article, "トレンド / 記事", "/recent/articles"),
         };
 
         await LoadAsync();
