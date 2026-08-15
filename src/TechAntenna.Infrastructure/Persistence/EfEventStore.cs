@@ -38,6 +38,9 @@ public class EfEventStore(IDbContextFactory<TechAntennaDbContext> contextFactory
                 var fresh = byUrl[existing.Url];
                 existing.Organizer = fresh.Organizer ?? existing.Organizer;
                 existing.ParticipantCount = fresh.ParticipantCount ?? existing.ParticipantCount;
+                // **後から購読・面掃きで見つかったら、その理由を書き足す。** 先に検索で拾えていた
+                // イベントでも、名簿にグループを足した後は「購読しているから載っている」が正しい説明になる
+                existing.PickedBy = fresh.PickedBy ?? existing.PickedBy;
             }
         }
 
@@ -66,6 +69,41 @@ public class EfEventStore(IDbContextFactory<TechAntennaDbContext> contextFactory
             .OrderBy(e => e.StartsAt)
             .Take(count)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> UpdateMentionCountsAsync(
+        IReadOnlyList<(Guid EventId, int Count)> counts, CancellationToken cancellationToken = default)
+    {
+        if (counts.Count == 0)
+        {
+            return 0;
+        }
+
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var byId = counts.ToDictionary(row => row.EventId, row => row.Count);
+        var ids = byId.Keys.ToList();
+        var updated = 0;
+        foreach (var techEvent in await db.Events
+            .Where(e => ids.Contains(e.Id))
+            .ToListAsync(cancellationToken))
+        {
+            var fresh = byId[techEvent.Id];
+            if (techEvent.MentionCount == fresh)
+            {
+                continue;
+            }
+
+            techEvent.MentionCount = fresh;
+            updated++;
+        }
+
+        if (updated > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return updated;
     }
 
     public async Task<IReadOnlyList<OrganizerCount>> GetOrganizerCountsAsync(

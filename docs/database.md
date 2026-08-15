@@ -44,6 +44,8 @@ erDiagram
         boolean IsOnline
         text Organizer "主催グループ名。公式判定の材料（TECH PLAY は取れず null）"
         integer ParticipantCount "null=未取得 / 0=参加者なし"
+        integer MentionCount "言及した記事の本数。null=測っていない / 0=まだ書かれていない"
+        text PickedBy "トピックの選択に関わらず載せている理由（購読しているグループ名など）"
         text_array Tags
         text_array RawTags
         timestamptz CollectedAt
@@ -133,7 +135,8 @@ erDiagram
 ```
 
 `Secrets` は画面から設定した API キー・トークンと、**キー以外でも画面から設定する数少ないもの**
-(定期実行の時刻・ジョブのチェック、公式イベントの主催者名簿 `Events:OfficialOrganizers`)。
+(定期実行の時刻・ジョブのチェック、公式イベントの主催者名簿 `Events:OfficialOrganizers`、
+購読するグループの名簿 `Events:FollowedGroups`)。
 **どのテーブルとも関係を持たない**。`Name` は設定パスの形(例 `Connpass:ApiKey`)。
 **これらの設定の入口はこのテーブル(= 画面)だけ**で、環境変数では渡せない。`Value` は Web 層が Data Protection(鍵は `DataProtection__KeysDirectory`)
 で暗号化した文字列 —— **平文は DB に入らない**ので、DB のバックアップだけを持ち出しても
@@ -177,11 +180,12 @@ erDiagram
 - **列挙は数値ではなく名前で保存**(`Articles.Kind`・`Tags.Status`・`Tags.DecidedBy`)。
   `psql` で覗いたときに読めるほうを優先した
 - **`null` と `0` は別物**。`BookmarkCount` / `UpvoteCount` / `ReviewCount` /
-  `ParticipantCount` の `null` は「取得していない」、`0` は「ブックマーク・upvote・
-  レビュー・参加者が無い」。混ぜると未取得の行が最下位に沈む
+  `ParticipantCount` / `MentionCount` の `null` は「取得していない」、`0` は「ブックマーク・
+  upvote・レビュー・参加者・言及が無い」。混ぜると未取得の行が最下位に沈む
 - **収集で上書きするのは「後から増える数」だけ。** 既存行の書誌にあたる情報は上書きせず、
-  `Events` は主催者と参加者数、`Books` はレビューだけを取り込む(取れなかった回に
-  `null` で上書きもしない)
+  `Events` は主催者・参加者数・`PickedBy`、`Books` はレビューだけを取り込む(取れなかった回に
+  `null` で上書きもしない)。`Events.MentionCount` は収集とは別に、収集の最後で
+  手元の記事と突き合わせて数え直す(外部は叩かない)
 - **人気の指標は収集元ごとに列を分ける**(`BookmarkCount` = はてブ、`UpvoteCount` = HF の
   upvote)。母集団が違うものを 1 列に混ぜると、2 つの意味が 1 つの数字に潰れる
 - **重複判定のキーは列にしてユニーク索引を張る**(`Articles.Url` / `Events.Url` /

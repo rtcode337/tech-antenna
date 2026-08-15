@@ -23,7 +23,17 @@ public record ConnpassEventEntry(
 /// </summary>
 public static class ConnpassResponseParser
 {
-    public static IReadOnlyList<ConnpassEventEntry> Parse(string json)
+    public static IReadOnlyList<ConnpassEventEntry> Parse(string json) => ParsePage(json).Events;
+
+    /// <summary>
+    /// 1ページぶん。<b>件数まで返す</b>のは、月ごとの面掃き
+    /// (<see cref="ConnpassSweepEventSource"/>)が続きを取りに行くかを決めるため ——
+    /// 返ってきた件数だけを見ていると、ちょうど 100 件の月で「まだあるのか」が分からない。
+    /// </summary>
+    /// <param name="Available">その条件に該当する総件数(<c>results_available</c>)。分からなければ null。</param>
+    public record Page(IReadOnlyList<ConnpassEventEntry> Events, int? Available);
+
+    public static Page ParsePage(string json)
     {
         using var doc = JsonDocument.Parse(json);
         if (!doc.RootElement.TryGetProperty("events", out var events))
@@ -31,7 +41,9 @@ public static class ConnpassResponseParser
             throw new FormatException("connpass レスポンスに events 配列がない。");
         }
 
-        return events.EnumerateArray().Select(ParseEvent).ToList();
+        return new Page(
+            events.EnumerateArray().Select(ParseEvent).ToList(),
+            GetInt(doc.RootElement, "results_available"));
     }
 
     static ConnpassEventEntry ParseEvent(JsonElement e)
@@ -54,6 +66,36 @@ public static class ConnpassResponseParser
             // 補欠(waiting)は足さない —— 定員に達したイベントの規模は accepted で足りるうえ、
             // 補欠まで数えると「定員 10 人・補欠 200 人」が大規模イベントとして扱われる
             GetInt(e, "accepted"));
+    }
+
+    /// <summary>
+    /// <c>/api/v2/groups/?subdomain=…</c> のレスポンスから<b>シリーズ ID</b> を取り出す。
+    /// 見つからなければ null(名簿の打ち間違い・非公開のグループ)。
+    ///
+    /// **サブドメインで引けるようにするための解決**で、購読の名簿を人が書けるようにするもの ——
+    /// 数字のシリーズ ID は connpass の画面に出てこないが、サブドメインは
+    /// グループの URL(<c>https://&lt;ここ&gt;.connpass.com/</c>)を見れば分かる。
+    /// </summary>
+    public static string? ParseGroupId(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("groups", out var groups)
+            || groups.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var group in groups.EnumerateArray())
+        {
+            // id は数値で返る。**文字列で返す**のは、そのままクエリに載せる値だから
+            if (group.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.Number
+                && id.TryGetInt64(out var parsed))
+            {
+                return parsed.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>主催グループ名。v2 では <c>group</c> がオブジェクトで、無いイベントは null。</summary>

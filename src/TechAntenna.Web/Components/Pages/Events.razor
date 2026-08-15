@@ -34,9 +34,11 @@
 else
 {
 <p class="text-muted">
-    <strong>収集対象に選んだトピック（配下のトピックを含む）</strong>のイベントを出しています。
+    <strong>収集対象に選んだトピック（配下のトピックを含む）</strong>のイベントに加えて、
+    <strong><a href="/settings/follows">購読しているグループ</a>のイベント</strong>を出しています
+    （そちらはトピックに当たらなくても出ます）。
     <strong>公式</strong>は<a href="/settings/organizers">名簿に載せた提供元</a>が主催しているもの、
-    数字は参加者数です。
+    <strong>人</strong>は参加者数、<strong>記事</strong>はそのイベントに言及している記事の本数です。
 </p>
 
 @* --- カレンダー(月グリッド) --- *@
@@ -99,9 +101,10 @@ else
     }
     else
     {
-        <p>まだイベントがありません。<a href="/settings/topics">設定 → トピック</a>でトピックを選んでから、
+        <p>まだイベントがありません。<a href="/settings/topics">設定 → トピック</a>でトピックを選ぶか、
+            <a href="/settings/follows">設定 → 購読</a>で追いかけるグループを登録してから、
             <a href="/settings/general">設定</a>の「イベントの収集」を実行してください
-            (connpass から集めるにはキーの設定も要ります)。</p>
+            (connpass・Doorkeeper から集めるにはキーの設定も要ります)。</p>
     }
 }
 else
@@ -109,8 +112,10 @@ else
     <p class="text-muted">
         @if (IsPopular)
         {
-            <text><strong>注目度の高い順</strong>に並べています(公式であることと参加者数で測ります)。
-                <strong>参加者数の取れない収集元</strong>(TECH PLAY)のイベントは後ろに来ます。</text>
+            <text><strong>注目度の高い順</strong>に並べています
+                （<strong>公式であること・参加者数・記事の言及数</strong>の3つで測ります）。
+                言及数を混ぜてあるので、<strong>参加者数を出さない大型カンファレンスでも
+                記事が書かれていれば上に来ます</strong>。</text>
         }
         else
         {
@@ -200,9 +205,16 @@ else
         _events = IsPopular ? events.ByPopularity(_official).ToList() : events;
     }
 
-    /// <summary>選んだトピック(配下込み)のイベントだけにする。</summary>
+    /// <summary>
+    /// 選んだトピック(配下込み)のイベントだけにする。
+    /// **購読・面掃きで入ったものは通す**(<c>PickedBy</c>)—— 検索語で見つけたのではないので
+    /// 選んだトピックのタグを持っておらず、ここで落とすと経路ごと無効になる
+    /// (収集側の <c>EventCollectionRunner</c> と同じ規則)。
+    /// </summary>
     IReadOnlyList<TechEvent> Selected(IReadOnlyList<TechEvent> events) =>
-        events.Where(techEvent => techEvent.Tags.Any(_selected.Contains)).ToList();
+        events
+            .Where(techEvent => techEvent.PickedBy is { Length: > 0 } || techEvent.Tags.Any(_selected.Contains))
+            .ToList();
 
     /// <summary>カレンダーのマス全体から、その月のぶんだけを取り出す(再問い合わせはしない)。</summary>
     static IReadOnlyList<TechEvent> InMonth(IReadOnlyList<TechEvent> events, int year, int month)

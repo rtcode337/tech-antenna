@@ -95,3 +95,27 @@
     color: var(--surface);
     font-weight: 700;
 }
+
+/* 記事の言及数。**参加者数とは別の見た目にする** —— 同じバッジにすると
+   「200 人」と「記事 3 本」が同じ尺度の数に見えるが、測っているものが違う
+   (集まった人の数と、外で書かれた本数)。数字であることは font-variant で揃える */
+.mentions {
+    padding: 0.05rem 0.45rem;
+    border: 1px dashed var(--accent);
+    border-radius: 999px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+/* 「なぜトピックに当たらないのに載っているか」の説明(購読しているグループ名・
+   参加者数のしきい値)。**数のバッジではない**ので丸めず、面も塗らない ——
+   目立たせる対象ではなく、疑問が湧いたときに読めればよい注記 */
+.picked-by {
+    padding: 0.05rem 0.45rem;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    color: var(--text-muted);
+    white-space: nowrap;
+}

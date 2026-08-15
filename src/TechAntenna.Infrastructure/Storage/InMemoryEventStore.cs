@@ -27,10 +27,12 @@ public class InMemoryEventStore : IEventStore
                     continue;
                 }
 
-                // 既存のイベントは主催者と参加者数だけ取り込む(EfEventStore と同じ規則)
+                // 既存のイベントは主催者と参加者数、購読・面掃きで入った理由だけ取り込む
+                // (EfEventStore と同じ規則)
                 var existing = _byUrl[techEvent.Url];
                 existing.Organizer = techEvent.Organizer ?? existing.Organizer;
                 existing.ParticipantCount = techEvent.ParticipantCount ?? existing.ParticipantCount;
+                existing.PickedBy = techEvent.PickedBy ?? existing.PickedBy;
             }
 
             return Task.FromResult(added);
@@ -61,6 +63,28 @@ public class InMemoryEventStore : IEventStore
                 .Take(count)
                 .ToList();
             return Task.FromResult(result);
+        }
+    }
+
+    public Task<int> UpdateMentionCountsAsync(
+        IReadOnlyList<(Guid EventId, int Count)> counts, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            var byId = _byUrl.Values.ToDictionary(e => e.Id);
+            var updated = 0;
+            foreach (var (eventId, count) in counts)
+            {
+                if (!byId.TryGetValue(eventId, out var techEvent) || techEvent.MentionCount == count)
+                {
+                    continue;
+                }
+
+                techEvent.MentionCount = count;
+                updated++;
+            }
+
+            return Task.FromResult(updated);
         }
     }
 

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Options;
 using TechAntenna.Core.Abstractions;
+using TechAntenna.Core.Models;
 using TechAntenna.Core.Topics;
+using TechAntenna.Infrastructure.Events;
 
 namespace TechAntenna.Web.Services;
 
@@ -11,6 +13,7 @@ public class EventCollectionRunner(
     ITopicStore topicStore,
     TopicCatalog catalog,
     TagObserver tagObserver,
+    EventMentionRefresher mentionRefresher,
     IOptions<CollectionOptions> options,
     ILogger<EventCollectionRunner> logger) : JobRunner
 {
@@ -34,20 +37,27 @@ public class EventCollectionRunner(
         // 流れてきた分まで捨てると、表示対象(選んだトピック+配下)のイベントが入らなくなる
         var selectedTags = catalog.ExpandWithDescendants(
             (await topicStore.GetSelectedAsync(cancellationToken)).Select(topic => topic.Key));
-        if (selectedTags.Count == 0)
+
+        // **選択が空でも、検索語を使わない経路(グループの購読・面掃き)があれば走らせる。**
+        // 逆にその経路を持たない収集元は、選択が空なら結果が全部捨てられると分かっているので
+        // 叩きに行かない —— 集まらないと分かっている相手にリクエストを投げない
+        IReadOnlyList<IEventSource> usable = selectedTags.Count > 0
+            ? _sources
+            : _sources.Where(source => source.WorksWithoutTopics).ToList();
+        if (usable.Count == 0)
         {
             // 何も集まらない理由を文言にする(論文・書籍と同じ扱い)
             return CollectionRunResult.NoTopics("イベント");
         }
         int fetched = 0, added = 0, failed = 0;
 
-        for (var i = 0; i < _sources.Count; i++)
+        for (var i = 0; i < usable.Count; i++)
         {
-            var source = _sources[i];
+            var source = usable[i];
             try
             {
                 var events = await source.FetchAsync(cancellationToken);
-                events = events.Where(techEvent => techEvent.Tags.Intersect(selectedTags, StringComparer.Ordinal).Any()).ToList();
+                events = events.Where(Wanted).ToList();
                 var newlyAdded = await store.AddRangeAsync(events, cancellationToken);
                 fetched += events.Count;
                 added += newlyAdded;
@@ -67,7 +77,7 @@ public class EventCollectionRunner(
             }
 
             // 最後の収集元の後は待たない(手動実行で無駄に待たせないため)
-            if (i < _sources.Count - 1 && delay > TimeSpan.Zero)
+            if (i < usable.Count - 1 && delay > TimeSpan.Zero)
             {
                 await Task.Delay(delay, cancellationToken);
             }
@@ -77,7 +87,21 @@ public class EventCollectionRunner(
 
         await tagObserver.ObserveAsync(cancellationToken: cancellationToken);
 
+        // **注目度の3つめの材料(記事の言及数)をここで数え直す。** 外部は叩かず、
+        // 集めてある記事と突き合わせるだけ。記事は後から増えるので、
+        // 新しく取れたイベントだけでなく手元のイベント全体を数え直す
+        var mentioned = await mentionRefresher.RefreshAsync(cancellationToken);
+        if (mentioned > 0)
+        {
+            logger.LogInformation("記事の言及数を {Count} 件のイベントで更新", mentioned);
+        }
 
         return new CollectionRunResult(fetched, added, failed);
+
+        // **購読と面掃きで入ったものはトピックの絞りを通さない。** 検索語で見つけたのでは
+        // ないので選んだトピックのタグを持っておらず、ここで落とすと経路ごと無効になる
+        bool Wanted(TechEvent techEvent) =>
+            techEvent.PickedBy is { Length: > 0 }
+            || techEvent.Tags.Intersect(selectedTags, StringComparer.Ordinal).Any();
     }
 }

@@ -207,13 +207,32 @@ builder.Services.AddSingleton<IEventSource>(sp => new ConnpassEventSource(
     connpass.Keywords,
     topicStore: sp.GetRequiredService<ITopicStore>(),
     catalog: topicCatalog,
-    apiKeyProvider: () => sp.GetRequiredService<ApiCredentials>().Get("Connpass:ApiKey")));
+    apiKeyProvider: () => sp.GetRequiredService<ApiCredentials>().Get("Connpass:ApiKey"),
+    // 購読の名簿も画面から直せるので、キーと同じく実行のたびに解決する
+    followedProvider: () => FollowSettings.Resolve(sp.GetRequiredService<ApiCredentials>())));
+
+// --- イベント収集(connpass の面掃き)---
+// **検索語も名簿も使わず、月ごとに全件なめて参加者数で切る。** 名前を知らない大型イベントを
+// 拾える唯一の経路だが、1か月ぶんで数十リクエストかかるので**既定では動かさない**
+if (connpass.Sweep is { Enabled: true, Months: > 0 } sweep)
+{
+    builder.Services.AddSingleton<IEventSource>(sp => new ConnpassSweepEventSource(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<TimeProvider>(),
+        sweep.MinParticipants,
+        sweep.Months,
+        TimeSpan.FromSeconds(sweep.DelayBetweenRequestsSeconds),
+        catalog: topicCatalog,
+        apiKeyProvider: () => sp.GetRequiredService<ApiCredentials>().Get("Connpass:ApiKey")));
+}
 
 // --- イベント収集(Doorkeeper)---
 var doorkeeper = builder.Configuration
     .GetSection(DoorkeeperOptions.SectionName)
     .Get<DoorkeeperOptions>() ?? new DoorkeeperOptions();
-if (doorkeeper.Keywords.Count > 0)
+// **キーワードの有無で登録を分岐しない**(connpass と同じ)。検索語は選択中のトピックから
+// 取るし、グループの購読は検索語を使わない —— appsettings の Keywords を空にしたら
+// 購読まで止まる、という繋がりを作らないため。トークン未設定なら収集元側がスキップする
 {
     builder.Services.AddHttpClient(DoorkeeperEventSource.HttpClientName, (sp, client) =>
     {
@@ -236,7 +255,8 @@ if (doorkeeper.Keywords.Count > 0)
         topicStore: sp.GetRequiredService<ITopicStore>(),
         catalog: topicCatalog,
         accessTokenProvider: () =>
-            sp.GetRequiredService<ApiCredentials>().Get("Doorkeeper:AccessToken")));
+            sp.GetRequiredService<ApiCredentials>().Get("Doorkeeper:AccessToken"),
+        followedProvider: () => FollowSettings.Resolve(sp.GetRequiredService<ApiCredentials>())));
 }
 
 // --- イベント収集(TECH PLAY の RSS)---
@@ -253,6 +273,13 @@ if (Uri.TryCreate(techPlay.FeedUrl, UriKind.Absolute, out var techPlayFeedUrl))
         techPlayFeedUrl,
         topicCatalog));
 }
+
+// 記事の言及数(注目度の3つめの材料)。**外部は叩かない**ので、収集の最後に必ず通す
+builder.Services.AddSingleton(sp => new EventMentionRefresher(
+    sp.GetRequiredService<IEventStore>(),
+    sp.GetRequiredService<IArticleStore>(),
+    topicCatalog,
+    sp.GetRequiredService<TimeProvider>()));
 
 builder.Services.AddSingleton<EventCollectionRunner>();
 

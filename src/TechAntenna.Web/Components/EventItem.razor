@@ -28,6 +28,19 @@
         {
             <span class="attendees @Tier(participants)" title="参加者数">@participants 人</span>
         }
+        @* **言及数も 0 とは区別して出す**(0 は「まだ書かれていない」で、出しても情報にならない)。
+           参加者数を出さない収集元でも測れる注目度なので、数のバッジが1つも無いイベントに
+           これだけ付くことがある —— それがこの指標を足した理由そのもの *@
+        @if (Event.MentionCount is { } mentions and > 0)
+        {
+            <span class="mentions" title="このイベントに言及している記事の本数">記事 @mentions 本</span>
+        }
+        @* **なぜトピックに当たらないイベントがここにいるのかを、カード自身に説明させる。**
+           説明が無いと「絞り込みが壊れている」ようにしか見えない *@
+        @if (Event.PickedBy is { Length: > 0 } pickedBy)
+        {
+            <span class="picked-by" title="収集対象のトピックに関わらず集めています">@pickedBy</span>
+        }
         @JapanTime.Format(Event.StartsAt)
         — @(Event.IsOnline ? "オンライン" : Event.Venue ?? "会場未定")
         @if (Event.Organizer is { Length: > 0 } organizer)
@@ -71,8 +84,9 @@
     };
 
     /// <summary>
-    /// カードの面の強調。**公式か、人が集まっているか**のどちらかで立てる ——
-    /// 参加者数だけで測ると、数の取れない収集元(TECH PLAY)の公式セミナーが常に地味になる。
+    /// カードの面の強調。**公式か、人が集まっているか、記事が書かれているか**のどれかで立てる ——
+    /// 参加者数だけで測ると、数の取れない収集元(TECH PLAY・自社サイト完結の大型カンファレンス)が
+    /// 常に地味になる。閾値は注目度の計算と同じ材料から取る。
     /// </summary>
     string EmphasisClass()
     {
@@ -82,9 +96,12 @@
         }
 
         var participants = Event.ParticipantCount ?? 0;
+        var mentions = Event.MentionCount ?? 0;
 
-        return participants >= EventPopularity.HighThreshold ? "hot-high"
-            : IsOfficial || participants >= EventPopularity.MidThreshold ? "hot-mid"
-            : "";
+        return participants >= EventPopularity.HighThreshold || mentions >= EventPopularity.HighMentions
+            ? "hot-high"
+            : IsOfficial || participants >= EventPopularity.MidThreshold
+                || mentions >= EventPopularity.MidMentions ? "hot-mid"
+                : "";
     }
 }

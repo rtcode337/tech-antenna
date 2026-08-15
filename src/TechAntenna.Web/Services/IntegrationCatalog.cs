@@ -136,6 +136,7 @@ public class IntegrationCatalog(
         var books = Section<BooksOptions>(BooksOptions.SectionName);
         var newReleases = Section<NewReleaseOptions>(NewReleaseOptions.SectionName);
         var techPlay = Section<TechPlayOptions>(TechPlayOptions.SectionName);
+        var connpass = Section<ConnpassOptions>(ConnpassOptions.SectionName);
 
         var integrations = new List<Integration>();
 
@@ -210,13 +211,25 @@ public class IntegrationCatalog(
         integrations.Add(WithSecret(new Integration(
             IntegrationAxis.Interests, "イベント", "connpass", CredentialNeed.Required,
             false,
-            "**利用申請が要る**。未設定だと connpass からは収集しない"),
+            "**利用申請が要る**。未設定だと connpass からは収集しない。"
+            + "キーワード検索に加えて、設定 → 購読 に載せたシリーズも引く"),
             "Connpass:ApiKey"));
         integrations.Add(WithSecret(new Integration(
             IntegrationAxis.Interests, "イベント", "Doorkeeper", CredentialNeed.Required,
             false,
-            "未設定だと Doorkeeper からは収集しない。API は alpha 扱いで破壊的変更がありうる"),
+            "未設定だと Doorkeeper からは収集しない。API は alpha 扱いで破壊的変更がありうる。"
+            + "キーワード検索に加えて、設定 → 購読 に載せたコミュニティも引く"),
             "Doorkeeper:AccessToken"));
+        // 面掃きは connpass と同じキーを使う別経路。**既定では動かない**ので、
+        // 「使えるのに動いていない」ことが画面から読めるように 1 行を分けて出す
+        integrations.Add(WithSecret(new Integration(
+            IntegrationAxis.Interests, "イベント", "connpass(面掃き)", CredentialNeed.Required,
+            false,
+            $"月ごとに全件なめて、参加者 {connpass.Sweep.MinParticipants} 人以上だけを残す。"
+            + "検索語も名簿も使わないので、名前を知らない大型イベントを拾える。"
+            + "1か月ぶんで数十リクエストかかるため、appsettings の Connpass:Sweep:Enabled で明示的に入れる",
+            connpass.Sweep.Enabled),
+            "Connpass:ApiKey"));
         integrations.Add(new Integration(
             IntegrationAxis.Interests, "イベント", "TECH PLAY", CredentialNeed.NotNeeded, true,
             "RSS なのでキーは要らない代わりに検索ができない(最新 50 件が流れてくるだけ)",

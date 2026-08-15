@@ -7,7 +7,8 @@ public class EventPopularityTests
 {
     static readonly OfficialOrganizers Official = OfficialOrganizers.Parse("Microsoft");
 
-    static TechEvent Event(string title, string? organizer = null, int? participants = null, int day = 1) =>
+    static TechEvent Event(
+        string title, string? organizer = null, int? participants = null, int day = 1, int? mentions = null) =>
         new()
         {
             Title = title,
@@ -17,6 +18,7 @@ public class EventPopularityTests
             CollectedAt = DateTimeOffset.UnixEpoch,
             Organizer = organizer,
             ParticipantCount = participants,
+            MentionCount = mentions,
         };
 
     [Fact]
@@ -74,5 +76,36 @@ public class EventPopularityTests
         var ordered = events.ByPopularity(Official).Select(e => e.Title).ToList();
 
         Assert.Equal(["大規模カンファレンス", "提供元のセミナー", "小さな勉強会"], ordered);
+    }
+
+    [Fact]
+    public void 記事に書かれているほど高い()
+    {
+        var written = EventPopularity.Score(Event("a", mentions: 5), Official);
+        var quiet = EventPopularity.Score(Event("b", mentions: 0), Official);
+
+        Assert.True(written > quiet);
+    }
+
+    [Fact]
+    public void 参加者数を出さない大型カンファレンスが記事の言及で浮き上がる()
+    {
+        // これがこの指標を足した理由。自社サイトで完結するカンファレンスは
+        // 参加者数を公開しないので、参加者数だけで測ると必ず沈む
+        var conference = EventPopularity.Score(Event("カンファレンス", mentions: 10), Official);
+        var meetup = EventPopularity.Score(Event("勉強会", participants: 300), Official);
+
+        Assert.True(conference > meetup);
+    }
+
+    [Fact]
+    public void 言及数が未取得のイベントは0本として扱う()
+    {
+        // 参加者数と同じ規則。**null を後ろへ回さない** ——
+        // 回すと、照合語を作れないイベント(短い名前・一般名)が公式判定ごと沈む
+        Assert.Equal(
+            EventPopularity.Score(Event("a", mentions: 0), Official),
+            EventPopularity.Score(Event("b", mentions: null), Official),
+            6);
     }
 }

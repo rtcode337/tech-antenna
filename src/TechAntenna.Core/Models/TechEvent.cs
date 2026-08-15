@@ -42,6 +42,31 @@ public class TechEvent
     /// </summary>
     public int? ParticipantCount { get; set; }
 
+    /// <summary>
+    /// <b>なぜトピックの選択に関係なくこのイベントを載せているか</b>の理由。
+    /// 選択したトピックの検索で見つかったものは null。
+    ///
+    /// 値は人が読める短い語(購読しているグループの表示名、「参加者 100 人以上」)で、
+    /// <b>判定の印ではなく理由の控え</b> —— 画面はこれをそのまま出して、
+    /// 興味トピックに当たらないイベントが一覧にいる訳を説明する。
+    ///
+    /// キーワード検索だけだと固有名詞のカンファレンス(RubyKaigi・DroidKaigi)が
+    /// 構造的に落ちるので、<b>グループ購読</b>(<see cref="FollowedGroups"/>)と
+    /// <b>参加者数での面掃き</b>という2つの別経路を用意してある。この2つで入ったものは
+    /// 検索語に当たらないのが当たり前なので、収集でも表示でもトピックの絞りから外す。
+    /// 収集しなおしで後から埋まることがあるので init ではなく set。
+    /// </summary>
+    public string? PickedBy { get; set; }
+
+    /// <summary>
+    /// このイベントに言及している記事の本数(<see cref="EventMentions"/>)。
+    /// <b>参加者数の取れない収集元でも測れる注目度</b>で、記事を集めているこのアプリだから持てる指標。
+    /// **null は「測っていない」、0 は「まだ誰も書いていない」で別物**
+    /// (参加者数・はてブ数と同じ規則)—— 照合語を作れないイベントは常に null のまま。
+    /// 記事は後から増えるので、収集のたびに数え直す。
+    /// </summary>
+    public int? MentionCount { get; set; }
+
     public required DateTimeOffset CollectedAt { get; init; }
 
     /// <summary>

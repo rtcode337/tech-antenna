@@ -31,6 +31,13 @@ public interface IEventStore
     /// </summary>
     Task<IReadOnlyList<OrganizerCount>> GetOrganizerCountsAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// 記事の言及数(<see cref="Models.EventMentions"/>)をまとめて更新し、値が変わった件数を返す。
+    /// 記事は後から増えるので、取れたら常に新しい値で上書きする(はてブ数と同じ扱い)。
+    /// </summary>
+    Task<int> UpdateMentionCountsAsync(
+        IReadOnlyList<(Guid EventId, int Count)> counts, CancellationToken cancellationToken = default);
+
     /// <summary>タグ <paramref name="tag"/> が付いたものを開始日時の早い順に最大 <paramref name="count"/> 件返す。</summary>
     Task<IReadOnlyList<TechEvent>> GetByTagAsync(string tag, int count, CancellationToken cancellationToken = default);
 

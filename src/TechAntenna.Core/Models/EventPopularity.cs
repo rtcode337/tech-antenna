@@ -1,13 +1,17 @@
 namespace TechAntenna.Core.Models;
 
 /// <summary>
-/// イベントの注目度。**「提供元が出す一次情報か」と「どれだけ人が集まっているか」の
-/// 2つを1つの数にまとめる**。
+/// イベントの注目度。**「提供元が出す一次情報か」「どれだけ人が集まっているか」
+/// 「外でどれだけ書かれているか」の3つを1つの数にまとめる**。
 ///
 /// 記事のはてブ数・書籍のレビュー数と違い、イベントには単独で順位になる数値が無い ——
 /// 参加者数は収集元によっては取れず(TECH PLAY の RSS には無い)、公式かどうかは
 /// 数値ですらない。そこで<b>公式に一定の下駄を履かせ、参加者数の対数を足す</b>。
 /// 対数にするのは、500 人のカンファレンスを 50 人の勉強会の 10 倍には扱わないため。
+///
+/// **3つめが記事の言及数**(<see cref="EventMentions"/>)。参加者数は「その収集元が
+/// 数を出しているか」に左右され、自社サイトで完結する大型カンファレンスでは常に 0 になる ——
+/// **記事が何本書かれたかは収集元を問わず測れる**ので、そこを足して沈まないようにする。
 /// </summary>
 public static class EventPopularity
 {
@@ -18,11 +22,32 @@ public static class EventPopularity
     /// </summary>
     const double OfficialBonus = 1.0;
 
+    /// <summary>
+    /// 記事の言及 1 本あたりの重み。<b>参加者数より重く見る</b> ——
+    /// 記事が書かれるのは参加するよりずっと稀で、書かれたという事実のほうが
+    /// 「外から注目されている」に近いため。この値だと参加者数への換算はおおよそ
+    /// <b>言及 1 本 = 8 人 / 3 本 = 32 人 / 10 本 = 400 人</b>で、
+    /// 「10 本書かれた年1回のカンファレンス」が「400 人集まった勉強会」と釣り合う。
+    ///
+    /// <b>ここを動かすと注目度順の並びが大きく変わる</b>ので、変えたら実際の一覧で
+    /// 見比べること(理屈で決められる値ではない)。
+    /// </summary>
+    const double MentionWeight = 2.5;
+
     /// <summary>参加者数のバッジ・カードの強調をこの段階で分ける(「集まっている」の目安)。</summary>
     public const int MidThreshold = 30;
 
     /// <summary>同上。ここを超えると大きめのカンファレンス・大規模セミナーの規模。</summary>
     public const int HighThreshold = 100;
+
+    /// <summary>
+    /// 言及数でカードを強調しはじめる本数。**参加者数よりずっと小さい** ——
+    /// イベントについて記事が書かれること自体が稀なので、2 本でも「書かれている」に値する。
+    /// </summary>
+    public const int MidMentions = 2;
+
+    /// <summary>同上。ここまで書かれていれば、規模を問わず注目されているとみてよい。</summary>
+    public const int HighMentions = 5;
 
     /// <summary>
     /// 注目度。**参加者数が取れていない(null)イベントは 0 人として扱う** ——
@@ -32,7 +57,11 @@ public static class EventPopularity
     /// </summary>
     public static double Score(TechEvent techEvent, OfficialOrganizers official) =>
         (official.IsOfficial(techEvent.Organizer) ? OfficialBonus : 0)
-        + Math.Log10(1 + Math.Max(0, techEvent.ParticipantCount ?? 0));
+        + Math.Log10(1 + Math.Max(0, techEvent.ParticipantCount ?? 0))
+        // **言及数も対数にする。** 参加者数と同じ理由(10 本書かれたイベントを
+        // 1 本のイベントの 10 倍には扱わない)に加えて、単位をそろえないと
+        // 重み(MentionWeight)が「何人ぶん」の意味を持たなくなる
+        + MentionWeight * Math.Log10(1 + Math.Max(0, techEvent.MentionCount ?? 0));
 
     /// <summary>
     /// 注目度の高い順に並べる。**同じ注目度なら開催日の早い順** ——
