@@ -277,7 +277,7 @@ CLI ブリッジと共有する設定は `data/state`)に入る ——
   ([.github/workflows/build-and-push-image.yml](.github/workflows/build-and-push-image.yml))。
   タグは `latest` とコミット識別用の `sha-xxxxxxx`。デプロイ先はビルドせず
   `docker compose pull && docker compose up -d` でよい
-- **`CHIEZO_URL` を入れると、LLM の相手を画面(設定 → AI)から選べる**。Chiezo
+- **`CHIEZO_URL` を入れると、LLM の相手を画面(設定 → 外部連携の一番上)から選べる**。Chiezo
   (LAN 内の知識サーバー)が Gemini・Claude Code・推論サーバ…の鍵を持っているので、
   こちらにキーは要らない。**サブの AI を選ぶと、今日のサマリーをメインと同時に書き、
   ホームで AI ごとの折りたたみを開いて読み比べられる**(開いているのはメインの分だけ)。

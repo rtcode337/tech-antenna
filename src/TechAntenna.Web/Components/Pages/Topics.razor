@@ -109,7 +109,9 @@ else
                         <th scope="col">収集</th>
                         <th scope="col">トピック</th>
                         <th scope="col" class="text-end">話題度(単体)</th>
-                        <th scope="col">更新日時</th>
+                        @* 狭い画面では落とす(ツリーの `date-cell` と同じ扱い。
+                           判断に使わない補足で、いちばん幅を食う) *@
+                        <th scope="col" class="date-cell">更新日時</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -121,7 +123,7 @@ else
                             <td>@Checkbox(topic)</td>
                             <td>@TopicLink(topic)</td>
                             <td class="text-end">@topic.TrendScore.ToString("0.0")</td>
-                            <td>@JapanTime.FormatCompact(topic.UpdatedAt)</td>
+                            <td class="date-cell">@JapanTime.FormatCompact(topic.UpdatedAt)</td>
                         </tr>
                     }
                 </tbody>

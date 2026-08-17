@@ -351,6 +351,7 @@ details[open] > summary .caret::before {
         gap: 0.35rem;
     }
 
+    /* ツリーの日時セルと、ランキング表(`.table`)の「更新日時」列の両方に効く */
     .date-cell {
         display: none;
     }

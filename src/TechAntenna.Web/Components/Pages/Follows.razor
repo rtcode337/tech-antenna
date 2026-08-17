@@ -133,7 +133,8 @@ else
     <strong>どちらもキーの設定が要ります</strong>（<a href="/settings/integrations">設定 → 外部連携</a>）。
 </p>
 
-<table class="table">
+@* スマホでは 1 行 1 枚のカードに畳む(3 列とも長い文なので、詰めると1文字ずつ折り返す) *@
+<table class="table stack">
     <thead>
         <tr>
             <th scope="col">収集元</th>
@@ -144,13 +145,13 @@ else
     <tbody>
         <tr>
             <td><code>connpass</code></td>
-            <td>グループの<strong>サブドメイン</strong>、または<strong>シリーズ ID</strong>（数字）</td>
-            <td>グループのページの URL <code>https://<strong>ここ</strong>.connpass.com/</code></td>
+            <td data-label="識別子">グループの<strong>サブドメイン</strong>、または<strong>シリーズ ID</strong>（数字）</td>
+            <td data-label="どこで分かるか">グループのページの URL <code>https://<strong>ここ</strong>.connpass.com/</code></td>
         </tr>
         <tr>
             <td><code>doorkeeper</code></td>
-            <td>コミュニティの<strong>名前</strong></td>
-            <td>コミュニティのページの URL <code>https://<strong>ここ</strong>.doorkeeper.jp/</code></td>
+            <td data-label="識別子">コミュニティの<strong>名前</strong></td>
+            <td data-label="どこで分かるか">コミュニティのページの URL <code>https://<strong>ここ</strong>.doorkeeper.jp/</code></td>
         </tr>
     </tbody>
 </table>

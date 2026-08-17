@@ -7,6 +7,13 @@
 
 <h1>設定 / 外部連携</h1>
 
+@* **AI の選択を一番上に置く。** 「どの相手に書かせるか」と「どこから集めるか」は
+   どちらも外の相手の設定で、別ページに分けていた頃は要約が動かないときに見る場所が
+   2つに割れていた。キーの表より先に出すのは、**相手を決めるのが先**だから *@
+<AiBackendSection />
+
+<h2 class="axis">どこから集めるか</h2>
+
 <p class="text-muted">
     どこから何を集めていて、キーが要るのか・設定できているのかをまとめています。
     <strong>キー・トークンの値そのものは表示しません</strong>(有無だけを見ています)。
@@ -57,7 +64,8 @@ else if (_secretMessage is { Length: > 0 })
 @{
     RenderFragment AxisSection(IntegrationAxis axis, string title, string note) =>
     @<text>
-        <h2 class="axis">@title</h2>
+        @* AI の節と「どこから集めるか」が h2 になったので、軸は h3・用途は h4 に下げる *@
+        <h3 class="axis">@title</h3>
         <p class="text-muted axis-note">
             @note
             @{
@@ -77,8 +85,9 @@ else if (_secretMessage is { Length: > 0 })
 
     RenderFragment PurposeTable(IntegrationAxis axis, IGrouping<string, Integration> group) =>
     @<text>
-        <h3 class="purpose">@group.Key</h3>
-    <table class="table align-middle">
+        <h4 class="purpose">@group.Key</h4>
+    @* スマホでは 1 行 1 枚のカードに畳む(5 列 + 入力欄は詰めても収まらない。app.css の .table.stack) *@
+    <table class="table align-middle stack">
         <thead>
             <tr>
                 <th scope="col">連携先</th>
@@ -93,11 +102,11 @@ else if (_secretMessage is { Length: > 0 })
             {
                 <tr>
                     <td>@integration.Name</td>
-                    <td>@NeedLabel(integration.Need)</td>
-                    <td class="text-muted effect">@integration.Effect</td>
+                    <td data-label="キー">@NeedLabel(integration.Need)</td>
+                    <td class="text-muted effect" data-label="未設定のとき">@integration.Effect</td>
                     @* 状態はキーの設定の隣に置く —— 「未設定を見つける → その場で入れる」が
                        視線の移動なしにつながるようにするため *@
-                    <td>
+                    <td data-label="状態">
                         <span class="badge @StatusClass(integration)">@StatusLabel(integration)</span>
                         @* **オン/オフを持つ連携(面掃き)は、状態の隣で切り替える。**
                            1 クリックで反転させる —— キーのように打ち込む値が無く、
@@ -111,7 +120,7 @@ else if (_secretMessage is { Length: > 0 })
                             </button>
                         }
                     </td>
-                    <td class="secret-cell">
+                    <td class="secret-cell" data-label="キーの設定">
                         @if (integration.SecretNames is { Count: > 0 } secretNames)
                         {
                             @* ほとんどの連携はキー 1 つだが、ntfy は接続先一式で複数持つ。

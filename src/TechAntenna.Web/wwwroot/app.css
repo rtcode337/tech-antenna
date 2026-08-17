@@ -526,6 +526,86 @@ hr {
     text-align: right;
 }
 
+/* ---- 狭い画面(スマホ)の表 ----
+   **横スクロールにはしない。** 表の中に隠れた列があると、画面の外に出たものに
+   気づけない(タブの帯で同じ問題を踏んだ)。代わりに 2 通りの手当てをする。
+
+   1. どの表にも効く最低限 —— 見出しの折り返しを許し、長い語(URL・キー名)を
+      折れるようにする。列が少ない表(主催者・トピックのランキング)はこれで収まる
+   2. `.table.stack` —— 1 行を 1 枚のカードに畳む。列が多い表(外部連携の 5 列)や
+      1 セルに入力欄・ボタンが入る表(AI の設定)は、詰めても 1 行に収まらないため。
+      **項目名は `data-label` から出す**(`::before`)—— 見出し行を消すので、
+      どのセルが何なのか分からなくなる。**`data-label` の無いセルはカードの題**に
+      なる(1 列目の名前。項目名を添えると同じ語が2回並ぶ) */
+@media (max-width: 640px) {
+    .table thead th {
+        /* 5 列の表では見出しだけで幅が決まってしまう(既定は nowrap) */
+        white-space: normal;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.5rem 0.4rem;
+        /* URL・キー名(`GoogleBooks:ApiKey`)は空白が無く、そのままでは折れない */
+        overflow-wrap: anywhere;
+    }
+
+    .table.stack thead {
+        display: none;
+    }
+
+    .table.stack tbody tr {
+        display: block;
+        padding: 0.55rem 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .table.stack tbody tr:last-child {
+        border-bottom: 0;
+    }
+
+    .table.stack tbody th,
+    .table.stack tbody td {
+        display: grid;
+        grid-template-columns: 5.5rem minmax(0, 1fr);
+        gap: 0.5rem;
+        align-items: baseline;
+        /* **左に余白を入れる。** カード全体を左端から離しつつ、題より項目名のほうを
+           深く下げる —— 全部が同じ位置にそろっていると、どれが題でどれが中身なのかが
+           読み取れない(題の側は下の `padding-left` で浅くする) */
+        padding: 0.2rem 0 0.2rem 0.9rem;
+        border-bottom: 0;
+    }
+
+    .table.stack tbody td[data-label]::before {
+        content: attr(data-label);
+        color: var(--text-muted);
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    /* カードの題(`data-label` を持たないセル。1 列目の名前がここに来る)。
+       **項目名より浅く下げる** —— 左端に貼り付けると窮屈で、項目名と同じだけ下げると
+       題に見えない。段差そのものが「この下がこの題の中身」を示す */
+    .table.stack tbody th,
+    .table.stack tbody td:not([data-label]) {
+        display: block;
+        margin-bottom: 0.15rem;
+        padding-left: 0.35rem;
+        font-weight: 700;
+    }
+
+    /* 入力欄・選択欄は幅いっぱいに(既定の幅のままだと畳んでも溢れる)。
+       **`type` を書いていない input にも効かせる**(既定は text。実際に
+       外部連携のキー入力は type 無しで書かれていて、`input[type="text"]` では当たらない)。
+       チェックボックスとラジオは除く —— 幅いっぱいの四角になってしまう */
+    .table.stack .form-select,
+    .table.stack input:not([type="checkbox"]):not([type="radio"]) {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
 /* チェックボックス。accent-color だけで色を合わせ、見た目の作り直しはしない
    (OS のフォーム部品のままのほうが操作感が揃う) */
 .form-check-input {

@@ -55,3 +55,19 @@ textarea {
     font-variant-numeric: tabular-nums;
     text-align: right;
 }
+
+/* 狭い画面(スマホ)。**この表は畳まない** —— 主催者は数十行あり、1 行 1 枚のカードに
+   すると縦に伸びて「どの主催者が公式か」を見比べられなくなる。3 列とも短いので、
+   数と判定の列を詰めれば名前が折り返して収まる(見出しの折り返しは app.css 側で許してある) */
+@media (max-width: 640px) {
+    .table .count {
+        width: 3.5rem;
+        text-align: right;
+    }
+
+    /* 判定(公式のバッジ)。字は入るが、列としては最小でよい */
+    .table td:last-child,
+    .table th:last-child {
+        width: 3.2rem;
+    }
+}

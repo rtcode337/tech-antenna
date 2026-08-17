@@ -90,3 +90,29 @@ td.secret-cell .copy-field {
 td.secret-cell .copy-field[hidden] {
     display: none;
 }
+
+/* 狭い画面(スマホ)。表は 1 行 1 枚のカードに畳まれる(app.css の `.table.stack`)が、
+   **この列は畳むだけでは収まらない** —— ラベル 9rem + 入力 9rem + ボタンを
+   1 行に固定していて、合計が画面幅を超える。畳んだときは縦に積ませる */
+@media (max-width: 640px) {
+    td.secret-cell {
+        white-space: normal;
+    }
+
+    /* ラベルは入力欄の上へ(横に並べる幅が無い) */
+    td.secret-cell .secret-label {
+        display: block;
+        min-width: 0;
+    }
+
+    td.secret-cell input {
+        /* 幅は app.css 側で 100% にしてある。右の余白だけ落として行を詰める */
+        margin-right: 0;
+        margin-bottom: 0.3rem;
+    }
+
+    /* 「未設定のとき」の読み幅の上限は、畳んだ幅では意味を持たない */
+    td.effect {
+        max-width: none;
+    }
+}
