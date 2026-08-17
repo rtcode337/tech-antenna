@@ -58,7 +58,12 @@
         <li><strong>別名</strong> —— 既存トピックの別表記として寄せた語。件数は寄せ先へ合算されます</li>
         <li><strong>除外</strong> —— <strong>トピックとして扱わない語</strong>(メディア名・一般語など)。
             LLM にも聞き直しません。記事のタグとしては残るので、記事が消えることはありません</li>
-        <li><strong>保留</strong> —— LLM が判断できなかった語。期限を過ぎると自動で聞き直します</li>
+        <li><strong>保留(聞き直す)</strong> —— LLM が判断できなかったが、記事・イベント・書籍の
+            どれかに付いている語。期限を過ぎると自動で聞き直します</li>
+        <li><strong>保留(聞き直さない)</strong> —— 判断できず、しかも<strong>紐づくデータが1件も無い</strong>語。
+            聞き直しても答えが変わる材料が無いので<strong>自動の対象から外しています</strong>
+            (毎回の枠を食うだけになるため)。データが付けば聞き直す側へ戻ります。
+            手で昇格・別名・除外するのはこの一覧からでもできます</li>
     </ul>
 </details>
 
@@ -118,7 +123,12 @@ else
     <form method="post" @formname="tag-decide" @onsubmit="DecideAsync">
         <AntiforgeryToken />
         @TagGroup("仕分けまち", TagStatus.Pending)
-        @TagGroup("保留(LLM が判断できなかった)", TagStatus.Unresolved)
+        @* **保留は2つに分ける。** 紐づくデータが1件も無い語は自動で聞き直さない
+           (ITagStore.GetPendingAsync)ので、同じ見出しに混ぜると「期限が来れば直る」と
+           読めてしまう。**判定はストアと同じ「件数が 0 か」** *@
+        @TagGroup("保留・期限が来たら聞き直す", TagStatus.Unresolved, tag => tag.TotalCount > 0)
+        @TagGroup("保留・自動では聞き直さない(紐づくデータなし)", TagStatus.Unresolved,
+            tag => tag.TotalCount == 0, defaultOpen: false)
         @TagGroup("除外（トピックにしない）", TagStatus.NotTopic)
         @TagGroup("別名", TagStatus.Alias)
         @TagGroup("トピック(語彙)", TagStatus.Promoted)
@@ -128,14 +138,20 @@ else
 @* 状態ごとの一覧。行に操作を並べる。**押した行は button の value で分かる**ので、
    フォームは 1 つで足りる(行ごとにフォームを作ると @formname が数百個になる) *@
 @{
-    RenderFragment TagGroup(string title, TagStatus status) =>
+    RenderFragment TagGroup(
+        string title, TagStatus status, Func<Tag, bool>? filter = null, bool? defaultOpen = null) =>
     @<text>
         @{
-            var tags = _tags!.Where(tag => tag.Status == status).ToList();
+            var tags = _tags!
+                .Where(tag => tag.Status == status && (filter is null || filter(tag)))
+                .ToList();
+            // 既定は「仕分けまちと保留は開く」(押す前に中身を見たい一覧なので)。
+            // 呼び出し側が defaultOpen で上書きできる
+            var open = defaultOpen ?? status is TagStatus.Pending or TagStatus.Unresolved;
         }
         @if (tags.Count > 0)
         {
-            <details class="tag-group" open="@(status is TagStatus.Pending or TagStatus.Unresolved)">
+            <details class="tag-group" open="@open">
                 <summary>@title<text>(</text>@tags.Count<text> 語)</text></summary>
                 @if (status != TagStatus.NotTopic)
                 {
@@ -288,9 +304,19 @@ else
             _ => "未判定",
         });
 
-        if (tag.Status == TagStatus.Unresolved && tag.RetryAfter is { } retry)
+        if (tag.Status == TagStatus.Unresolved)
         {
-            parts.Add($"{JapanTime.FormatShort(retry)} に再挑戦");
+            // **紐づくデータが無い語には日時を出さない。** 期限を出すと「その時刻に
+            // 聞き直される」と読めるが、実際には自動の対象から外れている
+            // (ITagStore.GetPendingAsync)
+            if (tag.TotalCount == 0)
+            {
+                parts.Add("紐づくデータなし(自動では聞き直さない)");
+            }
+            else if (tag.RetryAfter is { } retry)
+            {
+                parts.Add($"{JapanTime.FormatShort(retry)} に再挑戦");
+            }
         }
 
         return string.Join(" / ", parts);

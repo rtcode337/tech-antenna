@@ -74,6 +74,42 @@ public class InMemoryTagStoreTests
     }
 
     [Fact]
+    public async Task 紐づくデータが無い保留は期限が過ぎても聞き直さない()
+    {
+        // **判断できなかったうえに記事・イベント・書籍のどれにも付いていない語**は、
+        // 7 日ごとに聞き直しても答えが変わる材料が無く、1 回の枠をただ食う。
+        // データが付けば件数が戻るので、そのときから対象に復帰する(下の後半)
+        var store = new InMemoryTagStore();
+        await store.ObserveAsync(
+        [
+            new TagObservation("データあり", ArticleCount: 2),
+            new TagObservation("データなし", ArticleCount: 1),
+            // 話題度だけがある語(記事・イベント・書籍には付いていない)も「紐づくデータなし」
+            new TagObservation("トレンドだけ", TrendScore: 0.9),
+        ], Now);
+        // 件数を 0 に落とす(データが消えた状態。話題度の取り直しがこの形を作る)
+        await store.ObserveAsync(
+            [new TagObservation("データあり", ArticleCount: 2), new TagObservation("トレンドだけ", TrendScore: 0.9)],
+            Now, resetMissing: true);
+        await store.DecideAsync(
+        [
+            new TagDecision("データあり", TagStatus.Unresolved, RetryAfter: Now.AddDays(-1)),
+            new TagDecision("データなし", TagStatus.Unresolved, RetryAfter: Now.AddDays(-1)),
+            new TagDecision("トレンドだけ", TagStatus.Unresolved, RetryAfter: Now.AddDays(-1)),
+        ], Now);
+
+        var pending = await store.GetPendingAsync(Now);
+
+        Assert.Equal(["データあり"], pending.Select(tag => tag.Key));
+
+        // データが付いたら聞き直す側へ戻る
+        await store.ObserveAsync([new TagObservation("データなし", BookCount: 1)], Now.AddDays(1));
+
+        var revived = await store.GetPendingAsync(Now.AddDays(1));
+        Assert.Contains("データなし", revived.Select(tag => tag.Key));
+    }
+
+    [Fact]
     public async Task 仕分けは既にあるタグにだけ書く()
     {
         // 行の無いキーに書くと、観測していない語が状態だけ持って現れてしまう

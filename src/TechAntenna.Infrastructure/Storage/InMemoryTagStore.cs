@@ -91,10 +91,14 @@ public class InMemoryTagStore : ITagStore
         }
     }
 
-    /// <summary>まだ聞いてよい状態か(未仕分け、または保留の期限切れ)。EF 版と規則をそろえる。</summary>
+    /// <summary>
+    /// まだ聞いてよい状態か(未仕分け、または**紐づくデータがある**保留の期限切れ)。
+    /// EF 版と規則をそろえる —— ずれると「画面に出ている仕分けまちの数」と
+    /// 「実際に LLM へ流れる語」が食い違う。
+    /// </summary>
     internal static bool IsPending(Tag tag, DateTimeOffset now) =>
         tag.Status == TagStatus.Pending
-        || (tag.Status == TagStatus.Unresolved && tag.RetryAfter <= now);
+        || (tag.Status == TagStatus.Unresolved && tag.RetryAfter <= now && tag.TotalCount > 0);
 
     internal static void Reset(Tag tag)
     {
