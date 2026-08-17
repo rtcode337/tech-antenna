@@ -160,7 +160,7 @@ public class TopicMaintenanceRunnerTests
     public async Task 仕分けを繰り返しても聞く語は増えない()
     {
         // **これが分けた理由。** 1 本のジョブだった頃は、押すたびにその回のトレンドが
-        // 新しい未知語を連れてきて、仕分けまちが尽きなかった
+        // 新しい未知語を連れてきて、仕分け待ちが尽きなかった
         var tags = new InMemoryTagStore();
         var topics = new InMemoryTopicStore();
         var classifier = new RecordingClassifier();

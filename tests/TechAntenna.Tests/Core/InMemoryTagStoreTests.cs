@@ -66,7 +66,7 @@ public class InMemoryTagStoreTests
 
         var pending = await store.GetPendingAsync(Now);
 
-        // **件数で足切りはしない。** 画面の「仕分けまち」がそのまま対象になるようにするため ——
+        // **件数で足切りはしない。** 画面の「仕分け待ち」がそのまま対象になるようにするため ——
         // 下限を掛けていた頃は、収集を何回押したかで対象が変わり、落ちた語は残り続けた
         // (並びは目立つ順。ゴミは画面から「まとめて除外」で落とす)
         Assert.Equal(

@@ -22,6 +22,24 @@ public static class AiSettings
     /// <summary>サブに選べる数の上限。ホームのタブが増えすぎると読み比べにならない。</summary>
     public const int MaxSubs = 4;
 
+    /// <summary>
+    /// メインに選べる「Chiezo ではない相手」の識別子。**`local:` を冠する** ——
+    /// Chiezo の相手 id(`gemini`・`claude` 等)と混ざらないようにするため
+    /// (あちらの id にコロンは使われない)。
+    ///
+    /// **この2つもメインに選べるようにしてある。** かつては Chiezo にメインを選んだかどうかで
+    /// 経路が決まり、選ばないときだけ「トークン > API キー」の優先順で自動的に決まっていた ——
+    /// **キーを両方入れてある環境で Anthropic API を選ぶ手段が無かった**(トークンを消すしかない)。
+    /// </summary>
+    public const string ClaudeCodeBackend = "local:claude-code";
+
+    /// <inheritdoc cref="ClaudeCodeBackend"/>
+    public const string AnthropicBackend = "local:anthropic";
+
+    /// <summary>Chiezo の相手ではない(このアプリが直に話す相手)か。</summary>
+    public static bool IsLocal(string backend) =>
+        backend.StartsWith("local:", StringComparison.Ordinal);
+
     public static AiConfig Load(ApiCredentials credentials)
     {
         var raw = credentials.Get(ConfigName);
@@ -56,9 +74,20 @@ public static class AiSettings
 /// <param name="Effort">考える量(空なら相手の既定)。</param>
 public record AiChoice(string Backend, string Label, string? Model, string? Effort)
 {
+    /// <summary>
+    /// Chiezo へ渡す形。**<see cref="AiSettings.IsLocal"/> の相手には使わない**
+    /// (Chiezo の相手ではないので、あちらへ渡す識別子を持たない)。
+    /// </summary>
     public ChiezoAiSelection ToSelection() => new(Backend, Label, Model, Effort);
 
-    public string Key => $"chiezo:{Backend}";
+    /// <summary>
+    /// 生成者のキー(<c>Digest.GeneratorKey</c>)。**Chiezo ではない相手は従来と同じ
+    /// <c>default</c>** にする —— 既に保存したダイジェストがそのキーで並んでおり、
+    /// 変えると同じ相手の記録が2つのキーに割れる。
+    /// </summary>
+    public string Key => AiSettings.IsLocal(Backend)
+        ? LlmGateway.DefaultGeneratorKey
+        : $"chiezo:{Backend}";
 }
 
 /// <summary>メイン 1 つとサブ複数。</summary>
@@ -66,7 +95,11 @@ public record AiConfig(AiChoice? Main, IReadOnlyList<AiChoice> Subs)
 {
     public static readonly AiConfig Empty = new(null, []);
 
-    /// <summary>メインを先頭にした全部(重複する相手は落とす)。</summary>
+    /// <summary>
+    /// メインを先頭にした全部(重複する相手は落とす)。
+    /// **サブは Chiezo の相手だけ** —— 読み比べのための経路なので、
+    /// Chiezo ではない相手(<see cref="AiSettings.IsLocal"/>)はサブに入らない。
+    /// </summary>
     public IReadOnlyList<AiChoice> All() => Main is null
         ? []
         : new[] { Main }

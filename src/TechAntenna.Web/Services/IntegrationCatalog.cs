@@ -94,6 +94,14 @@ public class IntegrationCatalog(
     ApiCredentials credentials,
     IOptions<CollectionOptions> collection)
 {
+    /// <summary>
+    /// LLM の用途名。**この用途の行だけは「どの AI に書かせるか」の節に出す**
+    /// (`AiBackendSection` の下。軸ごとの表からは外す)—— 相手を選ぶ話とキーを入れる話が
+    /// 並んでいないと、「選べない理由がキー未設定」だと分からない。
+    /// 両方の画面から同じ名前で絞れるよう定数にしてある。
+    /// </summary>
+    public const string LlmPurpose = "要約・翻訳・語彙の仕分け・今日のサマリー";
+
     /// <summary>画面から設定できるキーの1件分(外部連携画面の設定フォームの元)。</summary>
     /// <param name="SecretName">ApiCredentials に渡す設定パス。</param>
     /// <param name="Label">フォームに出す名前。</param>
@@ -270,7 +278,7 @@ public class IntegrationCatalog(
         // 2方式は同じ機能の担い手なので「どちらか必須」。両方未設定なら LLM 機能ごと止まり、
         // 片方があればもう片方の行は「未設定(もう一方で動作)」になる
         integrations.Add(WithSecret(new Integration(
-            IntegrationAxis.Both, "要約・翻訳・語彙の仕分け・今日のサマリー", "Claude Code(サブスクの枠)", CredentialNeed.EitherRequired,
+            IntegrationAxis.Both, LlmPurpose, "Claude Code(サブスクの枠)", CredentialNeed.EitherRequired,
             false,
             "`claude setup-token` で発行する。**設定されていると Anthropic API より優先**され、"
             + "従量課金ではなくサブスクリプションの枠を使う。**CLI は別コンテナ(bridge)が動かす**ので、"
@@ -278,10 +286,9 @@ public class IntegrationCatalog(
             AlternativeConfigured: credentials.Has(LlmGateway.AnthropicApiKeyName)),
             LlmGateway.ClaudeCodeTokenName));
         integrations.Add(WithSecret(new Integration(
-            IntegrationAxis.Both, "要約・翻訳・語彙の仕分け・今日のサマリー", "Anthropic API(従量課金)", CredentialNeed.EitherRequired,
+            IntegrationAxis.Both, LlmPurpose, "Anthropic API(従量課金)", CredentialNeed.EitherRequired,
             false,
-            "Claude Code のトークンが無いときの代わり。**両方とも未設定なら要約・翻訳・今日のサマリーのボタンが"
-            + "無効になる**",
+            "Claude Code のトークンが無いときの代わり。",
             AlternativeConfigured: credentials.Has(LlmGateway.ClaudeCodeTokenName)),
             LlmGateway.AnthropicApiKeyName));
 

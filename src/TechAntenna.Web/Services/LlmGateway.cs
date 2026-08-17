@@ -12,13 +12,18 @@ namespace TechAntenna.Web.Services;
 /// **実行のたびにキーの状態から選ぶ**。かつては起動時に環境変数を見て DI 登録を
 /// 分岐していたが、それだと画面からキーを設定しても再起動するまで効かない。
 ///
-/// 方式の優先: **Chiezo(URL を設定し、画面でメインの AI を選んである)** >
-/// Claude Code のトークン(サブスクの枠)> Anthropic API キー(従量課金)>
-/// どれも無ければ null(ボタンは disabled で出る)。
+/// **画面(設定 → 外部連携の一番上)で選んだメインに従う。** 選べるのは Chiezo の相手と、
+/// Claude Code(サブスクの枠)・Anthropic API(従量課金)の3種類。
+/// **選んでいない(または選んだ相手のキーが消えた)ときは従来の優先順** ——
+/// Claude Code のトークン > Anthropic API キー > どれも無ければ null
+/// (ボタンは disabled で出る)。
 ///
-/// **Chiezo を先に見るのは、そこが「相手を選べる」唯一の経路だから** —— わざわざ選んだ
-/// 相手より、同居のサイドカーを優先する理由が無い。URL が無い・メインを選んでいない
-/// 環境では今までどおり動く。
+/// かつては「Chiezo にメインを選んだかどうか」で経路が決まり、選ばないときだけ上の
+/// 優先順に落ちていた。そのため**キーを両方入れてある環境で Anthropic API を選ぶ手段が
+/// 無かった**(トークンを消すしかなかった)ので、2つも選択肢として並べてある。
+///
+/// **サブは Chiezo の相手だけ**(読み比べのための経路)。メインが Claude Code や
+/// Anthropic API でも、Chiezo のサブは今日のサマリーに並ぶ。
 ///
 /// 組み立ては <see cref="ApiCredentials.Version"/> が変わったときだけ ——
 /// キーが変わらない限り同じインスタンスを返し続ける(Anthropic のクライアントや
@@ -114,89 +119,122 @@ public class LlmGateway(
 
     Built Build(int version)
     {
-        if (BuildFromChiezo(version) is { } fromChiezo)
-        {
-            return fromChiezo;
-        }
-
+        var config = AiSettings.Load(credentials);
         var claudeCode = claudeCodeOptions.Value;
         var token = credentials.Get(ClaudeCodeTokenName);
         // **トークンを消したときも書く。** 書かないと、共有ディレクトリに残った古い
         // トークンでブリッジが動き続ける(Anthropic API へ切り替えたつもりで切り替わらない)
         WriteBridgeCredential(claudeCode.StateDirectory, token);
+        var apiKey = credentials.Get(AnthropicApiKeyName);
+        var client = chiezo.Client();
 
-        if (token is not null)
+        // **画面で選んだメインに従う。** 選んだ相手のキーが無い(消した)ときは下の優先順へ落ちる
+        switch (config.Main)
         {
-            var model = string.IsNullOrWhiteSpace(claudeCode.Model) ? null : claudeCode.Model;
-            var bridge = new CliBridgeClient(
-                httpClientFactory,
-                claudeCode.BridgeUrl,
-                model,
-                TimeSpan.FromSeconds(claudeCode.TimeoutSeconds));
-            var classifier = new ClaudeCodeTopicClassifier(bridge);
-            return new Built(
-                version,
-                new ClaudeCodeSummarizer(bridge),
-                new ClaudeCodeTitleTranslator(bridge),
-                classifier,
-                classifier,
-                classifier,
-                new ClaudeCodeDigestComposer(bridge, timeProvider),
-                [new DigestGenerator(DefaultGeneratorKey, bridge.Name, true,
-                    new ClaudeCodeDigestComposer(bridge, timeProvider))]);
+            case { } main when main.Backend == AiSettings.ClaudeCodeBackend && token is not null:
+                return FromBridge(version, NewCliBridge(token, claudeCode), main.Key, config, client);
+
+            case { } main when main.Backend == AiSettings.AnthropicBackend && apiKey is not null:
+                return FromAnthropic(version, apiKey, main.Key, config, client);
+
+            case { } main when !AiSettings.IsLocal(main.Backend) && client is not null:
+                return FromBridge(
+                    version, new ChiezoAiBridge(client, main.ToSelection()), main.Key, config, client);
         }
 
-        var apiKey = credentials.Get(AnthropicApiKeyName);
+        // 選んでいない・選んだ相手が使えないときは従来の優先順(トークン > API キー)
+        if (token is not null)
+        {
+            return FromBridge(
+                version, NewCliBridge(token, claudeCode), DefaultGeneratorKey, config, client);
+        }
+
         if (apiKey is not null)
         {
-            var anthropic = anthropicOptions.Value;
-            var classifier = new AnthropicTopicClassifier(apiKey, anthropic.Model);
-            return new Built(
-                version,
-                new AnthropicSummarizer(apiKey, anthropic.Model),
-                new AnthropicTitleTranslator(apiKey, anthropic.Model),
-                classifier,
-                classifier,
-                classifier,
-                new AnthropicDigestComposer(apiKey, anthropic.Model, timeProvider),
-                [new DigestGenerator(DefaultGeneratorKey, "Anthropic API", true,
-                    new AnthropicDigestComposer(apiKey, anthropic.Model, timeProvider))]);
+            return FromAnthropic(version, apiKey, DefaultGeneratorKey, config, client);
         }
 
         return new Built(version, null, null, null, null, null, null, []);
     }
 
+    CliBridgeClient NewCliBridge(string token, ClaudeCodeOptions options) =>
+        // トークンはブリッジが設定 DB から読む(このクライアントは URL とモデルだけ知っている)
+        new(httpClientFactory,
+            options.BridgeUrl,
+            string.IsNullOrWhiteSpace(options.Model) ? null : options.Model,
+            TimeSpan.FromSeconds(options.TimeoutSeconds));
+
     /// <summary>
-    /// Chiezo 経由の実装。URL が未設定・メインを選んでいなければ null(呼び出し側が次の方式へ)。
-    /// **サブはダイジェストにだけ効かせる**(要約や翻訳まで相手の数だけ走らせない)。
+    /// ブリッジ越しの実装(Claude Code の CLI ブリッジと Chiezo は**同じ口**なので、
+    /// <c>ICliBridge</c> の実装を差し替えるだけで同じ組み立てが使える)。
     /// </summary>
-    Built? BuildFromChiezo(int version)
+    Built FromBridge(
+        int version, ICliBridge bridge, string mainKey, AiConfig config, ChiezoAiClient? client)
     {
-        var config = AiSettings.Load(credentials);
-        if (chiezo.Client() is not { } client || config.Main is not { } main)
-        {
-            return null;
-        }
-        var mainBridge = new ChiezoAiBridge(client, main.ToSelection());
-        var classifier = new ClaudeCodeTopicClassifier(mainBridge);
-
-        var generators = config.All()
-            .Select(choice => new DigestGenerator(
-                choice.Key,
-                choice.ToSelection().DisplayName,
-                choice.Backend == main.Backend,
-                new ClaudeCodeDigestComposer(new ChiezoAiBridge(client, choice.ToSelection()), timeProvider)))
-            .ToList();
-
+        var classifier = new ClaudeCodeTopicClassifier(bridge);
         return new Built(
             version,
-            new ClaudeCodeSummarizer(mainBridge),
-            new ClaudeCodeTitleTranslator(mainBridge),
+            new ClaudeCodeSummarizer(bridge),
+            new ClaudeCodeTitleTranslator(bridge),
             classifier,
             classifier,
             classifier,
-            new ClaudeCodeDigestComposer(mainBridge, timeProvider),
-            generators);
+            new ClaudeCodeDigestComposer(bridge, timeProvider),
+            Generators(mainKey, bridge.Name, new ClaudeCodeDigestComposer(bridge, timeProvider),
+                config, client));
+    }
+
+    Built FromAnthropic(
+        int version, string apiKey, string mainKey, AiConfig config, ChiezoAiClient? client)
+    {
+        var anthropic = anthropicOptions.Value;
+        var classifier = new AnthropicTopicClassifier(apiKey, anthropic.Model);
+        return new Built(
+            version,
+            new AnthropicSummarizer(apiKey, anthropic.Model),
+            new AnthropicTitleTranslator(apiKey, anthropic.Model),
+            classifier,
+            classifier,
+            classifier,
+            new AnthropicDigestComposer(apiKey, anthropic.Model, timeProvider),
+            Generators(mainKey, "Anthropic API",
+                new AnthropicDigestComposer(apiKey, anthropic.Model, timeProvider), config, client));
+    }
+
+    /// <summary>
+    /// 今日のサマリーを書かせる相手(**メインが先頭**)。**サブは Chiezo の相手だけ** ——
+    /// 読み比べのための経路で、Chiezo でなければ相手を名指しできない。
+    /// メインと同じキーになるサブは落とす(同じ相手に2回書かせても比べる意味が無い)。
+    /// </summary>
+    IReadOnlyList<DigestGenerator> Generators(
+        string mainKey, string mainName, IDigestComposer mainComposer,
+        AiConfig config, ChiezoAiClient? client)
+    {
+        var generators = new List<DigestGenerator>
+        {
+            new(mainKey, mainName, true, mainComposer),
+        };
+
+        if (client is null)
+        {
+            return generators;
+        }
+
+        foreach (var sub in config.Subs.Where(sub => !AiSettings.IsLocal(sub.Backend)))
+        {
+            if (sub.Key == mainKey)
+            {
+                continue;
+            }
+
+            generators.Add(new DigestGenerator(
+                sub.Key,
+                sub.ToSelection().DisplayName,
+                false,
+                new ClaudeCodeDigestComposer(new ChiezoAiBridge(client, sub.ToSelection()), timeProvider)));
+        }
+
+        return generators;
     }
 
     /// <summary>

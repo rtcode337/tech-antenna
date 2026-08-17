@@ -36,8 +36,8 @@ public static class JobMessage
     {
         if (result.Asked == 0 && result.Merged == 0 && result.Described == 0)
         {
-            // 押しても何も起きないのが正常な状態(仕分けまちが尽きた)なので、そう書く
-            return $"仕分けまちのタグはありませんでした（{result.Count} 件のトピックを更新）。"
+            // 押しても何も起きないのが正常な状態(仕分け待ちが尽きた)なので、そう書く
+            return $"仕分け待ちのタグはありませんでした（{result.Count} 件のトピックを更新）。"
                 + "新しい語は収集と「話題度を取り直す」で増えます。";
         }
 

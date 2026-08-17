@@ -73,7 +73,7 @@ public class ArticleCollectionRunner(
         await RefreshBookmarkCountsAsync(cancellationToken);
 
         // **見つけたタグをタグの一覧へ反映する。** これが無いと、集めたのにタグの画面が
-        // 変わらない(仕分けまちの語が増えず、次の整備まで何も起きないように見える)。
+        // 変わらない(仕分け待ちの語が増えず、次の整備まで何も起きないように見える)。
         // 状態は触らないので、仕分け済みの語が巻き戻ることはない
         Progress = "タグを反映中…";
         await tagObserver.ObserveAsync(cancellationToken: cancellationToken);

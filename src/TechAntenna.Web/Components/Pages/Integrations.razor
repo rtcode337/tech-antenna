@@ -12,7 +12,14 @@
    2つに割れていた。キーの表より先に出すのは、**相手を決めるのが先**だから *@
 <AiBackendSection />
 
-<h2 class="axis">どこから集めるか</h2>
+@* **LLM のキーはこの表に出さない。** 相手の行(「どの AI に書かせるか」)のボタンから
+   モーダルで設定する —— 「選べない理由がキー未設定」と分かった直後に、同じ行で
+   入れられるようにするため。入口を2つ持つと、どちらで入れた値が効くのかを
+   画面が説明し続けることになる(`IntegrationCatalog.LlmPurpose` で軸の表から外す) *@
+<form method="post" @formname="secrets" @onsubmit="HandleSecretAsync">
+    <AntiforgeryToken />
+
+    <h2 class="axis">どこから集めるか</h2>
 
 <p class="text-muted">
     どこから何を集めていて、キーが要るのか・設定できているのかをまとめています。
@@ -50,8 +57,6 @@ else if (_secretMessage is { Length: > 0 })
    同じ流儀 —— 行ごとにフォームを作ると @@formname が数十個になる)。同じ連携が複数の節に
    出るぶん input の name が重複しないよう、節(軸)の番号を名前に含めている ——
    重複すると Request.Form が複数の値をカンマで連結し、保存した値が壊れる *@
-<form method="post" @formname="secrets" @onsubmit="HandleSecretAsync">
-    <AntiforgeryToken />
     @AxisSection(IntegrationAxis.Trending, "トレンドで使う",
         "トピックの選択に関係なく集めるもの(ニュース・記事・話題の論文)。")
     @AxisSection(IntegrationAxis.Interests, "興味トピックで使う",
@@ -69,23 +74,33 @@ else if (_secretMessage is { Length: > 0 })
         <p class="text-muted axis-note">
             @note
             @{
-                var shared = _all.Count(i => i.Axis == IntegrationAxis.Both && i.Axis.HasFlag(axis));
+                // LLM は上の節へ移したので、ここで数えるのは軸をまたぐ残り(話題度・書誌の補完)だけ
+                var shared = _all.Count(i =>
+                    i.Axis == IntegrationAxis.Both
+                    && i.Axis.HasFlag(axis)
+                    && i.Purpose != IntegrationCatalog.LlmPurpose);
             }
             @if (shared > 0)
             {
-                <text>両方の軸で使う @shared 件(話題度・LLM)もここに含めています。</text>
+                <text>両方の軸で使う @shared 件もここに含めています。</text>
             }
         </p>
-        @foreach (var group in _all.Where(i => i.Axis.HasFlag(axis))
+        @* LLM の用途はこの表から外す(上の「どの AI に書かせるか」の節に出してある) *@
+        @foreach (var group in _all
+            .Where(i => i.Axis.HasFlag(axis) && i.Purpose != IntegrationCatalog.LlmPurpose)
             .GroupBy(integration => integration.Purpose))
         {
             @PurposeTable(axis, group)
         }
     </text>;
 
-    RenderFragment PurposeTable(IntegrationAxis axis, IGrouping<string, Integration> group) =>
+    RenderFragment PurposeTable(
+        IntegrationAxis axis, IGrouping<string, Integration> group, bool showHeading = true) =>
     @<text>
-        <h4 class="purpose">@group.Key</h4>
+        @if (showHeading)
+        {
+            <h4 class="purpose">@group.Key</h4>
+        }
     @* スマホでは 1 行 1 枚のカードに畳む(5 列 + 入力欄は詰めても収まらない。app.css の .table.stack) *@
     <table class="table align-middle stack">
         <thead>
@@ -103,7 +118,11 @@ else if (_secretMessage is { Length: > 0 })
                 <tr>
                     <td>@integration.Name</td>
                     <td data-label="キー">@NeedLabel(integration.Need)</td>
-                    <td class="text-muted effect" data-label="未設定のとき">@integration.Effect</td>
+                    @* 説明文の `**強調**` と `` `コード` `` は HTML に直して出す
+                       (そのままだと記号が画面に見える。InlineMarkup) *@
+                    <td class="text-muted effect" data-label="未設定のとき">
+                        @InlineMarkup.ToHtml(integration.Effect)
+                    </td>
                     @* 状態はキーの設定の隣に置く —— 「未設定を見つける → その場で入れる」が
                        視線の移動なしにつながるようにするため *@
                     <td data-label="状態">

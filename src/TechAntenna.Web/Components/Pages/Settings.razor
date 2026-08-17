@@ -99,15 +99,15 @@
                Enabled="ScheduleSettings.IsEnabled(Credentials, _trendScores.Key)">
         <button class="help-toggle" type="button" popovertarget="trend-help"
                 aria-label="「話題度を取り直す」の説明">?</button>
-        @* 副作用(仕分けまちが増える)はチップの中に隠さない —— 押す前に知っておくべき話 *@
+        @* 副作用(仕分け待ちが増える)はチップの中に隠さない —— 押す前に知っておくべき話 *@
         <span class="job-note text-muted">
-            外部トレンドで見つかった新しい語が、仕分けまち(<a href="/settings/tags">タグ</a>)に増えることがあります。
+            外部トレンドで見つかった新しい語が、仕分け待ち(<a href="/settings/tags">タグ</a>)に増えることがあります。
         </span>
         <div class="help-popover" id="trend-help" popover>
             <strong>「話題度を取り直す」は何をしている?</strong>
             <p>
                 外部トレンドを引いて鮮度を更新します。<strong>LLM は使いません</strong>。
-                新しく現れた語は<strong>仕分けまち</strong>として
+                新しく現れた語は<strong>仕分け待ち</strong>として
                 <a href="/settings/tags">タグ</a>の画面に溜まり、そこの「タグを仕分けなおす」で語彙に入ります。
             </p>
             <ol>
@@ -116,7 +116,7 @@
                     (トレンドの収集をいつ回したかには依存しません)</li>
                 <li><strong>タグを観測</strong> —— 保存済みの記事・イベント・書籍に付いたタグの件数と、
                     取ってきた話題度を書き込みます。<strong>ここで次の仕分けの対象が決まります</strong>
-                    (<a href="/settings/tags">タグ</a>の画面の「仕分けまち」がその一覧です)</li>
+                    (<a href="/settings/tags">タグ</a>の画面の「仕分け待ち」がその一覧です)</li>
                 <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
                     トピック一覧を書き込みます。話題度は親へも合算します</li>
             </ol>
@@ -138,7 +138,7 @@
         </div>
     </JobButton>
 
-    @* **仕分けまちが溜まっていることは、押す場所で知らせる。** かつてはトピックの画面に
+    @* **仕分け待ちが溜まっていることは、押す場所で知らせる。** かつてはトピックの画面に
        出していたが、そこには押すボタンが無く「見つけたのに何もできない」案内だった。
        中身の確認とゴミの除外は<a href="/settings/tags">タグ</a>の画面 *@
     @if (_pendingCount > 0)
@@ -149,7 +149,7 @@
             (中身の確認と除外は<a href="/settings/tags">タグの画面</a>で)。
         </p>
     }
-    @* 仕分けまちの中身とゴミの除外は<a href="/settings/tags">タグ</a>の画面。ここは押す場所だけ持つ *@
+    @* 仕分け待ちの中身とゴミの除外は<a href="/settings/tags">タグ</a>の画面。ここは押す場所だけ持つ *@
     <JobButton Runner="_tagClassification.Runner" Name="@_tagClassification.Name"
                Action="@($"run:{_tagClassification.Key}")" Operation="@_tagClassification.Key"
                ScheduleKey="@_tagClassification.Key" Order="Jobs.OrderOf(_tagClassification)"
@@ -159,7 +159,7 @@
     <details class="score-help">
         <summary>「タグを仕分けなおす」は何をしている?</summary>
         <p class="text-muted">
-            <strong>外部トレンドは引かない</strong>ので、押しても仕分けまちは増えません ——
+            <strong>外部トレンドは引かない</strong>ので、押しても仕分け待ちは増えません ——
             押すぶんだけ減り、いつか空になります。話題度も動きません
             (取り直すのは上の「話題度を取り直す」)。
         </p>
@@ -168,14 +168,14 @@
                 生タグとカタログから組み直します。<strong>仕分けの前に走らせるのが要点</strong> ——
                 正規化の規則やカタログを変えると、そこで初めて現れる語があり、
                 後段だけで回すとその語は次に押すまで仕分けられません</li>
-            <li><strong>仕分けまちの語を LLM が分類</strong> —— <a href="/settings/tags">タグ</a>の
-                「仕分けまち」の一覧をそのまま渡します(件数での足切りはしません。目立つ順に 1 回
+            <li><strong>仕分け待ちの語を LLM が分類</strong> —— <a href="/settings/tags">タグ</a>の
+                「仕分け待ち」の一覧をそのまま渡します(件数での足切りはしません。目立つ順に 1 回
                 @TopicMaintenanceRunner.MaxTagsPerClassification 語まで、残りは次の回に続きから)。
                 既存トピックと同じ意味なら<strong>別名として吸収</strong>、
                 粒度が違う語なら<strong>親付きの新トピック</strong>としてツリーへ、
                 トピックでない語(メディア名・一般語)は<strong>除外</strong>します。
                 判断できなかった語は 1 週間おいて再挑戦します。
-                LLM が未設定ならこの手順は飛ばします(語は仕分けまちのまま残る)</li>
+                LLM が未設定ならこの手順は飛ばします(語は仕分け待ちのまま残る)</li>
             <li><strong>同義のトピックを寄せる</strong> —— <code>AI</code> と <code>人工知能</code> が
                 別々にできてしまった場合に、片方へ寄せます(収集対象に選んだトピックは寄せません)</li>
             <li><strong>用語の説明を埋める</strong> —— 説明がまだ無い用語に LLM が一言説明を付けます
@@ -356,7 +356,7 @@
     ScheduledJob _trendScores = default!;
     ScheduledJob _tagClassification = default!;
 
-    /// <summary>仕分けまちのタグの語数(0 なら案内を出さない)。</summary>
+    /// <summary>仕分け待ちのタグの語数(0 なら案内を出さない)。</summary>
     int _pendingCount;
 
     protected override async Task OnInitializedAsync()
@@ -365,7 +365,7 @@
         _trendScores = Jobs.ByKey("trend-scores")!;
         _tagClassification = Jobs.ByKey("tag-classification")!;
 
-        // 「仕分けまち」の語数はタグの画面と同じところ(ITagStore)から数える ——
+        // 「仕分け待ち」の語数はタグの画面と同じところ(ITagStore)から数える ——
         // 画面に出す数と、実際に LLM へ流れる対象を1か所から出すため
         _pendingCount = (await TagStore.GetPendingAsync(Clock.GetUtcNow())).Count;
     }

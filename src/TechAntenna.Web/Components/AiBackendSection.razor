@@ -1,7 +1,14 @@
 @using TechAntenna.Infrastructure.Chiezo
 @using TechAntenna.Web.Services
+@using Microsoft.Extensions.Options
+@using TechAntenna.Web
 @inject ChiezoAi Chiezo
 @inject ApiCredentials Credentials
+@* ローカルの相手で使われるモデルを出すため(選ばせるのではなく、何が使われるかを見せる) *@
+@inject IOptions<ClaudeCodeOptions> ClaudeCode
+@inject IOptions<AnthropicOptions> Anthropic
+@* 「未設定のとき何が起きるか」の文を外部連携の一覧から借りる(同じ文を2か所に書かない) *@
+@inject IntegrationCatalog Catalog
 
 @* どの AI に書かせるかを選ぶ部品。**置き場は外部連携の画面の一番上**(かつては
    `/settings/ai` という別ページだった)—— キーの設定と同じ「外の相手をどう使うか」の話で、
@@ -16,50 +23,59 @@
 
 <p class="page-note text-muted">
     要約・翻訳・タグの仕分け・今日のサマリーを<strong>どの AI に書かせるか</strong>を選びます。
-    相手は <strong>Chiezo に登録してあるもの</strong>から選べます(鍵は Chiezo が持っているので、
+    選べるのは <strong>Claude Code(サブスクの枠)</strong>・<strong>Anthropic API(従量課金)</strong>と、
+    <strong>Chiezo に登録してある相手</strong>です(Chiezo の相手は鍵をあちらが持っているので、
     こちらにキーを入れる必要はありません)。
+    <strong>キーが未設定の相手は選べません</strong> —— 下の「キーの設定」で入れると選べるようになります。
+    <strong>メインを選んでいないときは</strong>従来どおり、
+    Claude Code のトークン → Anthropic API キーの順に、設定されている方で動きます。
     <strong>サブの AI は今日のサマリーだけ</strong>メインと同時に書き、
-    ホームでタブを切り替えて読み比べられます。
+    ホームで読み比べられます(サブに選べるのは Chiezo の相手だけです)。
 </p>
 
+@if (_error is { Length: > 0 })
+{
+    <p class="text-danger">@_error</p>
+}
+else if (_message is { Length: > 0 })
+{
+    <p class="text-body-secondary">@_message</p>
+}
+
+@* **Chiezo が未設定でも表は出す。** Claude Code と Anthropic API はこの画面のキーだけで
+   選べるので、Chiezo の URL が無い環境でも「どちらで動かすか」を決められる
+   (かつてはこの節ごと出さず、URL の入れ方の案内だけを出していた) *@
 @if (!Chiezo.IsConfigured)
 {
     <p class="text-muted">
-        <strong>Chiezo の URL が未設定です。</strong>
-        環境変数 <code>Chiezo__BaseUrl</code>(compose なら <code>CHIEZO_URL</code>)に
-        <code>http://chiezo-api:7010</code> のような URL を入れて起動すると、ここで相手を選べます。
-        未設定のあいだは<strong>従来どおり</strong> Claude Code(CLI ブリッジ)か
-        Anthropic API で動きます。
+        Chiezo の URL(環境変数 <code>Chiezo__BaseUrl</code>。compose なら <code>CHIEZO_URL</code>)が
+        未設定なので、<strong>Chiezo の相手は出ていません</strong>。
+        <code>http://chiezo-api:7010</code> のような URL を入れて起動すると、
+        Gemini などもこの表に並びます。
     </p>
 }
-else
+else if (_backends is null)
 {
-    @if (_error is { Length: > 0 })
-    {
-        <p class="text-danger">@_error</p>
-    }
-    else if (_message is { Length: > 0 })
-    {
-        <p class="text-body-secondary">@_message</p>
-    }
+    <p>Chiezo(@Chiezo.BaseUrl)に問い合わせ中…</p>
+}
+else if (_backends.Count == 0)
+{
+    <p class="text-muted">
+        Chiezo に話せる相手がいません。Chiezo の管理画面(<code>/admin</code>)で
+        「答える」層を有効にし、使う相手を on にしてください。
+    </p>
+}
 
-    @if (_backends is null)
-    {
-        <p>Chiezo(@Chiezo.BaseUrl)に問い合わせ中…</p>
-    }
-    else if (_backends.Count == 0)
-    {
-        <p class="text-muted">
-            Chiezo に話せる相手がいません。Chiezo の管理画面(<code>/admin</code>)で
-            「答える」層を有効にし、使う相手を on にしてください。
-        </p>
-    }
-    else
-    {
+@{
+    var rows = LocalRows().Concat(ChiezoRows()).ToList();
+}
+@if (rows.Count > 0)
+{
         @* **1 つのフォームにまとめる。** メインとサブは同時に決まっていないと、
            「サブに選んだ相手がメインでもある」状態を作れてしまう *@
         <form method="post" @formname="ai" @onsubmit="SaveAsync" class="ai-form">
             <AntiforgeryToken />
+            @* スマホでは 1 行 1 枚のカードに畳む(選択欄が入るので詰めても収まらない。app.css の .table.stack) *@
             @* スマホでは 1 行 1 枚のカードに畳む(選択欄が入るので詰めても収まらない。app.css の .table.stack) *@
             <table class="table stack">
                 <thead>
@@ -71,77 +87,149 @@ else
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var backend in _backends)
+                    @foreach (var row in rows)
                     {
-                        var role = RoleOf(backend.Id);
+                        var role = RoleOf(row.Id);
                         <tr>
-                            <th scope="row">@backend.Label</th>
+                            <th scope="row">
+                                @row.Label
+                                @* 選べない理由(キー未設定)はその場に出す —— 押せないだけだと
+                                   壊れているように見える *@
+                                @if (row.Reason is { Length: > 0 } reason)
+                                {
+                                    <span class="reason text-muted">@reason</span>
+                                }
+                            </th>
                             <td class="ai-role" data-label="使い方">
                                 @* メインは1つだけ(ラジオ)、サブは何個でも(チェック)。
                                    同じ相手をメインとサブの両方にはできない *@
                                 <label>
-                                    <input type="radio" name="main" value="@backend.Id"
-                                           checked="@(role == "main")" />
+                                    <input type="radio" name="main" value="@row.Id"
+                                           checked="@(role == "main")" disabled="@(!row.Selectable)" />
                                     メイン
                                 </label>
-                                <label>
-                                    <input type="checkbox" name="sub" value="@backend.Id"
-                                           checked="@(role == "sub")" />
-                                    @* 但し書きは広い画面だけに出す —— カード表示では
-                                       「メイン」と横並びにしたいので、字数を削る
-                                       (意味は表の下の注記に書いてある) *@
-                                    サブ<span class="wide-only">(サマリーのみ)</span>
-                                </label>
-                            </td>
-                            <td data-label="モデル">
-                                <select name="@($"model-{backend.Id}")" class="form-select">
-                                    @if (!backend.ModelRequired)
-                                    {
-                                        <option value="" selected="@(ModelOf(backend.Id) is null or "")">
-                                            相手の既定に任せる
-                                        </option>
-                                    }
-                                    @foreach (var model in backend.Models)
-                                    {
-                                        <option value="@model" selected="@(ModelOf(backend.Id) == model)">
-                                            @model
-                                        </option>
-                                    }
-                                </select>
-                            </td>
-                            <td data-label="考える量">
-                                @if (backend.Efforts.Count == 0)
+                                @* **キーはこの場で設定する。** メインのすぐ右にボタンを置き、
+                                   押すとモーダル(HTML 標準の `popover`。説明チップと同じ流儀)が
+                                   開く —— 「選べない理由がキー未設定」と分かった直後に、
+                                   同じ行で入れられるようにするため。**開閉に JS は使わない**。
+                                   `type="button"` を明示するのは、フォームの中のボタンが
+                                   既定で submit になるため(押すと選択が保存されてしまう) *@
+                                @if (row.Secret is { } secret)
                                 {
-                                    @* **選べない相手には出さない**(Chiezo が「無い」と言っている) *@
-                                    <span class="text-muted">—</span>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm key-open"
+                                            popovertarget="@KeyModalId(row)">
+                                        @(row.Selectable ? "キーを変える" : "キーを入れる")
+                                    </button>
                                 }
-                                else
+                                @* **サブに選べるのは Chiezo の相手だけ。** 読み比べのための枠で、
+                                   Chiezo でなければ相手を名指しできない(同じ経路が1本あるだけ) *@
+                                @if (row.CanBeSub)
                                 {
-                                    <select name="@($"effort-{backend.Id}")" class="form-select">
-                                        <option value="" selected="@(EffortOf(backend.Id) is null or "")">
-                                            相手の既定に任せる
-                                        </option>
-                                        @foreach (var effort in backend.Efforts)
+                                    <label>
+                                        <input type="checkbox" name="sub" value="@row.Id"
+                                               checked="@(role == "sub")" />
+                                        @* 但し書きは広い画面だけに出す —— カード表示では
+                                           「メイン」と横並びにしたいので、字数を削る
+                                           (意味は表の下の注記に書いてある) *@
+                                        サブ<span class="wide-only">(サマリーのみ)</span>
+                                    </label>
+                                }
+                            </td>
+                            @if (row.Backend is { } backend)
+                            {
+                                <td data-label="モデル">
+                                    <select name="@($"model-{backend.Id}")" class="form-select">
+                                        @if (!backend.ModelRequired)
                                         {
-                                            <option value="@effort" selected="@(EffortOf(backend.Id) == effort)">
-                                                @effort
+                                            <option value="" selected="@(ModelOf(backend.Id) is null or "")">
+                                                相手の既定に任せる
+                                            </option>
+                                        }
+                                        @foreach (var model in backend.Models)
+                                        {
+                                            <option value="@model" selected="@(ModelOf(backend.Id) == model)">
+                                                @model
                                             </option>
                                         }
                                     </select>
-                                }
-                            </td>
+                                </td>
+                                <td data-label="考える量">
+                                    @if (backend.Efforts.Count == 0)
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                    else
+                                    {
+                                        <select name="@($"effort-{backend.Id}")" class="form-select">
+                                            <option value="" selected="@(EffortOf(backend.Id) is null or "")">
+                                                相手の既定に任せる
+                                            </option>
+                                            @foreach (var effort in backend.Efforts)
+                                            {
+                                                <option value="@effort" selected="@(EffortOf(backend.Id) == effort)">
+                                                    @effort
+                                                </option>
+                                            }
+                                        </select>
+                                    }
+                                </td>
+                            }
+                            else
+                            {
+                                @* Chiezo ではない相手はここで選ばせない —— モデルは設定
+                                   (`ClaudeCode:Model` / `Anthropic:Model`)で決まっているので、
+                                   何が使われるかだけを出す(選べるふりをしない) *@
+                                <td data-label="モデル" class="fixed-model">@row.ModelText</td>
+                                <td data-label="考える量"><span class="text-muted">—</span></td>
+                            }
                         </tr>
                     }
                 </tbody>
             </table>
 
             <p class="text-muted">
-                メインを選ばないと Chiezo は使いません(従来どおり Claude Code / Anthropic API で動きます)。
-                サブは最大 @AiSettings.MaxSubs 個までです。
+                サブは最大 @AiSettings.MaxSubs 個までで、<strong>今日のサマリーだけ</strong>を
+                メインと同時に書きます。
+                <strong>メインに選んだ相手はサブにできません</strong>(同じ相手に2回書かせても
+                読み比べにならないため)。
             </p>
 
             <button type="submit" class="btn btn-primary">保存</button>
         </form>
+
+    @* **モーダルはフォームの外に置く。** 中に自前のフォームを持つので、選択のフォームの
+       入れ子にはできない(HTML として不正)。`popovertarget` は id で結ぶので、
+       ボタンが別のフォームの中にあっても開ける *@
+    @foreach (var row in rows.Where(row => row.Secret is not null))
+    {
+        var secret = row.Secret!;
+        <div popover id="@KeyModalId(row)" class="key-modal">
+            <h4>@secret.Label</h4>
+            @if (row.Effect is { Length: > 0 } effect)
+            {
+                @* 説明文の `**強調**` は HTML に直して出す(そのままだと記号が見える) *@
+                <p class="text-muted effect">@InlineMarkup.ToHtml(effect)</p>
+            }
+            @* 保存の form は相手ごとに1つ(@@formname は画面の中で重複できない)。
+               送信すると普通の POST でページが戻るので、モーダルはそのまま閉じる *@
+            <form method="post" @formname="@($"llm-key-{row.Id}")"
+                  @onsubmit="() => SaveKeyAsync(row)" class="key-form">
+                <AntiforgeryToken />
+                <input type="password" name="@($"key-{row.Id}")" autocomplete="new-password"
+                       placeholder="@(secret.Hint ?? "新しい値")" aria-label="@secret.Label" />
+                <button type="submit" class="btn btn-primary btn-sm">保存</button>
+            </form>
+            @if (row.Selectable)
+            {
+                <form method="post" @formname="@($"llm-key-clear-{row.Id}")"
+                      @onsubmit="() => ClearKeyAsync(row)">
+                    <AntiforgeryToken />
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">削除</button>
+                </form>
+            }
+            <button type="button" class="btn btn-outline-secondary btn-sm close"
+                    popovertarget="@KeyModalId(row)" popovertargetaction="hide">閉じる</button>
+        </div>
     }
 }
 
@@ -183,6 +271,98 @@ else
         }
     }
 
+    /// <summary>
+    /// 表の1行。**Chiezo の相手と、このアプリが直に話す相手(Claude Code / Anthropic API)を
+    /// 同じ表に並べる** —— どちらで動かすかは1つの選択なので、2つの表に分けると
+    /// 「両方選んだらどうなるのか」が読めない。
+    /// </summary>
+    /// <param name="Selectable">メインに選べるか(キーが設定されているか)。</param>
+    /// <param name="Reason">選べない理由(選べるときは null)。</param>
+    /// <param name="CanBeSub">サブに選べるか(Chiezo の相手だけ)。</param>
+    /// <param name="Backend">Chiezo の相手。ローカルの相手では null(モデル・考える量を選ばせない)。</param>
+    /// <param name="ModelText">ローカルの相手で使われるモデル(設定で決まっている)。</param>
+    /// <param name="Secret">この相手を使うために要るキー。**その場で設定できる相手だけ持つ**
+    /// (Chiezo の相手は鍵をあちらが持っているので null)。</param>
+    /// <param name="Effect">キーが未設定・無効のときどうなるか(外部連携の一覧と同じ文)。</param>
+    record Row(
+        string Id, string Label, bool Selectable, string? Reason, bool CanBeSub,
+        ChiezoBackend? Backend, string ModelText,
+        IntegrationCatalog.EditableSecret? Secret = null, string? Effect = null);
+
+    /// <summary>
+    /// Chiezo ではない相手。**キーが無ければ選べない**(押せてしまうと、保存しても
+    /// 動かない相手を選べることになる)。
+    /// </summary>
+    IEnumerable<Row> LocalRows()
+    {
+        var hasToken = Credentials.Has(LlmGateway.ClaudeCodeTokenName);
+        yield return new Row(
+            AiSettings.ClaudeCodeBackend, "Claude Code(サブスクの枠)", hasToken,
+            hasToken ? null : "トークン未設定", false, null,
+            string.IsNullOrWhiteSpace(ClaudeCode.Value.Model) ? "CLI の既定" : ClaudeCode.Value.Model,
+            SecretOf(LlmGateway.ClaudeCodeTokenName), EffectOf("Claude Code(サブスクの枠)"));
+
+        var hasApiKey = Credentials.Has(LlmGateway.AnthropicApiKeyName);
+        yield return new Row(
+            AiSettings.AnthropicBackend, "Anthropic API(従量課金)", hasApiKey,
+            hasApiKey ? null : "API キー未設定", false, null, Anthropic.Value.Model,
+            SecretOf(LlmGateway.AnthropicApiKeyName), EffectOf("Anthropic API(従量課金)"));
+    }
+
+    /// <summary>モーダルの id。**`local:` のコロンを落とす** —— `popovertarget` は
+    /// id をそのまま参照するので、CSS セレクタで扱いにくい文字を残さない。</summary>
+    static string KeyModalId(Row row) => "key-" + row.Id.Replace(':', '-');
+
+    static IntegrationCatalog.EditableSecret? SecretOf(string secretName) =>
+        IntegrationCatalog.EditableSecrets.FirstOrDefault(s => s.SecretName == secretName);
+
+    /// <summary>
+    /// 未設定・無効のときどうなるかの説明。**外部連携の一覧と同じ文を使う**
+    /// (`IntegrationCatalog`)—— 同じことを2か所に書くと、片方だけ古くなる。
+    /// </summary>
+    string? EffectOf(string integrationName) => Catalog.GetAll()
+        .FirstOrDefault(i => i.Purpose == IntegrationCatalog.LlmPurpose && i.Name == integrationName)
+        ?.Effect;
+
+    /// <summary>キーの保存・削除の結果(モーダルを閉じた後に表の上へ出す)。</summary>
+    async Task SaveKeyAsync(Row row)
+    {
+        if (HttpContext is null || row.Secret is null)
+        {
+            return;
+        }
+
+        var value = HttpContext.Request.Form[$"key-{row.Id}"].ToString();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            _error = $"{row.Secret.Label}: 値が空です。";
+            return;
+        }
+
+        await Credentials.SetAsync(row.Secret.SecretName, value.Trim());
+        _error = null;
+        _message = $"{row.Secret.Label} を保存しました。再起動なしで反映されます。";
+    }
+
+    async Task ClearKeyAsync(Row row)
+    {
+        if (row.Secret is null)
+        {
+            return;
+        }
+
+        await Credentials.RemoveAsync(row.Secret.SecretName);
+        _error = null;
+        // **選択は消さない。** キーを入れ直せば元の相手に戻る(消すと選び直しが要る)——
+        // キーが無いあいだは LlmGateway が従来の優先順に落ちる
+        _message = $"{row.Secret.Label} を削除しました。この相手は選べなくなります。";
+    }
+
+    /// <summary>Chiezo に登録してある相手(鍵はあちらが持っているので、常に選べる)。</summary>
+    IEnumerable<Row> ChiezoRows() =>
+        (_backends ?? []).Select(backend =>
+            new Row(backend.Id, backend.Label, true, null, true, backend, ""));
+
     string RoleOf(string backendId) =>
         _config.Main?.Backend == backendId ? "main"
             : _config.Subs.Any(sub => sub.Backend == backendId) ? "sub"
@@ -199,7 +379,7 @@ else
 
     async Task SaveAsync()
     {
-        if (HttpContext is null || _backends is null)
+        if (HttpContext is null)
         {
             return;
         }
@@ -208,26 +388,35 @@ else
         var mainId = form["main"].ToString();
         var subIds = form["sub"].ToArray();
 
-        var main = _backends.FirstOrDefault(b => b.Id == mainId);
-        if (main is null)
+        // **選べない相手はここでも弾く。** 画面の disabled はブラウザ側の話なので、
+        // 直に POST された値を信じない(キーが無い相手を保存すると、動かない設定が残る)
+        var mainRow = LocalRows().Concat(ChiezoRows())
+            .FirstOrDefault(row => row.Id == mainId && row.Selectable);
+        if (mainRow is null)
         {
-            _error = "メインの AI を選んでください。";
+            _error = "メインの AI を選んでください(キーが未設定の相手は選べません)。";
             return;
         }
 
-        // **メインをサブから外す。** 同じ相手に2回書かせても比べる意味が無い
-        var subs = _backends
-            .Where(b => subIds.Contains(b.Id) && b.Id != main.Id)
+        // **メインをサブから外す。** 同じ相手に2回書かせても比べる意味が無い。
+        // サブは Chiezo の相手だけ(読み比べのための枠)
+        var subs = (_backends ?? [])
+            .Where(b => subIds.Contains(b.Id) && b.Id != mainRow.Id)
             .Take(AiSettings.MaxSubs)
             .Select(ToChoice)
             .ToList();
 
-        _config = new AiConfig(ToChoice(main), subs);
+        var main = mainRow.Backend is { } backend
+            ? ToChoice(backend)
+            // ローカルの相手はモデルも考える量も設定側で決まっているので持たない
+            : new AiChoice(mainRow.Id, mainRow.Label, null, null);
+
+        _config = new AiConfig(main, subs);
         await AiSettings.SaveAsync(Credentials, _config);
         _error = null;
         _message = subs.Count > 0
-            ? $"メインを {main.Label}、サブを {subs.Count} 個 保存しました。再起動なしで反映されます。"
-            : $"メインを {main.Label} に保存しました。再起動なしで反映されます。";
+            ? $"メインを {mainRow.Label}、サブを {subs.Count} 個 保存しました。再起動なしで反映されます。"
+            : $"メインを {mainRow.Label} に保存しました。再起動なしで反映されます。";
 
         AiChoice ToChoice(ChiezoBackend backend) => new(
             backend.Id,

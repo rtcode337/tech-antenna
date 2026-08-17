@@ -15,8 +15,8 @@ namespace TechAntenna.Web.Services;
 ///
 /// **分けてあるのは、1 本だと終わらないから。** 以前は 1 つのジョブで「トレンドを引く →
 /// 溜まったタグを仕分ける」を通していたので、押すたびに<b>その回のトレンドが新しい未知語を
-/// 連れてきて</b>、仕分けまちが尽きなかった。仕分け側がトレンドを引かないので、
-/// **押し続ければ仕分けまちは空になる**(新しい語は収集と話題度の取り直しで増える)。
+/// 連れてきて</b>、仕分け待ちが尽きなかった。仕分け側がトレンドを引かないので、
+/// **押し続ければ仕分け待ちは空になる**(新しい語は収集と話題度の取り直しで増える)。
 ///
 /// **2 つは同じ <see cref="JobRunner"/> の上に置く**(メソッドを 2 つにしただけ)。
 /// 別のクラスにすると直列化の関門も別々になり、同時に走って互いの結果を上書きする ——
@@ -37,7 +37,7 @@ namespace TechAntenna.Web.Services;
 /// 1. タグを作り直す(1 回目) —— 正規化の規則やカタログを変えたときに<b>そこで初めて現れる語</b>を
 ///    保存済みデータへ反映する
 /// 2. 残骸のタグ・トピックを掃除する(いまの正規化では作られないキー)
-/// 3. 仕分けまちのタグを LLM で仕分け(<see cref="ITopicClassifier"/>)
+/// 3. 仕分け待ちのタグを LLM で仕分け(<see cref="ITopicClassifier"/>)
 /// 4. 同義のトピックを寄せる(<see cref="ITopicMergeAdvisor"/>)。
 ///    分類はキーの重複しか見ないので、`AI` と `人工知能` が別々に作られうる
 /// 5. 説明の無いトピックに一言説明を付ける(<see cref="ITopicDescriber"/>)
@@ -96,7 +96,7 @@ public class TopicMaintenanceRunner(
     /// <summary>
     /// 話題度を取り直す(**LLM は使わない**)。外部トレンドを引いて鮮度を更新し、語彙へ反映する。
     ///
-    /// **ここで仕分けまちの語が増える。** トレンドに現れた未知の語がタグとして入るため ——
+    /// **ここで仕分け待ちの語が増える。** トレンドに現れた未知の語がタグとして入るため ——
     /// 増えた語を語彙へ入れるのは <see cref="ReclassifyTagsAsync"/> の仕事。
     /// </summary>
     public Task<TrendRefreshResult> RefreshTrendsAsync(CancellationToken cancellationToken = default) =>
@@ -106,7 +106,7 @@ public class TopicMaintenanceRunner(
     /// <summary>
     /// 溜まったタグを LLM で仕分けて語彙へ入れる(**外部トレンドは引かない**)。
     ///
-    /// **押しても新しい未知語は増えない**ので、仕分けまちは押すぶんだけ減る ——
+    /// **押しても新しい未知語は増えない**ので、仕分け待ちは押すぶんだけ減る ——
     /// 以前はトレンドの取得と同じジョブだったので、押すたびに新しい語が入って終わらなかった。
     /// </summary>
     public Task<TagClassificationResult> ReclassifyTagsAsync(CancellationToken cancellationToken = default) =>

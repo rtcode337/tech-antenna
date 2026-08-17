@@ -42,6 +42,9 @@
     <script src="@Assets["copy-field.js"]" defer></script>
     @* PWA で消えるブラウザの戻る/進むを画面の中に置き直す(スタンドアロン表示のときだけ) *@
     <script src="@Assets["history-nav.js"]" defer></script>
+    @* 上端から引っ張って読み込み直す。iOS のホーム画面起動には標準の引っ張り更新が
+       無いため(スタンドアロン表示のときだけ動き、標準側は CSS で止める) *@
+    <script src="@Assets["pull-refresh.js"]" defer></script>
     @* サービスワーカーの登録(インストールできる PWA にするため)。
        ページもデータもキャッシュせず、通信できないときに offline.html を返すだけ *@
     <script src="@Assets["register-sw.js"]" defer></script>

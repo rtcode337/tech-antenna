@@ -45,13 +45,6 @@
 }
 
 @media (max-width: 640px) {
-    /* カード表示(app.css の `.table.stack`)でも横並びを保つ。
-       **項目名の列を詰めて値の側に幅を渡す** —— 「サブ(サマリーのみ)」は字数が多く、
-       既定の項目名の幅(5.5rem)のままだと折り返して縦に割れる */
-    .table.stack tbody td.ai-role {
-        grid-template-columns: 3.6rem minmax(0, 1fr);
-    }
-
     .ai-role label {
         margin-right: 0.6rem;
     }
@@ -62,4 +55,94 @@
     .wide-only {
         display: none;
     }
+}
+
+/* **選べない相手は字も灰色にする。** ラジオだけ disabled にしても、隣の「メイン」が
+   本文と同じ濃さだと押せるように見える(押しても何も起きないので壊れて見える) */
+.ai-role label:has(input:disabled) {
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+/* **メインに選んだ相手はサブにできない。** 同じ相手に2回書かせても読み比べにならないので、
+   保存時にも外している(`SaveAsync`)—— 押せるのに黙って外されるより、押せないほうが分かる。
+   判定は `:has()` の CSS だけで足りる(JS を増やさない)。効かないブラウザでは
+   これまでどおり押せるが、保存の結果は同じ */
+.ai-role:has(input[name="main"]:checked) label:has(input[name="sub"]) {
+    /* ラベルごと不活性にする(入力だけ止めると、ラベルの字を押して切り替わってしまう) */
+    pointer-events: none;
+    opacity: 0.45;
+}
+
+/* 選べない理由(キー未設定)。相手の名前の下に小さく添える —— 押せないだけだと
+   壊れているように見えるので、理由をその場に出す */
+.reason {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 400;
+}
+
+/* Chiezo ではない相手のモデル。**選べないので入力欄にしない**(設定で決まっている) */
+.fixed-model {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+/* キーを入れるモーダル(HTML 標準の `popover`。説明チップと同じ流儀で、開閉に JS は要らない)。
+   画面の中央に出す —— 行の隣に出すにはアンカー位置指定が要り、対応がまだ狭い */
+.key-modal {
+    max-width: min(32rem, calc(100vw - 2rem));
+    padding: 1rem 1.15rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+}
+
+.key-modal::backdrop {
+    background: rgb(0 0 0 / 0.35);
+}
+
+.key-modal h4 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+}
+
+.key-modal .effect,
+.key-modal .state {
+    margin: 0 0 0.6rem;
+    font-size: 0.84rem;
+    line-height: 1.7;
+}
+
+/* 入力と保存は横に並べる(1つの操作なので)。狭い画面では折り返す */
+.key-modal .key-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.key-modal input {
+    flex: 1 1 12rem;
+    min-width: 0;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: inherit;
+    font-size: 0.9rem;
+}
+
+/* 削除と閉じるは並べる(どちらも保存とは別の操作) */
+.key-modal form:last-of-type {
+    display: inline-block;
+    margin-right: 0.4rem;
+}
+
+/* 行の中のボタン。メインのラジオのすぐ右に置くので、字を小さく詰める */
+.key-open {
+    margin-left: 0.5rem;
 }

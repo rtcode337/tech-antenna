@@ -132,6 +132,68 @@ public class LlmGatewayTests : IDisposable
     }
 
     [Fact]
+    public async Task メインにAnthropicAPIを選べばトークンがあってもそちらを使う()
+    {
+        // **これが選べるようになった理由。** かつては「トークン > API キー」の優先順しか無く、
+        // 両方入れてある環境で Anthropic API を使うにはトークンを消すしかなかった
+        var (gateway, credentials) = Build();
+        await credentials.SetAsync(LlmGateway.ClaudeCodeTokenName, "token");
+        await credentials.SetAsync(LlmGateway.AnthropicApiKeyName, "api-key");
+        await AiSettings.SaveAsync(
+            credentials,
+            new AiConfig(
+                new AiChoice(AiSettings.AnthropicBackend, "Anthropic API(従量課金)", null, null), []));
+
+        Assert.Equal("Anthropic API", gateway.Summarizer!.Name);
+    }
+
+    [Fact]
+    public async Task メインにClaudeCodeを選べばChiezoが設定済みでもそちらを使う()
+    {
+        var (gateway, credentials) = Build(chiezoUrl: "http://chiezo:7010");
+        await credentials.SetAsync(LlmGateway.ClaudeCodeTokenName, "token");
+        await AiSettings.SaveAsync(
+            credentials,
+            new AiConfig(
+                new AiChoice(AiSettings.ClaudeCodeBackend, "Claude Code(サブスクの枠)", null, null), []));
+
+        Assert.Equal("Claude Code", gateway.Summarizer!.Name);
+    }
+
+    [Fact]
+    public async Task 選んだ相手のキーが消えていれば従来の優先順に落ちる()
+    {
+        // 選択は残っているがキーが無い状態(画面で削除した)。**動かない相手のまま止まらない**
+        var (gateway, credentials) = Build();
+        await credentials.SetAsync(LlmGateway.AnthropicApiKeyName, "api-key");
+        await AiSettings.SaveAsync(
+            credentials,
+            new AiConfig(
+                new AiChoice(AiSettings.ClaudeCodeBackend, "Claude Code(サブスクの枠)", null, null), []));
+
+        Assert.Equal("Anthropic API", gateway.Summarizer!.Name);
+    }
+
+    [Fact]
+    public async Task メインがローカルの相手でもChiezoのサブは並ぶ()
+    {
+        // 読み比べはサブの役目なので、メインが Claude Code でも Chiezo のサブは効く
+        var (gateway, credentials) = Build(chiezoUrl: "http://chiezo:7010");
+        await credentials.SetAsync(LlmGateway.ClaudeCodeTokenName, "token");
+        await AiSettings.SaveAsync(
+            credentials,
+            new AiConfig(
+                new AiChoice(AiSettings.ClaudeCodeBackend, "Claude Code(サブスクの枠)", null, null),
+                [new AiChoice("gemini", "Gemini", null, null)]));
+
+        var generators = gateway.DigestGenerators;
+        // ローカルの相手の生成者キーは従来と同じ default(過去のダイジェストと揃える)
+        Assert.Equal(["default", "chiezo:gemini"], generators.Select(g => g.Key));
+        Assert.True(generators[0].IsPrimary);
+        Assert.Equal("Claude Code", generators[0].Name);
+    }
+
+    [Fact]
     public async Task サブのAIはサマリーの生成者にだけ並ぶ()
     {
         // 比べたいのは文章。要約や翻訳まで相手の数だけ走らせない

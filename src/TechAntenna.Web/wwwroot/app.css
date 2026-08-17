@@ -526,6 +526,49 @@ hr {
     text-align: right;
 }
 
+/* ---- 引っ張って更新(PWA) ----
+   `pull-refresh.js` がスタンドアロン表示のときだけ印を足し、`html` に
+   `.pull-refresh-on` を付ける。**標準の引っ張り更新を止めるのはこのときだけ** ——
+   Android の PWA は標準で持っているので、両方生きていると1回の操作で二重に読み込む。
+   JS が動かない環境ではこの class が付かず、標準の側がそのまま残る */
+html.pull-refresh-on,
+html.pull-refresh-on body {
+    overscroll-behavior-y: contain;
+}
+
+/* 引いた距離だけ下りてくる印。**画面の最上部に固定**し、本文の流れには入れない
+   (入れると引いている間だけ本文が押し下がる) */
+.pull-refresh {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    z-index: 60;
+    padding: 0.3rem 0.85rem;
+    border: 1px solid var(--accent-border);
+    border-radius: var(--pill);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+    /* 既定では画面の外(上)に置いて見えないようにする */
+    transform: translate(-50%, -3rem);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease-out;
+}
+
+.pull-refresh.visible {
+    opacity: 1;
+}
+
+/* しきい値を超えた印(離せば更新される状態)。色を反転させて「もう離してよい」を示す */
+.pull-refresh.ready {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--surface);
+}
+
 /* ---- 狭い画面(スマホ)の表 ----
    **横スクロールにはしない。** 表の中に隠れた列があると、画面の外に出たものに
    気づけない(タブの帯で同じ問題を踏んだ)。代わりに 2 通りの手当てをする。
@@ -564,24 +607,38 @@ hr {
         border-bottom: 0;
     }
 
+    /* **項目名は絶対配置で左に置き、セルの中身は普通に流す。**
+       かつては 2 列の grid にしていたが、**セルの子が2つ以上あると grid の別のマスへ
+       割り振られて縦に割れた**(「メイン」と「サブ」が横に並ばない・状態のバッジと
+       ボタンが段違いになる)。中身を流しておけば、横に並ぶものは横に並ぶ。
+
+       **左右に余白を入れる。** カード全体を端から離しつつ、題より項目名のほうを
+       深く下げる —— 全部が同じ位置にそろっていると、どれが題でどれが中身なのかが
+       読み取れない(題の側は下の `padding-left` で浅くする) */
     .table.stack tbody th,
     .table.stack tbody td {
-        display: grid;
-        grid-template-columns: 5.5rem minmax(0, 1fr);
-        gap: 0.5rem;
-        align-items: baseline;
-        /* **左に余白を入れる。** カード全体を左端から離しつつ、題より項目名のほうを
-           深く下げる —— 全部が同じ位置にそろっていると、どれが題でどれが中身なのかが
-           読み取れない(題の側は下の `padding-left` で浅くする) */
-        padding: 0.2rem 0 0.2rem 0.9rem;
+        display: block;
+        position: relative;
+        padding: 0.2rem 0.9rem 0.2rem 0.9rem;
         border-bottom: 0;
+    }
+
+    .table.stack tbody td[data-label] {
+        /* 項目名を置く幅ぶん、中身を右へ寄せる */
+        padding-left: 6.4rem;
+        min-height: 1.5rem;
     }
 
     .table.stack tbody td[data-label]::before {
         content: attr(data-label);
+        position: absolute;
+        top: 0.2rem;
+        left: 0.9rem;
+        width: 5.2rem;
         color: var(--text-muted);
         font-size: 0.78rem;
         font-weight: 700;
+        line-height: 1.5;
     }
 
     /* カードの題(`data-label` を持たないセル。1 列目の名前がここに来る)。
@@ -589,7 +646,6 @@ hr {
        題に見えない。段差そのものが「この下がこの題の中身」を示す */
     .table.stack tbody th,
     .table.stack tbody td:not([data-label]) {
-        display: block;
         margin-bottom: 0.15rem;
         padding-left: 0.35rem;
         font-weight: 700;

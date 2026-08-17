@@ -194,7 +194,7 @@ else
 
     static string StateLabel(Tag tag) => tag.Status switch
     {
-        TagStatus.Pending => "仕分けまち（次の仕分けで LLM に聞きます）",
+        TagStatus.Pending => "仕分け待ち（次の仕分けで LLM に聞きます）",
         TagStatus.Promoted => "トピック（語彙に昇格済み）",
         TagStatus.Alias => "別名",
         TagStatus.NotTopic => "除外（トピックにしない）",

@@ -28,21 +28,21 @@
 <p class="page-note text-muted">
     <strong>新しいタグは収集のときに登録されます。</strong>
     <a href="/settings/general">設定</a>の「トレンドの収集」を実行すると、見つかった語が
-    <strong>仕分けまち</strong>として増えます(イベント・書籍・論文の収集でも同じように増えます)。
+    <strong>仕分け待ち</strong>として増えます(イベント・書籍・論文の収集でも同じように増えます)。
     そのあと<a href="/settings/general">設定</a>の「タグを仕分けなおす」を押すと、LLM が仕分けて
     ツリーへ組み込みます。<strong>そのジョブは外部トレンドを引かないので、押しても
-    仕分けまちは増えません</strong>（押すぶんだけ減ります）。
+    仕分け待ちは増えません</strong>（押すぶんだけ減ります）。
 </p>
 
 <p class="page-note text-muted">
-    <strong>仕分けまちの語は全部が LLM に流れます</strong>（件数での足切りはしません）。
+    <strong>仕分け待ちの語は全部が LLM に流れます</strong>（件数での足切りはしません）。
     誤記や一過性のゴミが並んでいるときは、<strong>チェックボックスで選んで
     「選択した語を除外する」</strong>とまとめて片付けられます —— LLM に聞かせる前に
     落とせるので、枠を使いません。
 </p>
 
 @* 仕分けのボタンは**設定にある**(ジョブのボタンは1か所に集めてある)。
-   この画面は仕分けまちを見てゴミを除外する場所で、押すのは設定 —— 行き先を書いておく *@
+   この画面は仕分け待ちを見てゴミを除外する場所で、押すのは設定 —— 行き先を書いておく *@
 <p class="page-note text-muted">
     仕分けを走らせるのは<a href="/settings/general">設定</a>の「タグを仕分けなおす」です
     (ここで<strong>除外してから押す</strong>と、ゴミを LLM に聞かせずに済みます)。
@@ -51,7 +51,7 @@
 <details class="score-help">
     <summary>状態の意味</summary>
     <ul class="text-muted">
-        <li><strong>仕分けまち</strong> —— まだ LLM に聞いていない語。<strong>ここにある語は全部が
+        <li><strong>仕分け待ち</strong> —— まだ LLM に聞いていない語。<strong>ここにある語は全部が
             次の仕分けの対象</strong>です(件数での足切りはしません。目立つ順に、1 回
             @TopicMaintenanceRunner.MaxTagsPerClassification 語まで)</li>
         <li><strong>トピック</strong> —— 語彙に昇格した語。ツリーに並びます</li>
@@ -122,7 +122,7 @@ else
 {
     <form method="post" @formname="tag-decide" @onsubmit="DecideAsync">
         <AntiforgeryToken />
-        @TagGroup("仕分けまち", TagStatus.Pending)
+        @TagGroup("仕分け待ち", TagStatus.Pending)
         @* **保留は2つに分ける。** 紐づくデータが1件も無い語は自動で聞き直さない
            (ITagStore.GetPendingAsync)ので、同じ見出しに混ぜると「期限が来れば直る」と
            読めてしまう。**判定はストアと同じ「件数が 0 か」** *@
@@ -145,7 +145,7 @@ else
             var tags = _tags!
                 .Where(tag => tag.Status == status && (filter is null || filter(tag)))
                 .ToList();
-            // 既定は「仕分けまちと保留は開く」(押す前に中身を見たい一覧なので)。
+            // 既定は「仕分け待ちと保留は開く」(押す前に中身を見たい一覧なので)。
             // 呼び出し側が defaultOpen で上書きできる
             var open = defaultOpen ?? status is TagStatus.Pending or TagStatus.Unresolved;
         }
@@ -233,7 +233,7 @@ else
         @if (tag.Status != TagStatus.Pending)
         {
             <button type="submit" name="Action" value="@($"reset:{tag.Key}")"
-                    class="btn btn-outline-primary btn-sm">仕分けまちに戻す</button>
+                    class="btn btn-outline-primary btn-sm">仕分け待ちに戻す</button>
         }
     </text>;
 }
@@ -357,7 +357,7 @@ else
                 await TagStore.DecideAsync(
                     [new TagDecision(key, TagStatus.Pending, DecidedBy: DecidedBy.None)], now);
                 await Merger.DemoteAsync(key);
-                _message = $"「{key}」を仕分けまちに戻しました（次の仕分けで LLM に聞きます）。";
+                _message = $"「{key}」を仕分け待ちに戻しました（次の仕分けで LLM に聞きます）。";
                 break;
         }
 
@@ -367,7 +367,7 @@ else
 
     /// <summary>
     /// チェックした語をまとめて除外する。**LLM に聞かせる前にゴミを落とす経路**で、
-    /// 仕分けまちの語が全部 LLM に流れるようになったぶん、ここで間引けるようにしてある。
+    /// 仕分け待ちの語が全部 LLM に流れるようになったぶん、ここで間引けるようにしてある。
     ///
     /// 手直しなので <see cref="DecidedBy.Human"/>(次の仕分けで上書きされない)。
     /// トピックだった語は語彙からも外す —— どのタグにも紐づかない行がツリーに残るため。
