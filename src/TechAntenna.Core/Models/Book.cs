@@ -1,3 +1,5 @@
+using TechAntenna.Core.Abstractions;
+
 namespace TechAntenna.Core.Models;
 
 /// <summary>書籍の書誌情報。</summary>
@@ -43,10 +45,10 @@ public class Book
     public double? ReviewAverage { get; set; }
 
     /// <summary>
-    /// この本を薦めていた記事の URL(出典)。**レビュー数とは別軸の指標**で、
+    /// この本を薦めていた記事(出典。URL と題名)。**レビュー数とは別軸の指標**で、
     /// レビューが「どれだけ読まれたか」なら、こちらは「詳しい人が薦めたか」。
     /// </summary>
-    public IReadOnlyList<string> RecommendedBy { get; set; } = [];
+    public IReadOnlyList<RecommendedArticle> RecommendedBy { get; set; } = [];
 
     /// <summary>何本の記事で薦められたか。<see cref="RecommendedBy"/> から導くので列は持たない。</summary>
     public int RecommendationCount => RecommendedBy.Count;

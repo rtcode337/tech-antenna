@@ -1,3 +1,5 @@
+using TechAntenna.Core.Abstractions;
+
 namespace TechAntenna.Core.Models;
 
 /// <summary>
@@ -41,8 +43,10 @@ public static class BookMerge
         }
 
         // 推薦は積み上がる情報なので和集合。同じ記事を二重に数えないよう URL で重複を落とす
-        var recommendedBy = Union(stored.RecommendedBy, incoming.RecommendedBy);
-        if (recommendedBy.Count != stored.RecommendedBy.Count)
+        var recommendedBy = UnionSources(stored.RecommendedBy, incoming.RecommendedBy);
+        // **件数だけでは足りない。** 題名を後から得た(同じ URL で Title が埋まった)ときは
+        // 件数が変わらないので、中身を見て入れ替える —— でないと画面はいつまでも URL のまま
+        if (!recommendedBy.SequenceEqual(stored.RecommendedBy))
         {
             stored.RecommendedBy = recommendedBy;
             changed = true;
@@ -88,6 +92,34 @@ public static class BookMerge
         stored.Tags = tags;
         stored.RawTags = rawTags;
         return true;
+    }
+
+    /// <summary>
+    /// 出典を積み上げる。**同一性は URL で見て、題名を持っているほうを残す** ——
+    /// 題名は後から埋まることがある(この列より前に集めた分は null で入っている)ので、
+    /// 単純な Distinct だと先に入った題名なしの行が居座る。
+    /// </summary>
+    static IReadOnlyList<RecommendedArticle> UnionSources(
+        IReadOnlyList<RecommendedArticle> stored, IReadOnlyList<RecommendedArticle> incoming)
+    {
+        var byUrl = new Dictionary<string, RecommendedArticle>(StringComparer.Ordinal);
+        var order = new List<string>();
+        foreach (var article in stored.Concat(incoming))
+        {
+            if (!byUrl.TryGetValue(article.Url, out var kept))
+            {
+                byUrl[article.Url] = article;
+                order.Add(article.Url);
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(kept.Title) && !string.IsNullOrWhiteSpace(article.Title))
+            {
+                byUrl[article.Url] = article;
+            }
+        }
+
+        return order.Select(url => byUrl[url]).ToList();
     }
 
     static IReadOnlyList<string> Union(IReadOnlyList<string> stored, IReadOnlyList<string> incoming) =>

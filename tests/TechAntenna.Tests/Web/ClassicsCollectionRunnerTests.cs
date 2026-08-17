@@ -20,7 +20,8 @@ public class ClassicsCollectionRunnerTests
         public Task<IReadOnlyList<BookRecommendation>> FetchAsync(
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<BookRecommendation>>(isbns
-                .Select(isbn => new BookRecommendation(isbn, ["https://example.com/article"]))
+                .Select(isbn => new BookRecommendation(
+                    isbn, [new RecommendedArticle("https://example.com/article", "読むべき技術書")]))
                 .ToList());
     }
 

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Models;
 using TechAntenna.Core.Topics;
 
@@ -132,8 +133,21 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
 
             ConfigureTags(book.Property(b => b.Tags));
             ConfigureTags(book.Property(b => b.RawTags));
-            // 出典記事の URL。タグと同じ text[] なので同じ変換を使い回す
-            ConfigureTags(book.Property(b => b.RecommendedBy));
+            // 出典記事は URL と題名の組なので JSON 1 列で持つ(ダイジェストの項目と同じ流儀)。
+            // **かつては URL だけの text[]** だったが、画面が番号ではなく題名を出すようになり、
+            // 2 つの値を1件として持つ必要が出た。出典単体で検索・集計する予定は無く、
+            // 常に本を丸ごと読み書きするので、行に正規化してもテーブルが増えるだけ
+            book.Property(b => b.RecommendedBy)
+                .HasConversion(
+                    value => JsonSerializer.Serialize(value, (JsonSerializerOptions?)null),
+                    value => JsonSerializer.Deserialize<List<RecommendedArticle>>(
+                        value, (JsonSerializerOptions?)null) ?? new List<RecommendedArticle>(),
+                    new ValueComparer<IReadOnlyList<RecommendedArticle>>(
+                        (a, b) => a != null && b != null && a.SequenceEqual(b),
+                        v => v.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
+                        v => v.ToList()))
+                .HasColumnType("jsonb")
+                .IsRequired();
         });
 
         modelBuilder.Entity<Tag>(tag =>

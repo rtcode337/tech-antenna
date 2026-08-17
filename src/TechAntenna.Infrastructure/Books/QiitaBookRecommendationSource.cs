@@ -68,8 +68,9 @@ public partial class QiitaBookRecommendationSource(
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         }
 
-        // 記事の URL → 本文。クエリをまたいで同じ記事を1度だけ数えるための入れ物
-        var articles = new Dictionary<string, string>(StringComparer.Ordinal);
+        // 記事の URL → (本文, 題名)。クエリをまたいで同じ記事を1度だけ数えるための入れ物。
+        // **題名は応答に既に入っている**ので、持ち回るのに追加のリクエストは要らない
+        var articles = new Dictionary<string, (string Body, string? Title)>(StringComparer.Ordinal);
         var firstRequest = true;
 
         foreach (var query in effectiveQueries)
@@ -100,23 +101,23 @@ public partial class QiitaBookRecommendationSource(
             }
         }
 
-        // ISBN ごとに、それを薦めていた記事の URL を集める(記事1本 = 1票)
-        var byIsbn = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var (url, body) in articles)
+        // ISBN ごとに、それを薦めていた記事(URL と題名)を集める(記事1本 = 1票)
+        var byIsbn = new Dictionary<string, List<RecommendedArticle>>(StringComparer.Ordinal);
+        foreach (var (url, article) in articles)
         {
             // 同じ記事で同じ本が何度出てきても1票(Distinct)
-            foreach (var isbn in AmazonLink().Matches(body)
+            foreach (var isbn in AmazonLink().Matches(article.Body)
                 .Select(match => Isbn.FromAsin(match.Groups[1].Value))
                 .OfType<string>()
                 .Distinct(StringComparer.Ordinal))
             {
-                if (!byIsbn.TryGetValue(isbn, out var urls))
+                if (!byIsbn.TryGetValue(isbn, out var sources))
                 {
-                    urls = [];
-                    byIsbn[isbn] = urls;
+                    sources = [];
+                    byIsbn[isbn] = sources;
                 }
 
-                urls.Add(url);
+                sources.Add(new RecommendedArticle(url, article.Title));
             }
         }
 
@@ -126,7 +127,7 @@ public partial class QiitaBookRecommendationSource(
     }
 
     /// <summary>1ページ分の記事を取り込み、そのページに載っていた記事数を返す(重複込み)。</summary>
-    static int CollectArticles(string json, Dictionary<string, string> articles)
+    static int CollectArticles(string json, Dictionary<string, (string Body, string? Title)> articles)
     {
         var count = 0;
 
@@ -137,13 +138,15 @@ public partial class QiitaBookRecommendationSource(
 
             var body = GetString(item, "body");
             var url = GetString(item, "url");
+            // 題名は画面に出す(押す前にどこで薦められているか分かるように)。取れなければ null のまま
+            var title = GetString(item, "title");
             // 出典記事の URL は /books の href に出るため、http/https 以外は取り込まない
             if (body is null || url is null || !WebUrl.TryCreate(url, out _))
             {
                 continue;
             }
 
-            articles.TryAdd(url, body);
+            articles.TryAdd(url, (body, string.IsNullOrWhiteSpace(title) ? null : title));
         }
 
         return count;

@@ -34,11 +34,11 @@ public class QiitaBookRecommendationSourceTests
         var recommendations = await source.FetchAsync();
 
         var readable = recommendations.Single(r => r.Isbn13 == "9784873115658");
-        Assert.Equal(2, readable.ArticleUrls.Count);
+        Assert.Equal(2, readable.Articles.Count);
         // 同じ記事の中で同じ本が何度出てきても1票
         Assert.Equal(
             ["https://qiita.com/someone/items/aaaa", "https://qiita.com/another/items/bbbb"],
-            readable.ArticleUrls);
+            readable.Articles.Select(article => article.Url));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class QiitaBookRecommendationSourceTests
 
         Assert.Equal(2, factory.RequestedUris.Count);
         var readable = recommendations.Single(r => r.Isbn13 == "9784873115658");
-        Assert.Equal(2, readable.ArticleUrls.Count);
+        Assert.Equal(2, readable.Articles.Count);
     }
 
     [Fact]

@@ -47,26 +47,59 @@ small {
     line-height: 1.6;
 }
 
-/* 記事で薦められた回数。レビューとは別軸なので色を分ける */
-/* 記事で薦められた回数と、その出典へのリンク(番号)。**回数自体はリンクではない** ——
-   出典は複数あるので、押した先が1つに決まらない */
+/* 記事で薦められた回数。レビューとは別軸なので色を分ける。
+   **「推薦 N 件」自体が開閉のつまみ**(details/summary)で、中に出典の記事が並ぶ */
 .recommended {
+    display: inline-block;
     color: var(--accent);
     font-weight: 650;
+    vertical-align: top;
+}
+
+/* つまみ。標準マーカーは消して、開閉の三角は自前で描く(他の折りたたみと同じ流儀) */
+.recommended > summary {
+    /* 押せる幅を字の周りに取る(スマホの指で押す) */
+    padding: 0.1rem 0;
     white-space: nowrap;
+    cursor: pointer;
+    list-style: none;
 }
 
-/* 出典の番号。小さくても押せるよう、字の周りに余白を取る(スマホの指で押す) */
-.recommended a {
-    display: inline-block;
-    min-width: 1.2rem;
-    padding: 0 0.15rem;
+.recommended > summary::-webkit-details-marker {
+    display: none;
+}
+
+.recommended > summary::after {
+    content: " ▶";
+    font-size: 0.7em;
+}
+
+.recommended[open] > summary::after {
+    content: " ▼";
+}
+
+/* 出典の記事。**題名を出す**ので1件1行(横に並べると題名が読めない)。
+   一覧の中の入れ子なので、字は本文より小さく・行間は詰めない(指で押す対象) */
+.recommended-sources {
+    margin: 0.2rem 0 0.35rem;
+    padding: 0;
+    font-weight: 400;
+    white-space: normal;
+}
+
+.recommended-sources li {
+    margin-bottom: 0.2rem;
+    line-height: 1.5;
+}
+
+.recommended-sources a {
     color: var(--accent);
-    text-align: center;
     text-decoration: none;
+    /* 長い題名・URL でも折り返して収まるようにする(スマホの幅で溢れさせない) */
+    overflow-wrap: anywhere;
 }
 
-.recommended a:hover {
+.recommended-sources a:hover {
     text-decoration: underline;
 }
 

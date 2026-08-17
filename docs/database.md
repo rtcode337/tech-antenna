@@ -62,7 +62,7 @@ erDiagram
         text CoverUrl
         double ReviewAverage "楽天。レビュー無しは null"
         integer ReviewCount "null=未取得 / 0=レビューなし"
-        text_array RecommendedBy "推薦元の記事 URL"
+        jsonb RecommendedBy "推薦元の記事(URL と題名)"
         text_array Tags
         text_array RawTags
         text SourceName
@@ -172,9 +172,15 @@ erDiagram
   プロパティ全部に掛かる)—— Npgsql は `timestamptz` に時差 0 以外の `DateTimeOffset` を
   書けず、収集元は `+09:00` のまま返してくるので、収集元ごとに直して回ると
   書き忘れた1つが「その収集元だけ保存されない」になる
-- **`Tags` / `RawTags` / `Authors` / `RecommendedBy` は `text[]`**。C# の
+- **`Tags` / `RawTags` / `Authors` は `text[]`**。C# の
   `IReadOnlyList<string>` と値変換でつないでいる。**この変換のせいで LINQ から翻訳できず、
   タグごとの件数集計だけ生 SQL**(PostgreSQL の `unnest`)で書いてある
+- **`Books.RecommendedBy` は `jsonb`**(`Digests.Items` と同じ流儀)。URL と題名の 2 値を
+  1 件として持つため、`text[]` から移した(`ChangeBookRecommendedByToArticles`)。
+  **移行では既存の URL を `{"Url": …, "Title": null}` へ写す** —— 800 冊規模で溜まっており、
+  捨てると次の「定番の収集」まで画面から推薦が消える。`ALTER ... USING` にサブクエリは
+  書けない(PostgreSQL)ので、`to_jsonb` で写してから `UPDATE` で組み替える 2 段にしてある。
+  出典単体で検索・集計する予定は無く、常に本を丸ごと読み書きするので行に正規化していない
 - **`Tags` は正規化済み、`RawTags` は収集元のまま。** 規則を変えたときに過去データを作り直せる
   ように両方持つ(`RawTags` から `Tags` を再生成する)
 - **列挙は数値ではなく名前で保存**(`Articles.Kind`・`Tags.Status`・`Tags.DecidedBy`)。

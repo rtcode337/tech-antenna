@@ -70,7 +70,7 @@ public class ClassicsCollectionRunner(
                         CoverUrl = knownCovers.GetValueOrDefault(recommendation.Isbn13),
                         SourceName = source.Name,
                         CollectedAt = collectedAt,
-                        RecommendedBy = recommendation.ArticleUrls,
+                        RecommendedBy = recommendation.Articles,
                     })
                     .ToList();
 

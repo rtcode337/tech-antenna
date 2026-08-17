@@ -37,18 +37,25 @@
             @if (Book.RecommendationCount > 0)
             {
                 @* レビュー(読まれた量)とは別軸なので、並べて別々に出す。
-                   **出典は全部たどれるようにする** —— 1 本目だけをリンクにしていた頃は、
-                   「3 件」と数だけ見えて残り 2 本へ行けなかった(どこで薦められているかは
-                   本を選ぶ材料そのもの)。記事の題名は保存していない(複製にしないため)ので、
-                   番号で並べる *@
-                <span class="recommended ms-1">
-                    推薦 @Book.RecommendationCount 件
-                    @for (var i = 0; i < Book.RecommendedBy.Count; i++)
-                    {
-                        <a href="@Book.RecommendedBy[i]" target="_blank" rel="noopener"
-                           title="この本を薦めている記事 @(i + 1)">@(i + 1)</a>
-                    }
-                </span>
+                   **出典は「推薦 N 件」を押して開く折りたたみにする** —— 番号(1・2・3)を
+                   並べていた頃は、押す前にどこで薦められているのか分からなかった
+                   (どこで薦められたかは本を選ぶ材料そのもの)。畳んでおくのは、1 冊に
+                   何本も出典が付くと一覧が出典で埋まるため。JS は使わない *@
+                <details class="recommended ms-1">
+                    <summary>推薦 @Book.RecommendationCount 件</summary>
+                    <ul class="recommended-sources list-unstyled">
+                        @foreach (var article in Book.RecommendedBy)
+                        {
+                            <li>
+                                <a href="@article.Url" target="_blank" rel="noopener">
+                                    @* 題名はこの列より前に集めた分には無い。**URL で代替する** ——
+                                       押せない行にはしない(次の収集で題名が入る) *@
+                                    @(string.IsNullOrWhiteSpace(article.Title) ? article.Url : article.Title)
+                                </a>
+                            </li>
+                        }
+                    </ul>
+                </details>
             }
             @if (Book.ReviewCount is { } reviewCount and > 0)
             {
