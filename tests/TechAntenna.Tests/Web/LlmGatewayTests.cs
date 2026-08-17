@@ -3,25 +3,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using TechAntenna.Infrastructure.Storage;
 using TechAntenna.Web;
+using TechAntenna.Tests.Infrastructure;
 using TechAntenna.Web.Services;
 
 namespace TechAntenna.Tests.Web;
 
 public class LlmGatewayTests : IDisposable
 {
-    // ブリッジと共有する設定 DB の書き出し先。テストの成果物ディレクトリを汚さないよう
-    // 一時ディレクトリに逃がす(トークンを設定すると実際に書かれる)
-    readonly string _stateDirectory = Path.Combine(
-        Path.GetTempPath(), "tech-antenna-gateway-" + Guid.NewGuid().ToString("N"));
-
-    public void Dispose()
-    {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        if (Directory.Exists(_stateDirectory))
-        {
-            Directory.Delete(_stateDirectory, recursive: true);
-        }
-    }
+    public void Dispose() => Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
 
     (LlmGateway Gateway, ApiCredentials Credentials) Build(string chiezoUrl = "")
     {
@@ -31,8 +20,9 @@ public class LlmGatewayTests : IDisposable
             NullLogger<ApiCredentials>.Instance);
         var gateway = new LlmGateway(
             credentials,
-            new UnusedHttpClientFactory(),
-            Options.Create(new ClaudeCodeOptions { StateDirectory = _stateDirectory }),
+            // CLI は起動しない(方式の選び方だけを見るテストなので、呼ばれない実行器を渡す)
+            StubProcessRunner.Returning(""),
+            Options.Create(new ClaudeCodeOptions()),
             Options.Create(new AnthropicOptions()),
             new ChiezoAi(
                 new UnusedHttpClientFactory(),
@@ -62,18 +52,6 @@ public class LlmGatewayTests : IDisposable
         Assert.True(gateway.IsConfigured);
         // トークンがあるときは Anthropic API より優先(サブスクの枠を使う)
         Assert.Equal("Claude Code", gateway.Summarizer!.Name);
-    }
-
-    [Fact]
-    public async Task ClaudeCodeのトークンはブリッジが読む設定DBへ書き出す()
-    {
-        // CLI は別コンテナ(ブリッジ)で動くので、このプロセスの環境変数では渡せない
-        var (gateway, credentials) = Build();
-        await credentials.SetAsync(LlmGateway.ClaudeCodeTokenName, "token");
-
-        _ = gateway.Summarizer;
-
-        Assert.True(File.Exists(Path.Combine(_stateDirectory, "settings.db")));
     }
 
     [Fact]

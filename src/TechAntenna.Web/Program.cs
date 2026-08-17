@@ -417,7 +417,7 @@ builder.Services.AddSingleton<IntegrationCatalog>();
 // --- LLM 要約 ---
 // 方式は2つあり、Claude Code(サブスクリプションの枠)を優先する。両方未設定なら要約しない。
 //  1. Claude Code: OAuth トークンがあるとき。従量課金にならない。CLI はこのイメージに
-//     入っておらず、別コンテナの CLI ブリッジ(chiezo-bridge)へ HTTP で頼む
+//     **イメージに同梱**してあり、プロセスとして起動する(ClaudeCodeCliBridge)
 //  2. Anthropic API: API キーがあるとき。呼び出しの固定費が小さい
 // キーはどちらも画面(外部連携)から設定する
 // **どちらを使うかは起動時ではなく実行のたびに LlmGateway が決める** —— キーは画面
@@ -434,9 +434,18 @@ builder.Services.Configure<ChiezoOptions>(
     builder.Configuration.GetSection(ChiezoOptions.SectionName));
 builder.Services.AddHttpClient(ChiezoAiClient.HttpClientName);
 builder.Services.AddSingleton<ChiezoAi>();
-// ブリッジへの1回の待ちは呼び出しごとに決める(CliBridgeClient が上限秒数を設定する)ので、
-// ここでは名前を登録するだけ
-builder.Services.AddHttpClient(CliBridgeClient.HttpClientName);
+// Claude Code の CLI は**このイメージに同梱**してあり、プロセスとして起動する
+// (かつては別コンテナのブリッジへ HTTP で頼んでいた)。**トークンは子プロセスの環境変数**で
+// 渡す —— このプロセス自身の環境変数は変えない(他の子プロセスへ漏らさないため)。
+// 起動のたびに評価するので、画面で入れ替えた値がそのまま次の呼び出しに効く
+builder.Services.AddSingleton<IProcessRunner>(provider =>
+{
+    var credentials = provider.GetRequiredService<ApiCredentials>();
+    return new SystemProcessRunner(() =>
+        credentials.Get(LlmGateway.ClaudeCodeTokenName) is { } token
+            ? new Dictionary<string, string> { [LlmGateway.ClaudeCodeTokenName] = token }
+            : null);
+});
 
 builder.Services.AddSingleton<LlmGateway>();
 

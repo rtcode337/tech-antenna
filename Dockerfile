@@ -23,15 +23,29 @@ RUN dotnet publish src/TechAntenna.Web/TechAntenna.Web.csproj \
       -a "$(echo "$TARGETARCH" | sed 's/amd64/x64/')" \
       -o /app/publish
 
-# Data Protection の鍵置き場と、CLI ブリッジと共有する設定の置き場、非 root ユーザーの
-# ホーム。実行ステージで RUN を使わずに済むよう(RUN があると arm64 向けビルドに
-# エミュレーションが必要になる)、空ディレクトリだけここで作って COPY する
+# Data Protection の鍵置き場と非 root ユーザーのホーム。実行ステージで RUN を使わずに済むよう
+# (RUN があると arm64 向けビルドにエミュレーションが必要になる)、空ディレクトリだけここで
+# 作って COPY する
+RUN mkdir -p /app/keys /home/app
+
+# Claude Code の CLI を取り出すステージ。npm の配布物には**プラットフォームごとの
+# ネイティブな単一実行ファイル**が入っており、それ単体で動く(node は要らない)ので
+# 1 ファイルだけ抜き出す —— 配布物ぜんぶ(600MB 超。glibc/musl 両方 + ラッパー)を
+# 積むと最終イメージが倍近くなる。
 #
-# **Claude Code の CLI はこのイメージに入れない。** 要約をサブスクリプションの枠で回すときは
-# 別コンテナの CLI ブリッジ(chiezo-bridge)へ HTTP で頼み、トークンは /app/state 経由で渡す
-# (docker-compose.yml の bridge サービス)。CLI の実体は 100MB 超あり、版を上げるたびに
-# このイメージを焼き直すことになるため、更新はブリッジのコンテナ側に任せる
-RUN mkdir -p /app/keys /app/state /home/app
+# **このステージはターゲットのアーキで走る**(npm が実行中のプラットフォームで
+# ネイティブ版を選ぶため)。中身は取得と展開だけで、ネイティブのビルドは無い。
+#
+# バージョンは固定する —— latest だと同じイメージタグでも中身が変わり、
+# 「昨日まで動いていた要約が落ちる」を再現できなくなる。上げるときはここを変える。
+FROM node:22-slim AS claude-cli
+ARG CLAUDE_CODE_VERSION=2.1.233
+RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+    # glibc 版を選ぶ(Debian ベースの実行イメージに載せるため。musl 版は使わない)
+    && src="$(ls -d /usr/local/lib/node_modules/@anthropic-ai/claude-code/node_modules/@anthropic-ai/claude-code-linux-*/ \
+              | grep -v -- '-musl' | head -1)" \
+    && test -x "${src}claude" \
+    && mkdir -p /out && cp "${src}claude" /out/claude
 
 # 実行用。ソースもビルドツールも含めず publish の成果物だけを載せる。
 # Alpine ではなく Debian ベースを使うのは ICU(日本語の日付・文字列の書式)を含むため
@@ -39,14 +53,24 @@ RUN mkdir -p /app/keys /app/state /home/app
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 ENV ASPNETCORE_ENVIRONMENT=Production
+
+# **Claude Code の CLI を同梱する。** 要約・翻訳・タグの仕分け・今日のサマリーを
+# サブスクリプションの枠で回す経路で、アプリがプロセスとして起動する
+# (`ClaudeCodeCliBridge`。トークンは画面から設定し、子プロセスの環境変数で渡す)。
+#
+# かつては別コンテナの CLI ブリッジ(chiezo-bridge)へ HTTP で頼み、CLI をこのイメージから
+# 外していた —— 実体が大きくイメージが倍近くなるためだったが、公開リポジトリに
+# なって容量を気にする理由が薄れた。**同梱のほうが、試す人が別コンテナを立てずに済む。**
+#
+# 入れるのは**ネイティブの単一実行ファイル1つだけ**(node も npm も要らない)。
+# 実行ステージに RUN を置かずに済むので、arm64 向けビルドのエミュレーションも増えない
+COPY --from=claude-cli /out/claude /usr/local/bin/claude
+
 # antiforgery と Blazor が使う Data Protection の鍵の保存先(Program.cs が読む)。
 # コンテナを作り直しても鍵が消えないよう docker-compose.yml でボリュームをマウントする
 ENV DataProtection__KeysDirectory=/app/keys
 COPY --from=build /app/publish ./
 COPY --from=build --chown=$APP_UID:$APP_UID /app/keys ./keys
-# CLI ブリッジと共有するディレクトリ(設定 DB を書き、ブリッジが読み取り専用で読む)。
-# compose ではホストのディレクトリをマウントするので、ここで作るのは単体で動かしたときの受け皿
-COPY --from=build --chown=$APP_UID:$APP_UID /app/state ./state
 # .NET が書き込み先にホームを使うことがある(証明書ストアなど)。非 root で動かすので用意しておく
 COPY --from=build --chown=$APP_UID:$APP_UID /home/app /home/app
 ENV HOME=/home/app

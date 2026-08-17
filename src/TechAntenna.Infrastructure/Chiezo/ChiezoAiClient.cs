@@ -30,7 +30,7 @@ public record ChiezoCompletion(string Content, string? Model);
 ///
 /// **鍵を持たずに複数の AI を使えるようにするための経路。** Gemini・Claude Code・
 /// 推論サーバ…といった相手の認証情報は Chiezo が握っていて、こちらは
-/// 「どの相手に投げるか」を指定するだけでよい(サイドカーの CLI ブリッジは
+/// 「どの相手に投げるか」を指定するだけでよい(同梱の CLI は
 /// Claude Code 1 つしか包めない)。
 ///
 /// **`/v1/chat` ではなく `/v1/ai/complete` を使う。** あちらは知識ベースを引いて答える口で、

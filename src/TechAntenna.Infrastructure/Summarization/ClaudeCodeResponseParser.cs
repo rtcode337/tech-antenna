@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace TechAntenna.Infrastructure.Summarization;
 
 /// <summary>
-/// CLI ブリッジの応答(テキスト)から結果を取り出す。
+/// LLM の応答(テキスト)から結果を取り出す。
 /// 要約とタイトル翻訳は同じ形(番号 + 文字列の配列)を使うので、
 /// 配列と値のプロパティ名だけを差し替えられるようにしてある。
 ///

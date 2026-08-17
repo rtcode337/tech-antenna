@@ -22,7 +22,7 @@ public class StubLlmGateway(
     IReadOnlyList<DigestGenerator>? digestGenerators = null)
     : LlmGateway(
         EmptyCredentials(),
-        new UnusedHttpClientFactory(),
+        TechAntenna.Tests.Infrastructure.StubProcessRunner.Returning(""),
         Options.Create(new ClaudeCodeOptions()),
         Options.Create(new AnthropicOptions()),
         new ChiezoAi(new UnusedHttpClientFactory(), Options.Create(new ChiezoOptions())),

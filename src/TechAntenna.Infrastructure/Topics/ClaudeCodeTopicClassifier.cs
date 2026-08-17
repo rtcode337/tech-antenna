@@ -5,7 +5,7 @@ using TechAntenna.Infrastructure.Summarization;
 namespace TechAntenna.Infrastructure.Topics;
 
 /// <summary>
-/// Claude Code(CLI ブリッジ経由)で未知タグを分類する。
+/// Claude Code(同梱の CLI をプロセス起動)で未知タグを分類する。
 /// 呼び出し1回の固定費が大きいのでまとめて渡すが、**1回に詰めすぎない** ——
 /// 200 語を1回で渡したら応答(全語ぶんの構造化 JSON)の生成が長くなり、
 /// 300 秒のタイムアウトで丸ごと失敗した(実測)。バッチに分ければ、

@@ -4,7 +4,7 @@ using TechAntenna.Core.Abstractions;
 namespace TechAntenna.Infrastructure.Summarization;
 
 /// <summary>
-/// CLI ブリッジを1回呼んで、番号付きの結果を受け取る。要約・翻訳・分類・ダイジェストで共有する。
+/// <see cref="ICliBridge"/> を1回呼んで、番号付きの結果を受け取る。要約・翻訳・分類・ダイジェストで共有する。
 ///
 /// **ここに集めてあるのは、踏まないと分からない作法**:
 /// - **スキーマはプロンプトで指示する**。CLI を直接起動していた頃は `--json-schema` で

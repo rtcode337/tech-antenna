@@ -29,14 +29,15 @@ namespace TechAntenna.Web.Services;
 /// キーが変わらない限り同じインスタンスを返し続ける(Anthropic のクライアントや
 /// ブリッジのクライアントを呼び出しごとに作り直さない)。
 ///
-/// **Claude Code のトークンは、組み立てのときに共有ディレクトリへ書き出す**
-/// (<see cref="BridgeCredentialStore"/>)。CLI を動かすのは別コンテナ(chiezo-bridge)で、
-/// そこはこのアプリのプロセスの環境変数を見られないため。版数が変わったときだけ書くので、
-/// 画面で入れ替えた直後に反映され、ブリッジの再起動も要らない。
+/// **Claude Code の CLI はこのイメージに同梱**してあり、プロセスとして起動する
+/// (<see cref="ClaudeCodeCliBridge"/>)。画面で入れたトークンは<b>子プロセスの環境変数</b>
+/// として渡す(<c>SystemProcessRunner</c> の環境提供。このプロセス自身の環境変数は変えない)。
+/// かつては別コンテナのブリッジへ HTTP で頼み、認証情報を共有ディレクトリの設定 DB 経由で
+/// 渡していたが、公開リポジトリになってイメージの容量を気にする理由が薄れたので同梱へ戻した。
 /// </summary>
 public class LlmGateway(
     ApiCredentials credentials,
-    IHttpClientFactory httpClientFactory,
+    IProcessRunner processRunner,
     IOptions<ClaudeCodeOptions> claudeCodeOptions,
     IOptions<AnthropicOptions> anthropicOptions,
     ChiezoAi chiezo,
@@ -122,9 +123,6 @@ public class LlmGateway(
         var config = AiSettings.Load(credentials);
         var claudeCode = claudeCodeOptions.Value;
         var token = credentials.Get(ClaudeCodeTokenName);
-        // **トークンを消したときも書く。** 書かないと、共有ディレクトリに残った古い
-        // トークンでブリッジが動き続ける(Anthropic API へ切り替えたつもりで切り替わらない)
-        WriteBridgeCredential(claudeCode.StateDirectory, token);
         var apiKey = credentials.Get(AnthropicApiKeyName);
         var client = chiezo.Client();
 
@@ -132,7 +130,7 @@ public class LlmGateway(
         switch (config.Main)
         {
             case { } main when main.Backend == AiSettings.ClaudeCodeBackend && token is not null:
-                return FromBridge(version, NewCliBridge(token, claudeCode), main.Key, config, client);
+                return FromBridge(version, NewCliBridge(claudeCode), main.Key, config, client);
 
             case { } main when main.Backend == AiSettings.AnthropicBackend && apiKey is not null:
                 return FromAnthropic(version, apiKey, main.Key, config, client);
@@ -146,7 +144,7 @@ public class LlmGateway(
         if (token is not null)
         {
             return FromBridge(
-                version, NewCliBridge(token, claudeCode), DefaultGeneratorKey, config, client);
+                version, NewCliBridge(claudeCode), DefaultGeneratorKey, config, client);
         }
 
         if (apiKey is not null)
@@ -157,15 +155,16 @@ public class LlmGateway(
         return new Built(version, null, null, null, null, null, null, []);
     }
 
-    CliBridgeClient NewCliBridge(string token, ClaudeCodeOptions options) =>
-        // トークンはブリッジが設定 DB から読む(このクライアントは URL とモデルだけ知っている)
-        new(httpClientFactory,
-            options.BridgeUrl,
+    ClaudeCodeCliBridge NewCliBridge(ClaudeCodeOptions options) =>
+        // トークンは子プロセスの環境変数として渡る(IProcessRunner の登録。Program.cs)ので、
+        // ここが知っているのは実行ファイル・モデル・上限秒数だけ
+        new(processRunner,
+            options.ExecutablePath,
             string.IsNullOrWhiteSpace(options.Model) ? null : options.Model,
             TimeSpan.FromSeconds(options.TimeoutSeconds));
 
     /// <summary>
-    /// ブリッジ越しの実装(Claude Code の CLI ブリッジと Chiezo は**同じ口**なので、
+    /// <see cref="ICliBridge"/> 越しの実装(同梱の CLI と Chiezo は**同じ口**なので、
     /// <c>ICliBridge</c> の実装を差し替えるだけで同じ組み立てが使える)。
     /// </summary>
     Built FromBridge(
@@ -235,33 +234,5 @@ public class LlmGateway(
         }
 
         return generators;
-    }
-
-    /// <summary>
-    /// ブリッジが読む設定 DB を書き直す。**書けなくてもここでは止めない** ——
-    /// 止めるとキーの保存そのものが失敗したように見えるうえ、前回書けていれば
-    /// ブリッジは動く。実際に効いていないときは、ジョブの実行がブリッジの
-    /// 401(認証情報が未登録)で失敗するので、そちらに理由が出る。
-    /// </summary>
-    void WriteBridgeCredential(string stateDirectory, string? token)
-    {
-        // **一度も使っていない環境には作らない。** Anthropic API だけで運用しているなら
-        // 共有ディレクトリごと不要なので、消すものが無いとき(トークンも設定 DB も無い)は触らない
-        if (token is null && !File.Exists(BridgeCredentialStore.PathIn(stateDirectory)))
-        {
-            return;
-        }
-
-        try
-        {
-            BridgeCredentialStore.Write(stateDirectory, token, timeProvider.GetUtcNow());
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex,
-                "CLI ブリッジと共有する設定 DB({Path})を書けません。"
-                + "ブリッジは古いトークンのまま動きます",
-                BridgeCredentialStore.PathIn(stateDirectory));
-        }
     }
 }

@@ -4,7 +4,7 @@ using TechAntenna.Core.Models;
 namespace TechAntenna.Infrastructure.Summarization;
 
 /// <summary>
-/// Claude Code(CLI ブリッジ経由)でタイトルを訳す。
+/// Claude Code(同梱の CLI をプロセス起動)でタイトルを訳す。
 /// 要約と同じくサブスクリプションの枠で動き、呼び出しの作法は <see cref="ClaudeCodeBatch"/> に集約。
 ///
 /// **タイトルは1件あたりの入力が極端に小さい**ので、要約以上にまとめて渡す価値がある

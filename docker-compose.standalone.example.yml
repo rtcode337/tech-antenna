@@ -45,8 +45,6 @@ x-image: &image "ghcr.io/rtcode337/tech-antenna:latest"
 # postgres 側は中身の所有者をエントリポイントが揃えるので、ホスト側の準備は要らない
 x-postgres-dir: &postgres-dir "/path/to/tech-antenna/data/postgres"
 x-keys-dir: &keys-dir "/path/to/tech-antenna/data/keys"
-# CLI ブリッジと共有する設定の置き場(app が書き、bridge が読み取り専用で読む)
-x-state-dir: &state-dir "/path/to/tech-antenna/data/state"
 
 # ---- ここだけ編集: 公開ポート ----
 # host:container。コンテナ内は 7020 固定なので、変えるのは左だけ。
@@ -66,13 +64,12 @@ x-app-env: &app-env
   # **外部 API のキーはここでは渡せない**(画面の「設定 → 外部連携」から入れる。
   # 暗号化して DB に保存され、再起動なしで効く)。渡すのはキー以外の設定だけ
 
-  # Claude Code の CLI は bridge サービスが持つ(このイメージには入っていない)。
+  # Claude Code の CLI はこのイメージに同梱してある(アプリがプロセスとして起動する)。
   # ホストへは公開していないので、サービス名で内部ネットワーク越しに呼ぶ
-  ClaudeCode__BridgeUrl: "http://bridge:7013/v1"
 
   # ---- ここだけ編集(任意): Chiezo(LAN 内の知識サーバー)の URL ----
   # 入れると LLM の相手を画面から選べる(設定 → AI)。鍵は Chiezo が持っている。
-  # 使わないなら空文字("")にする —— 従来どおり bridge / Anthropic API で動く。
+  # 使わないなら空文字("")にする —— 同梱の Claude Code CLI / Anthropic API で動く。
   #
   # 書くのは chiezo-api の**ルート URL**。**`/v1` は付けない**
   # (こちらが `/v1/ai/...` を足すので、付けると `/v1/v1/...` になって 404)。
@@ -114,7 +111,7 @@ x-app-env: &app-env
 #
 # 注意:
 # - **`networks:` を書くと既定のネットワークに自動で入らなくなる。** `default` を並べ忘れると
-#   app が db にも bridge にも繋がらなくなる(DB が無いときの挙動＝メモリ上のストアで
+#   app が db に繋がらなくなる(DB が無いときの挙動＝メモリ上のストアで
 #   起動し、再起動のたびにデータが消える形になるので気づきにくい)
 # - **ネットワーク名は環境で変わる。** `<プロジェクト名>_default` で、プロジェクト名は
 #   compose の `name:` か、NAS の管理画面で付けたスタック名。`docker network ls` で実物を確認する
@@ -151,14 +148,11 @@ services:
   init:
     image: alpine:3.24
     user: root
-    entrypoint: ["sh", "-c", "chown -R 1654:1654 /app/keys /app/state"]
+    entrypoint: ["sh", "-c", "chown -R 1654:1654 /app/keys"]
     volumes:
       - type: bind
         source: *keys-dir
         target: /app/keys
-      - type: bind
-        source: *state-dir
-        target: /app/state
     restart: "no"
 
   app:
@@ -178,31 +172,4 @@ services:
       - type: bind
         source: *keys-dir
         target: /app/keys
-      # CLI ブリッジと共有する設定。画面で入れた Claude Code のトークンをここへ書き、
-      # ブリッジが読む(アプリの環境変数では渡せない —— CLI は別コンテナで動くため)
-      - type: bind
-        source: *state-dir
-        target: /app/state
     restart: unless-stopped
-
-  # Claude Code の CLI を OpenAI 互換の口に見せるサイドカー(chiezo リポジトリのイメージ)。
-  # **アプリ本体は CLI を持たない**。**ホストへポートを公開しない** ——
-  # 認証が無くトークンも読めるので、外から触れるとそのまま AI を使われる。
-  # **公開パッケージ**なので、このイメージだけは docker login 無しで pull できる
-  bridge:
-    image: "ghcr.io/rtcode337/chiezo-bridge:latest"
-    volumes:
-      # **読み取り専用**。ブリッジは書かない
-      - type: bind
-        source: *state-dir
-        target: /state
-        read_only: true
-    environment:
-      - CHIEZO_BRIDGE_CLI=claude
-      # MCP は繋がない(渡すのは自前のプロンプトで、知識ベースを引かせる用途ではない)
-      - CHIEZO_BRIDGE_MCP_URL=
-      - CHIEZO_BRIDGE_TIMEOUT=300
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-fs", "http://localhost:7013/health"]
-      interval: 60s

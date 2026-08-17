@@ -6,7 +6,7 @@ namespace TechAntenna.Infrastructure.Chiezo;
 /// Chiezo の相手 1 つを <see cref="ICliBridge"/> として見せる。
 ///
 /// **要約・翻訳・分類・ダイジェストの実装は変えずに済む。** どれも「システムプロンプトと
-/// 本文を渡して本文を受け取る」だけなので、相手が CLI ブリッジでも Chiezo 越しの
+/// 本文を渡して本文を受け取る」だけなので、相手が同梱の CLI でも Chiezo 越しの
 /// Gemini でも同じ口で足りる。
 /// </summary>
 /// <param name="Backend">Chiezo 側の相手の識別子(`gemini` など)。</param>

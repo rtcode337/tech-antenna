@@ -181,7 +181,7 @@ public class AnthropicOptions
 }
 
 /// <summary>
-/// Claude Code(CLI ブリッジ経由)で要約する場合の設定。appsettings の ClaudeCode セクションから読む。
+/// Claude Code(同梱の CLI をプロセス起動)で要約する場合の設定。appsettings の ClaudeCode セクションから読む。
 /// 認証トークンはここでは持たない —— 画面(外部連携)から設定した値を、LlmGateway が
 /// 共有ディレクトリの設定 DB に書き、ブリッジがそこから読む。
 /// </summary>
@@ -189,23 +189,22 @@ public class ClaudeCodeOptions
 {
     public const string SectionName = "ClaudeCode";
 
-    /// <summary>CLI ブリッジ(chiezo-bridge)の URL。OpenAI 互換の口の根元まで。</summary>
-    public string BridgeUrl { get; set; } = "http://bridge:7013/v1";
-
     /// <summary>
-    /// ブリッジと共有するディレクトリ。ここに設定 DB を書き、ブリッジが読み取り専用で読む
-    /// (<c>BridgeCredentialStore</c>)。**ブリッジ側のマウント元と同じ場所を指すこと。**
-    /// 相対パスは実行ディレクトリ基準(コンテナでは <c>/app/state</c>、
-    /// 手元の <c>dotnet run</c> ではプロジェクト直下の <c>state</c>)。
+    /// CLI の実行ファイル。**イメージに同梱してある**(`claude`)ので、既定は名前だけで
+    /// PATH から引く。手元で別の場所へ入れているときだけ絶対パスを渡す。
+    ///
+    /// かつては別コンテナのブリッジ(chiezo-bridge)へ HTTP で頼んでいたが、
+    /// 公開リポジトリになってイメージの容量を気にする理由が薄れたので同梱に戻した ——
+    /// **別コンテナを立てなくても要約が動く**ほうが、公開したものを試す人の手数が少ない。
     /// </summary>
-    public string StateDirectory { get; set; } = "state";
+    public string ExecutablePath { get; set; } = "claude";
 
     /// <summary>使うモデル。**空にすると CLI の既定に任せる**が、その既定は重いモデル
     /// (実測 claude-fable-5)でサブスクの週間枠を消費しすぎるため、
     /// appsettings.json では claude-sonnet-5 を明示している。</summary>
     public string Model { get; set; } = "";
 
-    /// <summary>1回の呼び出しの上限(秒)。超えたらブリッジが CLI を落とし、次の巡回で再試行する。</summary>
+    /// <summary>1回の呼び出しの上限(秒)。超えたら CLI を落とし、次の巡回で再試行する。</summary>
     public int TimeoutSeconds { get; set; } = 300;
 }
 
@@ -326,8 +325,8 @@ public class NewReleaseOptions
 ///
 /// **URL を入れると LLM の相手を Chiezo から選べるようになる。** Chiezo は Gemini・
 /// Claude Code・推論サーバ…の認証情報を持っているので、こちらは鍵を持たずに
-/// 相手を選ぶだけでよい(サイドカーの CLI ブリッジは Claude Code 1 つしか包めない)。
-/// 未設定なら従来どおり CLI ブリッジ / Anthropic API を使う。
+/// 相手を選ぶだけでよい(同梱の CLI は Claude Code 1 つだけ)。
+/// 未設定でも、同梱の Claude Code CLI と Anthropic API は画面から選べる。
 /// </summary>
 public class ChiezoOptions
 {

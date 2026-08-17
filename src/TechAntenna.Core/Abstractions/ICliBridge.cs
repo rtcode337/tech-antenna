@@ -1,13 +1,14 @@
 namespace TechAntenna.Core.Abstractions;
 
 /// <summary>
-/// Claude Code の CLI を OpenAI 互換の口に見せるサイドカー(chiezo-bridge)への1回の呼び出し。
+/// 「システムプロンプトと本文を渡してテキストを受け取る」1回の呼び出し。
 ///
-/// **CLI はこのアプリのイメージに入っていない。** 別コンテナのブリッジへ HTTP で頼み、
-/// 認証情報は共有ディレクトリの設定 DB 経由で渡す(<c>BridgeCredentialStore</c>)。
-/// プロセスを起動していた頃と違い、イメージに CLI の実体(100MB 超)を積まずに済む。
+/// **実装は2つあり、どちらも同じ口**にしてある —— 同梱の Claude Code の CLI を
+/// プロセスとして起動するもの(<c>ClaudeCodeCliBridge</c>)と、Chiezo(LAN 内の
+/// 知識サーバー)越しに相手を選ぶもの(<c>ChiezoAiBridge</c>)。要約・翻訳・分類・
+/// ダイジェストはこの抽象しか知らないので、相手が変わっても同じ組み立てが使える。
 ///
-/// テストで差し替えられるよう抽象にしてある(要約・翻訳・分類・ダイジェストが使う)。
+/// テストで差し替えられるよう抽象にしてある。
 /// </summary>
 public interface ICliBridge
 {
@@ -17,9 +18,9 @@ public interface ICliBridge
     /// <summary>
     /// システムプロンプトと本文を渡して、応答の本文を受け取る。
     ///
-    /// **返るのはテキスト**(ブリッジは CLI の出力をそのまま返す)。構造化出力の
-    /// 仕組みは通らないので、JSON が欲しい呼び出しはプロンプトで指示して読み取る
-    /// (<c>ClaudeCodeBatch</c>)。
+    /// **返るのはテキスト。** CLI には構造化出力(`--json-schema`)もあるが Chiezo 側には
+    /// 無いので、**JSON の受け取り方を1本に保つ**ためどちらもプロンプトで指示して読み取る
+    /// (<c>ClaudeCodeBatch</c>。読めなければ言い直させる経路もそこにある)。
     /// </summary>
     Task<string> RunAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken = default);
 }

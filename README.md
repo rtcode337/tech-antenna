@@ -12,7 +12,7 @@
 | Web | ASP.NET Core + Blazor |
 | 収集ジョブ | `BackgroundService` |
 | DB | PostgreSQL + EF Core |
-| 要約 | Chiezo 経由(相手を画面で選ぶ)/ Claude Code(CLI ブリッジ経由)/ Anthropic API |
+| 要約 | Chiezo 経由(相手を画面で選ぶ)/ Claude Code(CLI を同梱)/ Anthropic API |
 
 ## データソース
 
@@ -252,8 +252,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 (`.env` では渡せない)。
 
 `http://<ホスト>:7020` で開く(`.env` の `PORT` で変更可)。データはリポジトリ直下の
-`data/`(Postgres は `data/postgres`、Data Protection の鍵は `data/keys`、
-CLI ブリッジと共有する設定は `data/state`)に入る ——
+`data/`(Postgres は `data/postgres`、Data Protection の鍵は `data/keys`)に入る ——
 **バックアップはこのディレクトリを丸ごとコピーするだけでよい**。逆に**まっさらに戻したいときは
 `docker compose down` してから `data/` の中身を消す**(次の起動で DB が初期化され、
 語彙の初期値も入り直す。鍵も再生成されるので発行済みトークンが無効になるだけ)。未適用のマイグレーションは
@@ -273,15 +272,13 @@ CLI ブリッジと共有する設定は `data/state`)に入る ——
   (LAN 内の知識サーバー)が Gemini・Claude Code・推論サーバ…の鍵を持っているので、
   こちらにキーは要らない。**サブの AI を選ぶと、今日のサマリーをメインと同時に書き、
   ホームで AI ごとの折りたたみを開いて読み比べられる**(開いているのはメインの分だけ)。
-  未設定なら従来どおり下の bridge を使う
-- **要約を Claude Code(サブスクの枠)で回すときは `bridge` サービスが要る** ——
-  CLI はアプリのイメージに入っておらず、chiezo リポジトリの公開イメージ
-  (`ghcr.io/rtcode337/chiezo-bridge`)が動かす。画面で入れたトークンは `data/state` の
-  設定ファイル経由で渡すので、入れ替えてもブリッジの再起動は要らない。
-  **ホストへポートを公開していない**(認証が無く、トークンも読めるため)
-- 非公開リポジトリなので GHCR のパッケージも非公開。pull 側では事前に
+  未設定でも、同梱の Claude Code CLI と Anthropic API は画面から選べる
+- **要約を Claude Code(サブスクの枠)で回すのに別のコンテナは要らない** ——
+  CLI をイメージに同梱してあり、アプリがプロセスとして起動する
+  (画面で入れたトークンは子プロセスの環境変数で渡すので、入れ替えても再起動は要らない)。
+  CLI の版は Dockerfile の `CLAUDE_CODE_VERSION` で固定してある
+- GHCR のパッケージが非公開の場合、pull 側では事前に
   `read:packages` 権限の PAT で `docker login ghcr.io` が必要
-  (`chiezo-bridge` は公開パッケージなので login 不要)
 - 障害時は `.env` の `TECH_ANTENNA_IMAGE` に `ghcr.io/rtcode337/tech-antenna:sha-xxxxxxx` を
   指定すれば任意の時点のイメージに戻せる
 - リポジトリを置けない環境(NAS のコンテナマネージャー等、管理画面に YAML を貼り付ける
@@ -320,12 +317,12 @@ dotnet watch --project src/TechAntenna.Web --launch-profile watch   # http://loc
                                                                    # (0.0.0.0 で待つので他の端末からも見える)
 ```
 
-要約を Claude Code 方式で試すときは CLI ブリッジが要る。`docker-compose.dev.yml` を重ねて
-`bridge` だけ上げると 127.0.0.1:7013 に口が開くので、そちらへ向ける:
+要約を Claude Code 方式で試すときは、**手元に `claude` が入っていればそのまま動く**
+(`npm i -g @anthropic-ai/claude-code`。アプリが `claude -p` を起動する)。
+別の場所へ入れているときは実行ファイルのパスを渡す:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d bridge
-ClaudeCode__BridgeUrl=http://127.0.0.1:7013/v1 dotnet run --project src/TechAntenna.Web
+ClaudeCode__ExecutablePath=/path/to/claude dotnet run --project src/TechAntenna.Web
 ```
 
 DB は PostgreSQL。接続文字列 `ConnectionStrings:Default` を設定して起動すると

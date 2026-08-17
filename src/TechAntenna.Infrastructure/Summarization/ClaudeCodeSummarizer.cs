@@ -4,7 +4,7 @@ using TechAntenna.Core.Models;
 namespace TechAntenna.Infrastructure.Summarization;
 
 /// <summary>
-/// Claude Code(CLI ブリッジ経由)で要約を生成する。API の従量課金ではなく
+/// Claude Code(同梱の CLI をプロセス起動)で要約を生成する。API の従量課金ではなく
 /// サブスクリプションの枠で動かすための実装。認証はブリッジが共有ディレクトリの設定 DB から
 /// 読むので、このクラスはトークンを扱わない。
 ///

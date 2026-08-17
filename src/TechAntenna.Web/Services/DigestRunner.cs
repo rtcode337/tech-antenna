@@ -231,7 +231,7 @@ public class DigestRunner(
         IDigestComposer composer, DigestMaterials materials, CancellationToken cancellationToken)
     {
         var scope = materials.Scope;
-        // 相手を選べない経路(CLI ブリッジ / Anthropic API)では 1 本だけ
+        // 相手を選べない経路(同梱の CLI / Anthropic API)では 1 本だけ
         var generators = llm.DigestGenerators.Count > 0
             ? llm.DigestGenerators
             : [new DigestGenerator(LlmGateway.DefaultGeneratorKey, composer.Name, true, composer)];

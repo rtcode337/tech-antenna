@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Web | ASP.NET Core + Blazor |
 | 収集ジョブ | `BackgroundService` |
 | DB | PostgreSQL + EF Core |
-| LLM 要約 | Chiezo 経由(相手を画面で選ぶ)/ Claude Code(CLI ブリッジ経由)/ Anthropic API |
+| LLM 要約 | Chiezo 経由(相手を画面で選ぶ)/ Claude Code(CLI を同梱)/ Anthropic API |
 
 .NET 9 (STS) と .NET 8 (LTS) はどちらも 2026-11 に EOL のため採用しない。
 
@@ -1279,7 +1279,7 @@ URL のリンクにとどめる。
 
 | 方式 | 課金 |
 |---|---|
-| `ClaudeCodeSummarizer`(CLI ブリッジ経由) | サブスクリプションの枠 |
+| `ClaudeCodeSummarizer`(同梱の CLI をプロセス起動) | サブスクリプションの枠 |
 | `AnthropicSummarizer` | API の従量課金 |
 | `ClaudeCodeSummarizer`(Chiezo 越し。相手は画面で選ぶ) | 相手ごと(鍵は Chiezo が持つ) |
 
@@ -1330,12 +1330,12 @@ Claude Code・Anthropic API・Chiezo の相手が**同じ表に並び、メイ�
 Chiezo(LAN 内の知識サーバー)は Gemini・Claude Code・推論サーバ…の認証情報を持っていて、
 `GET /v1/ai/backends` で「話せる相手・モデル・エフォート」を、
 `POST /v1/ai/complete` で素の問い合わせを受ける。**こちらは鍵を持たずに相手を選ぶだけでよい**
-—— サイドカーの CLI ブリッジは Claude Code 1 つしか包めないので、相手を選べる経路はここだけ。
+—— 同梱の CLI は Claude Code 1 つだけなので、相手を選べる経路はここだけ。
 
 - **`/v1/chat` は使わない。** あちらは知識ベースを引いて答える口で、必ず抽出が混ざる ——
   こちらは材料もプロンプトも自前で持っているので邪魔になる(トークンも余分に使う)
 - **既存の実装は変えずに済む。** `ChiezoAiBridge` が `ICliBridge` を実装するので、
-  要約・翻訳・分類・ダイジェストは相手が CLI ブリッジでも Chiezo 越しの Gemini でも同じ
+  要約・翻訳・分類・ダイジェストは相手が同梱の CLI でも Chiezo 越しの Gemini でも同じ
 - **選択は DB に持つ**(`Ai:Config`。JSON 1 本)。相手・モデル・考える量の 3 つ組が
   何組も入るので、独自の区切り文字で組み立てるとモデル名に区切りが混ざったときに壊れる
 - **メインは全部のジョブ、サブは今日のサマリーだけ。** 比べて読みたいのは文章で、
@@ -1355,29 +1355,28 @@ Chiezo(LAN 内の知識サーバー)は Gemini・Claude Code・推論サーバ�
   (`ChiezoAiBridge` が直近の応答のモデルを覚える)。こちらは名前を送っていないので、
   何が書いたのかを知る手がかりはそれだけ。生成者名を付けるのは応答を読んだ後なので順序は満たされる
 
-### Claude Code 方式(CLI ブリッジ経由)
+### Claude Code 方式(CLI を同梱してプロセスで起動)
 
 Claude Code にログイン済みの端末で `claude setup-token` を実行して得た長期 OAuth トークンを
 外部連携の画面から設定する。**ホストの `~/.claude` はマウントしない。**
 
-**CLI はこのアプリのイメージに入っていない。** 別コンテナの CLI ブリッジ
-(chiezo リポジトリの `chiezo-bridge`。Claude Code を OpenAI 互換の `/chat/completions` に
-見せるサイドカー)へ HTTP で頼む(`CliBridgeClient`)。**CLI の実体だけで 100MB 超**あり、
-版を上げるたびにこちらのイメージを焼き直すことになるため、更新はブリッジ側に任せる。
+**CLI はこのイメージに同梱してある**(Dockerfile で `@anthropic-ai/claude-code` を入れる)。
+アプリが `claude -p` をプロセスとして起動する(`ClaudeCodeCliBridge`)。
+**かつては別コンテナのサイドカー**(chiezo リポジトリの `chiezo-bridge`。Claude Code を
+OpenAI 互換の口に見せるもの)へ HTTP で頼み、CLI をイメージから外していた ——
+実体が 100MB 超でイメージが倍近くなるためだったが、**公開リポジトリにして容量を気にする
+理由が薄れた**ので同梱へ戻した。**別コンテナを立てなくても要約が動く**ほうが、
+公開したものを試す人の手数が少ない(認証情報を共有ディレクトリ経由で渡す仕掛けも消えた)。
 
-**トークンは共有ディレクトリの設定 DB で渡す**(`BridgeCredentialStore`。既定
-`ClaudeCode:StateDirectory` = `state`、compose では `data/state`)。CLI は別コンテナで動くので、
-このプロセスの環境変数では渡せない —— `provider_settings` 表に書き、ブリッジが**読み取り専用で
-マウントして読む**。書くのは `LlmGateway` の組み立て(= キーの版数が変わったとき)で、
-**ブリッジは要求のたびに読み直す**ので入れ替えても再起動は要らない。**表の形はブリッジとの約束**
-(列を減らさない)で、**WAL にしない** —— 読み取り専用マウントでは `-shm` を作れず開けなくなる。
-**画面からトークンを消したときも書く**(残すと古いトークンでブリッジが動き続ける)。
+**トークンは子プロセスの環境変数で渡す**(`SystemProcessRunner` の環境提供。
+`CLAUDE_CODE_OAUTH_TOKEN`)。**このプロセス自身の環境変数は変えない** ——
+他の子プロセスへ漏らさないため。起動のたびに評価するので、画面で入れ替えた値が
+そのまま次の呼び出しに効く(再起動は要らない)。
 
-**ブリッジはホストへ公開しない。** 認証が無く、しかもトークンを読める —— 外から触れると
-そのまま AI を使われる。呼ぶのは同じ compose ネットワークの `app` だけ
-(手元の `dotnet run` から使うときだけ `docker-compose.dev.yml` が 127.0.0.1 に開ける)。
+**CLI の版はイメージで固定する**(`ARG CLAUDE_CODE_VERSION`)。`latest` だと同じイメージタグでも
+中身が変わり、「昨日まで動いていた要約が落ちる」を再現できなくなる。上げるときはこの値を変える。
 
-設定は `ClaudeCode` セクション(`BridgeUrl` / `StateDirectory` / `Model` / `TimeoutSeconds`)。
+設定は `ClaudeCode` セクション(`ExecutablePath` / `Model` / `TimeoutSeconds`)。
 **モデルは CLI の既定に任せず `claude-sonnet-5` を明示している**(appsettings.json と
 compose の既定)—— CLI の既定は重いモデル(実測 claude-fable-5)で、要約・分類の定型
 ジョブにはサブスクの週間枠を消費しすぎるため。変えるときは `CLAUDE_CODE_MODEL`。
@@ -1394,9 +1393,10 @@ claude-sonnet-5)」)とホームのダイジェストの生成者名に出る。
 
 実装上の勘所:
 
-- **スキーマはプロンプトで指示する**(`ClaudeCodeBatch.WithSchema`)。ブリッジは OpenAI 互換の
-  口(テキスト応答)なので、CLI を直接起動していた頃の `--json-schema`(構造化出力)を
-  載せる場所が無い。**強制ではなくなった**ぶん、応答から JSON を切り出して読む
+- **スキーマはプロンプトで指示する**(`ClaudeCodeBatch.WithSchema`)。CLI には構造化出力
+  (`--json-schema`)があるが **Chiezo 越しの相手には無い** —— JSON の受け取り方を2本
+  持つと、片方だけで壊れる読み取りができる。**強制ではなくなった**ぶん、応答から
+  JSON を切り出して読み、読めなければ言い直させる
 - **前置きとコードフェンスを許して読む**(`ClaudeCodeResponseParser.ExtractJson`)。
   「JSON だけ」と指示しても説明を1行添えてくる応答はあり、そこで丸ごと捨てると
   1バッチ分の要約が消える。**形が違うときは例外にする** —— それらしいテキストを
@@ -1759,14 +1759,14 @@ ER 図・トピック3テーブルの関係)。**DB に変更を入れたら、�
 - `Dockerfile` — マルチステージ。`sdk:10.0` で publish し、`aspnet:10.0` に成果物だけを載せて
   非 root(`USER $APP_UID`=1654)で `dotnet TechAntenna.Web.dll` を実行する。HTTP 7020 のみ待ち受け
   - **Claude Code の CLI は同梱しない**(以前は入れていて、イメージが約 370MB → 730MB に
-    なっていた)。要約をサブスクの枠で回すときは別コンテナの CLI ブリッジへ HTTP で頼み、
-    トークンは `/app/state` の設定 DB 経由で渡す(「Claude Code 方式」参照)
+    なっていた)。**公開リポジトリにして容量を気にする理由が薄れたので同梱へ戻した** ——
+    別コンテナを立てずに要約が動くほうが、試す人の手数が少ない(「Claude Code 方式」参照)
   - **Alpine ではなく Debian ベース**を使う。Alpine 版の .NET イメージは globalization
     invariant モードが既定で、日本語の日付・文字列の書式が効かない
   - arm64 向けは QEMU ではなく **.NET のクロスコンパイル**(`--platform=$BUILDPLATFORM` +
     `dotnet publish -a`)で出す。実行ステージに `RUN` を置かないのもエミュレーションを
     避けるため(鍵置き場のディレクトリはビルドステージで作って `COPY --chown` する)
-- `docker-compose.yml` — 本番用(`app` + `db` + Claude Code の CLI を動かす `bridge` +
+- `docker-compose.yml` — 本番用(`app` + `db` +
   起動前に一度だけ走る `init`)。この定義自体はビルドせず GHCR のイメージを
   参照する。設定は `.env` から環境変数で渡す。`docker-compose.build.yml` はその場でビルドする
   上書き定義(`:local` タグ)で、手元での動作確認や GHCR を使わない起動はこちらを重ねて使う
@@ -1774,7 +1774,7 @@ ER 図・トピック3テーブルの関係)。**DB に変更を入れたら、�
     `/var/lib/postgresql/18/docker`** で、マウントするのはその1段上の
     `/var/lib/postgresql`(17 以前と位置が違うので、マウント先を変えると初期化し直しになる)
   - **永続データはホストの `data/` へバインドする**(`data/postgres`・`data/keys`・
-    CLI ブリッジと共有する `data/state`。`init` が後の2つを UID 1654 に chown する)。
+    `init` が `data/keys` を UID 1654 に chown する)。
     名前付きボリュームを使わないのは、`data/` を丸ごとコピーするだけでバックアップに
     なるようにするため —— Docker の中に置くと持ち出しに一手間かかる。`data/` は
     `.gitignore` 済み。standalone 側は `${...}` を解決できないので、雛形の先頭に
