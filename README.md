@@ -277,8 +277,8 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
   CLI をイメージに同梱してあり、アプリがプロセスとして起動する
   (画面で入れたトークンは子プロセスの環境変数で渡すので、入れ替えても再起動は要らない)。
   CLI の版は Dockerfile の `CLAUDE_CODE_VERSION` で固定してある
-- GHCR のパッケージが非公開の場合、pull 側では事前に
-  `read:packages` 権限の PAT で `docker login ghcr.io` が必要
+- **GHCR のパッケージは公開**なので、pull に `docker login` は要らない。
+  イメージは **amd64 と arm64 の両方**が入っている
 - 障害時は `.env` の `TECH_ANTENNA_IMAGE` に `ghcr.io/rtcode337/tech-antenna:sha-xxxxxxx` を
   指定すれば任意の時点のイメージに戻せる
 - リポジトリを置けない環境(NAS のコンテナマネージャー等、管理画面に YAML を貼り付ける

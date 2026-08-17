@@ -17,7 +17,7 @@ services:
     image: postgres:18-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-techantenna}
-      # .env で変えるなら**初回起動の前に**(data/postgres を作るときにしか効かず、
+      # .env で変えるなら初回起動の前に(data/postgres を作るときにしか効かず、
       # 後から変えても DB 側は変わらないまま接続文字列だけがずれる)
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-techantenna}
       POSTGRES_DB: ${POSTGRES_DB:-techantenna}
@@ -67,19 +67,19 @@ services:
       ConnectionStrings__Default: Host=db;Port=7021;Database=${POSTGRES_DB:-techantenna};Username=${POSTGRES_USER:-techantenna};Password=${POSTGRES_PASSWORD:-techantenna}
       TZ: ${TZ:-Asia/Tokyo}
       # 定期実行のオン/オフは画面(設定)から切り替える(既定はすべて無効)
-      # **外部 API のキーはここでは渡せない**(画面の「設定 → 外部連携」から入れる。
+      # 外部 API のキーはここでは渡せない(画面の「設定 → 外部連携」から入れる。
       # 暗号化して DB に保存され、再起動なしで効く)。渡すのはキー以外の設定だけ
       # 既定は appsettings.json と同じ。コストを抑えるなら claude-haiku-4-5 を指定する
       Anthropic__Model: ${ANTHROPIC_MODEL:-claude-opus-5}
       # 既定は appsettings と同じ claude-sonnet-5(空文字を渡すと appsettings を上書きして CLI 既定 = 重いモデルに戻るため)
       ClaudeCode__Model: ${CLAUDE_CODE_MODEL:-claude-sonnet-5}
-      # **Chiezo(LAN 内の知識サーバー)の URL。入れると LLM の相手を画面から選べる**
+      # Chiezo(LAN 内の知識サーバー)の URL。入れると LLM の相手を画面から選べる
       # (設定 → AI)。Gemini・Claude Code・推論サーバ…の鍵は Chiezo が持っているので、
       # こちらは相手を選ぶだけでよい。空でも同梱の Claude Code CLI と Anthropic API は
       # 画面から選べる。
-      # 値は .env の CHIEZO_URL(例 http://192.168.1.10:7010。**`/v1` は付けない**)。
-      # **同じホストで chiezo が動いているのに時間内に応答しないときは、コンテナから
-      # ホストの公開ポートへ戻る経路が塞がれている**(NAS のファイアウォール等)。
+      # 値は .env の CHIEZO_URL(例 http://192.168.1.10:7010。`/v1` は付けない)。
+      # 同じホストで chiezo が動いているのに時間内に応答しないときは、コンテナから
+      # ホストの公開ポートへ戻る経路が塞がれている(NAS のファイアウォール等)。
       # その場合は chiezo のネットワークに相乗りする —— 手順と注意点は
       # docker-compose.standalone.example.yml の「同じホストで chiezo が動いているのに
       # 届かないとき」に書いてある(CHIEZO_URL は http://chiezo-api:7010 になる)

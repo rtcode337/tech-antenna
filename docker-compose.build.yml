@@ -3,9 +3,9 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 #
-# 非公開リポジトリの間は自動公開のワークフローを置いていないため、デプロイ先での本番起動も
-# 手元での動作確認もこの形で行う(README「本番運用」参照)。GHCR から pull する版と
-# 区別できるよう、タグは :local にする。
+# 通常は GHCR の公開イメージを pull すればよく(docker-compose.yml)、こちらを使うのは
+# 手元の変更を本番同等で確かめたいときと、GHCR を使わずに動かしたいとき。
+# pull した版と区別できるよう、タグは :local にする。
 services:
   app:
     build:

@@ -33,19 +33,20 @@ RUN mkdir -p /app/keys /home/app
 # 1 ファイルだけ抜き出す —— 配布物ぜんぶ(600MB 超。glibc/musl 両方 + ラッパー)を
 # 積むと最終イメージが倍近くなる。
 #
-# **このステージはターゲットのアーキで走る**(npm が実行中のプラットフォームで
-# ネイティブ版を選ぶため)。中身は取得と展開だけで、ネイティブのビルドは無い。
+# **ビルドホストのアーキで走らせる**(`--platform=$BUILDPLATFORM`)。対象アーキの版は
+# パッケージ名で選べる(`claude-code-linux-x64` / `-arm64`)ので、arm64 向けを作るときも
+# エミュレーションは要らない —— やっているのは取得と展開だけ。
 #
 # バージョンは固定する —— latest だと同じイメージタグでも中身が変わり、
 # 「昨日まで動いていた要約が落ちる」を再現できなくなる。上げるときはここを変える。
-FROM node:22-slim AS claude-cli
-ARG CLAUDE_CODE_VERSION=2.1.233
-RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
-    # glibc 版を選ぶ(Debian ベースの実行イメージに載せるため。musl 版は使わない)
-    && src="$(ls -d /usr/local/lib/node_modules/@anthropic-ai/claude-code/node_modules/@anthropic-ai/claude-code-linux-*/ \
-              | grep -v -- '-musl' | head -1)" \
-    && test -x "${src}claude" \
-    && mkdir -p /out && cp "${src}claude" /out/claude
+FROM --platform=$BUILDPLATFORM node:22-slim AS claude-cli
+ARG TARGETARCH
+ARG CLAUDE_CODE_VERSION=2.1.234
+RUN arch="$(echo "$TARGETARCH" | sed 's/amd64/x64/')" \
+    && cd /tmp \
+    && npm pack "@anthropic-ai/claude-code-linux-${arch}@${CLAUDE_CODE_VERSION}" \
+    && tar -xzf "anthropic-ai-claude-code-linux-${arch}-${CLAUDE_CODE_VERSION}.tgz" \
+    && mkdir -p /out && cp package/claude /out/claude && chmod +x /out/claude
 
 # 実行用。ソースもビルドツールも含めず publish の成果物だけを載せる。
 # Alpine ではなく Debian ベースを使うのは ICU(日本語の日付・文字列の書式)を含むため

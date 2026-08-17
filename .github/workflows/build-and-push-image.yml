@@ -1,18 +1,20 @@
 # Docker イメージをビルドして GHCR(ghcr.io)へ公開するワークフロー。
 #
 # デプロイ先は `docker compose pull` でこのイメージを取得して動かす前提。
-# ビルドするのは linux/amd64 のみ(非公開リポジトリでは Actions の実行時間も GHCR の
-# ストレージもプランの無料枠を消費する。arm64 のネイティブランナーは公開リポジトリで
-# ないと無料枠で使えず、QEMU エミュレーション下の dotnet publish は極端に遅いため
-# ここでは作らない。arm64 が要るときは Dockerfile がクロスコンパイルに対応しているので、
-# 手元で `docker buildx build --platform linux/arm64` すればよい)。
+#
+# ビルドするのは linux/amd64 と linux/arm64。公開リポジトリなので Actions の実行時間も
+# 公開パッケージのストレージ・転送量も無料で、非公開だった頃に amd64 だけにしていた
+# 理由(枠の消費)が無くなった。**エミュレーションは使わない** —— .NET は
+# クロスコンパイル(Dockerfile の `-a`)、Claude Code の CLI は
+# 対象アーキのパッケージを取り出すだけなので、どちらもビルドホストのアーキで走る。
 name: build-and-push-image
 
 on:
   push:
     branches: [main]
     tags: ["v*"]
-    # ドキュメントだけの変更ではイメージの中身が変わらないため、実行時間を使わない
+    # ドキュメントだけの変更ではイメージの中身が変わらないので、実行そのものを省く
+    # (実行時間は無料だが、中身の変わらないイメージを積み増しても読み手が困るだけ)
     paths-ignore:
       - "**.md"
       - ".gitignore"
@@ -21,7 +23,7 @@ on:
   # 手動実行(Actions タブの "Run workflow")
   workflow_dispatch:
 
-# 同じ ref への連続 push では古い実行を打ち切る(無料枠の節約)
+# 同じ ref への連続 push では古い実行を打ち切る(後から来たものだけが要る)
 concurrency:
   group: build-and-push-image-${{ github.ref }}
   cancel-in-progress: true
@@ -50,7 +52,7 @@ jobs:
       # タグ:
       #   latest        … main への push 時(デプロイ先が通常追いかけるタグ)
       #   sha-<短縮SHA> … 毎回付ける固定タグ(どのコミットが動いているか後から特定できる)
-      #                   ただし**残るのは最新の 1 版だけ**(下の削除ステップ参照)
+      #                   直近 10 版まで残す(下の削除ステップ参照)
       #   v1.2.3        … `v*` タグを push した場合のみ
       - name: イメージのタグ・ラベルを決める
         id: meta
@@ -66,9 +68,10 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
-          # 単一アーキテクチャなので attestation(provenance/sbom)は付けない
+          # attestation(provenance/sbom)は付けない —— pull 側で検証していないので、
+          # マニフェストに余分な要素が増えるだけ
           provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -77,29 +80,24 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 古いイメージを消して最新の 1 つだけ残す。
+      # 古いイメージを消して直近 10 版だけ残す。
       #
       # `latest` を付け替えても前の版は `sha-` タグ付きで残り続けるため、放っておくと
       # push のたびに積み上がる。一覧が読めなくなるのと、どれが生きているか分からなく
       # なるのを防ぐための掃除。
       #
-      # ドキュメント上は非公開リポジトリの GHCR ストレージに 500MB の枠があり、超えると
-      # (支払い方法が無い場合)push がブロックされる、とされている。**ただし実測では、
-      # 非公開パッケージ合計 718MB の状態でも課金にも遮断にもなっていない**
-      # (2026-08 時点。課金 API に packages の行が一度も出ない)。
-      # 枠の話を当てにせず、積み上がりを止めること自体を目的にしている。
+      # **公開パッケージのストレージ・転送量は無料**なので、枠のために消しているのではない。
+      # かつては 1 版だけ残していたが(非公開の枠を気にしていた頃の名残)、それだと
+      # `sha-` タグを指定して古い版へ戻す運用ができない —— 10 版あれば数日ぶんは戻せる。
       #
-      # **ロールバック用の版も消える。** タグを指定して古い版に戻す運用はできなくなるので、
-      # 1 世代前を残したくなったら min-versions-to-keep を 2 に上げる。
-      #
-      # **失敗しても握りつぶさない**（continue-on-error を付けない）。消せていないのに
-      # 成功に見えると、枠が埋まって push が止まる日まで気づけないため。
+      # 失敗しても握りつぶさない（continue-on-error を付けない）。消せていないのに
+      # 成功に見えると、積み上がりに気づけないため。
       # GITHUB_TOKEN で権限が足りない場合は、delete:packages + read:packages を持つ PAT を
       # シークレット GHCR_CLEANUP_TOKEN に入れれば、そちらが使われる。
-      - name: 古いイメージを削除して最新版だけ残す
+      - name: 古いイメージを削除して直近 10 版だけ残す
         uses: actions/delete-package-versions@v5
         with:
           package-name: ${{ github.event.repository.name }}
           package-type: container
-          min-versions-to-keep: 1
+          min-versions-to-keep: 10
           token: ${{ secrets.GHCR_CLEANUP_TOKEN || secrets.GITHUB_TOKEN }}
