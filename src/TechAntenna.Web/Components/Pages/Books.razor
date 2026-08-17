@@ -42,8 +42,11 @@ else
        トピックの中の強調(左帯)は残す(トピックで絞った上でなら 1 本の推薦でも意味がある) *@
     @foreach (var group in _groups)
     {
-        @* 折りたたみは details/summary。静的 SSR のまま、JS も対話回線も無しで開閉できる *@
-        <details class="topic-group" open="@(group == _groups[0])">
+        @* 折りたたみは details/summary。静的 SSR のまま、JS も対話回線も無しで開閉できる。
+           **既定は全部閉じる**(トレンドの書籍と同じ) —— 先頭だけ開けておくと、その
+           トピックの冊数ぶんが下のトピックを押し下げ、「どのトピックに何冊あるか」を
+           見るのに先頭を畳む操作が要る *@
+        <details class="topic-group">
             <summary>
                 <span class="topic-name">@group.Display</span>
                 <span class="badge bg-secondary ms-1">@group.Books.Count</span>

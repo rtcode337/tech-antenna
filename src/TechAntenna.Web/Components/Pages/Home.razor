@@ -13,7 +13,6 @@
         <header class="home-heading">
             <p class="eyebrow">YOUR TECH RADAR</p>
             <h1>いま気になる技術を、ひとつの導線に。</h1>
-            <p>記事・イベント・書籍を、あなたの関心からつなげます。</p>
         </header>
 
         @* **サマリーは2枚に分ける。** 界隈全体と自分の興味では読む目的が違い、
@@ -101,26 +100,30 @@
     RenderFragment SummaryCard(DigestScope scope, string eyebrow, string id) =>
     @<text>
         <section class="summary-card" aria-labelledby="summary-heading-@id">
+            @{
+                var digests = LatestRun(scope);
+                var digest = digests.FirstOrDefault();
+            }
             <div class="section-heading">
-                <div>
-                    <p class="eyebrow">@eyebrow</p>
-                    <h2 id="summary-heading-@id">今日のサマリー<small>@scope.Label()</small></h2>
-                </div>
-                @{
-                    var digests = LatestRun(scope);
-                    var digest = digests.FirstOrDefault();
-                }
-                @if (digest is not null)
-                {
-                    @* 生成時刻を出す —— 定期実行でも手動でも、いつの状況の
-                       まとめなのかが分からないと鵜呑みにできない。**2枚は別々に作られる**
-                       (材料が無い日は片方だけ)ので、時刻も枚数ぶん出す *@
-                    <span class="status-pill">@JapanTime.FormatShort(digest.GeneratedAt) 生成</span>
-                }
-                else
-                {
-                    <span class="status-pill">未生成</span>
-                }
+                @* **生成時刻は eyebrow(DAILY SUMMARY)と同じ行に置く。** 見出しと同じ行に
+                   並べていた頃は、狭い画面で見出しのほうが縮んで「今日のサマリー」が
+                   途中で改行されていた —— eyebrow は字数が少なく、隣に印を置いても
+                   まだ余るので、見出しは丸ごと次の行を使える *@
+                <p class="section-eyebrow-row">
+                    <span class="eyebrow">@eyebrow</span>
+                    @if (digest is not null)
+                    {
+                        @* 生成時刻を出す —— 定期実行でも手動でも、いつの状況の
+                           まとめなのかが分からないと鵜呑みにできない。**2枚は別々に作られる**
+                           (材料が無い日は片方だけ)ので、時刻も枚数ぶん出す *@
+                        <span class="status-pill">@JapanTime.FormatShort(digest.GeneratedAt) 生成</span>
+                    }
+                    else
+                    {
+                        <span class="status-pill">未生成</span>
+                    }
+                </p>
+                <h2 id="summary-heading-@id">今日のサマリー<small>@scope.Label()</small></h2>
             </div>
             @if (digest is null)
             {
@@ -152,29 +155,32 @@
             }
             else
             {
-                @* **複数の AI に同じ材料で書かせた回**。タブで切り替えて読み比べる ——
-                   縦に並べるとホームが AI の数だけ伸び、横に並べるとスマホで読めない。
-                   切り替えは**ラジオ + CSS**(`:checked ~`)—— 静的 SSR のまま JS を使わずに済む *@
+                @* **複数の AI に同じ材料で書かせた回**。AI ごとの折りたたみ(`details`)で読み比べる
+                   —— **かつてはタブの帯**にしていたが、生成者の名前はモデル名まで入って長く、
+                   スマホでは帯が折り返して「タブに見えない」状態になっていた。折りたたみなら
+                   名前の長さに関係なく1行1人で並び、**画面外に隠れる相手もいない**。
+                   開いているのはメイン(先頭)だけで、他は押したときだけ開く ——
+                   全部開いた状態で出すと、ホームが AI の数だけ縦に伸びる。
+                   JS は使わない(サイドバーの開閉・書籍の一覧と同じ流儀) *@
                 <div class="digest-compare">
                     @for (var i = 0; i < digests.Count; i++)
                     {
-                        <input type="radio" class="digest-tab-input" name="@($"digest-{id}")"
-                               id="@($"digest-{id}-{i}")" checked="@(i == 0)" />
+                        var one = digests[i];
+                        <details class="digest-one" open="@(i == 0)">
+                            <summary>
+                                @* 三角は自前で描く(標準マーカーは実寸がブラウザ任せで字下げが合わない) *@
+                                <span class="caret" aria-hidden="true"></span>
+                                <span class="digest-generator">@one.GeneratorName</span>
+                                @if (one.IsPrimary)
+                                {
+                                    @* **どれがメインか**を出す —— 通知に届くのと同じ1本がどれか
+                                       分からないと、読み比べても基準が決まらない *@
+                                    <span class="digest-primary">メイン</span>
+                                }
+                            </summary>
+                            @DigestBody(one)
+                        </details>
                     }
-                    <div class="digest-tabs" role="tablist">
-                        @for (var i = 0; i < digests.Count; i++)
-                        {
-                            <label class="digest-tab" for="@($"digest-{id}-{i}")">
-                                @digests[i].GeneratorName
-                            </label>
-                        }
-                    </div>
-                    <div class="digest-panels">
-                        @foreach (var one in digests)
-                        {
-                            <div class="digest-panel">@DigestBody(one)</div>
-                        }
-                    </div>
                 </div>
             }
         </section>

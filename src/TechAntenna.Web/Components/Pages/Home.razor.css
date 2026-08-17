@@ -53,13 +53,32 @@
     margin-bottom: 1.25rem;
 }
 
-.section-heading,
 .topic-rail-heading,
 .interest-form-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+    /* **折り返させる。** 1行に押し込むと、狭い画面では見出しのほうが縮んで途中で改行される */
+    flex-wrap: wrap;
+}
+
+/* サマリーの見出しは**2行に分ける**(eyebrow の行 → 見出しの行)。見出しと生成時刻を
+   同じ行に並べていた頃は、狭い画面で見出しのほうが縮んで「今日のサマリー」が
+   途中で改行されていた */
+.section-heading {
+    display: block;
+}
+
+/* eyebrow(DAILY SUMMARY)と生成時刻の行。**印を置くのはこちら** ——
+   eyebrow は字数が少ないので、隣に日時を置いてもスマホの1行に収まる */
+.section-eyebrow-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    /* 入らない環境でも崩れないように(印は自身では折り返さないので、行ごと落ちる) */
+    flex-wrap: wrap;
 }
 
 .section-heading h2,
@@ -79,14 +98,21 @@
     font-weight: 600;
 }
 
+/* 生成時刻の印。**eyebrow と同じ行に収まる大きさ**にそろえる(0.7rem の eyebrow に対して
+   0.66rem)。本文でも見出しでもない添え物なので、これ以上大きくしないこと ——
+   大きくすると行に収まらなくなり、隣の見出しを押し出して改行させる。
+   **幅で大きさを変えない** —— eyebrow と並ぶ以上、広い画面でも同じ縮尺が正しい。
+   自分自身は折り返さない(`nowrap`)——「JST」や「生成」だけが2行目に落ちると読みにくい */
 .status-pill {
-    padding: 0.25rem 0.65rem;
+    padding: 0.12rem 0.5rem;
     border: 1px solid var(--accent-border);
     border-radius: var(--pill);
     background: var(--accent-soft);
     color: var(--accent);
-    font-size: 0.76rem;
+    font-size: 0.66rem;
     font-weight: 700;
+    line-height: 1.5;
+    white-space: nowrap;
 }
 
 .summary-placeholder {
@@ -281,74 +307,66 @@
     }
 }
 
-/* 複数の AI に同じ材料で書かせたときの読み比べ。**切り替えはラジオ + CSS** ——
-   静的 SSR のまま JS を使わずに済む(サイドバーの開閉と同じ流儀)。
-   DOM の並びは「ラジオ全部 → タブの帯 → 本文の束」で、n 番目のラジオが
-   n 番目のタブと本文に対応する。**上限は AiSettings.MaxSubs + 1(= 5)**で、
-   増やすときはここの規則も足すこと(CSS に繰り返しは書けない) */
-.digest-tab-input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
+/* 複数の AI に同じ材料で書かせたときの読み比べ。**AI ごとの折りたたみ**にしてある ——
+   かつてはタブの帯(ラジオ + `:checked ~`)だったが、生成者の名前はモデル名まで入って長く、
+   スマホでは帯が折り返して「タブに見えない」状態になっていた。折りたたみなら名前の長さに
+   関係なく1行1人で並び、画面外に隠れる相手もいない。開閉は `details` なので JS は要らない
+   (サイドバーの開閉・書籍の一覧と同じ流儀)。**タブだった頃の nth-of-type の羅列も消せた** ——
+   AI の数の上限を CSS 側に持たなくてよくなった */
+.digest-one {
+    border-top: 1px solid var(--border);
 }
 
-.digest-tabs {
+.digest-one:first-of-type {
+    border-top: none;
+}
+
+.digest-one > summary {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-    margin-bottom: 0.9rem;
-    border-bottom: 1px solid var(--border);
-}
-
-.digest-tab {
-    padding: 0.35rem 0.75rem;
-    border: 1px solid transparent;
-    border-bottom: none;
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-    color: var(--text-muted);
-    font-size: 0.82rem;
-    font-weight: 600;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0;
     cursor: pointer;
-    /* 帯の線に重ねて「選んでいるタブが繋がっている」ように見せる */
-    margin-bottom: -1px;
+    /* 標準マーカーは消して、三角は自前の .caret で描く(実寸がブラウザ任せだと字下げが合わない) */
+    list-style: none;
 }
 
-.digest-tab:hover {
-    color: var(--text);
-    background: var(--surface-sunken);
-}
-
-.digest-panel {
+.digest-one > summary::-webkit-details-marker {
     display: none;
 }
 
-/* 選択中のタブと本文。**ラジオは同じ親の直下**なので `~` で届く */
-.digest-tab-input:nth-of-type(1):checked ~ .digest-tabs > .digest-tab:nth-child(1),
-.digest-tab-input:nth-of-type(2):checked ~ .digest-tabs > .digest-tab:nth-child(2),
-.digest-tab-input:nth-of-type(3):checked ~ .digest-tabs > .digest-tab:nth-child(3),
-.digest-tab-input:nth-of-type(4):checked ~ .digest-tabs > .digest-tab:nth-child(4),
-.digest-tab-input:nth-of-type(5):checked ~ .digest-tabs > .digest-tab:nth-child(5) {
-    color: var(--text);
-    background: var(--surface);
-    border-color: var(--border);
-    border-bottom-color: var(--surface);
+.caret {
+    flex: none;
+    width: 0.9rem;
+    color: var(--text-muted);
 }
 
-.digest-tab-input:nth-of-type(1):checked ~ .digest-panels > .digest-panel:nth-child(1),
-.digest-tab-input:nth-of-type(2):checked ~ .digest-panels > .digest-panel:nth-child(2),
-.digest-tab-input:nth-of-type(3):checked ~ .digest-panels > .digest-panel:nth-child(3),
-.digest-tab-input:nth-of-type(4):checked ~ .digest-panels > .digest-panel:nth-child(4),
-.digest-tab-input:nth-of-type(5):checked ~ .digest-panels > .digest-panel:nth-child(5) {
-    display: block;
+.caret::before {
+    content: "▶";
+    font-size: 0.7rem;
 }
 
-/* ラジオ本体は見えないので、キーボードの居場所はタブ側に出す
-   (出さないと、矢印キーで切り替えているときにどこにいるか分からない) */
-.digest-tab-input:nth-of-type(1):focus-visible ~ .digest-tabs > .digest-tab:nth-child(1),
-.digest-tab-input:nth-of-type(2):focus-visible ~ .digest-tabs > .digest-tab:nth-child(2),
-.digest-tab-input:nth-of-type(3):focus-visible ~ .digest-tabs > .digest-tab:nth-child(3),
-.digest-tab-input:nth-of-type(4):focus-visible ~ .digest-tabs > .digest-tab:nth-child(4),
-.digest-tab-input:nth-of-type(5):focus-visible ~ .digest-tabs > .digest-tab:nth-child(5) {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
+.digest-one[open] > summary .caret::before {
+    content: "▼";
+}
+
+/* 生成者の名前。**折り返させる**(モデル名まで入って長いことがあり、
+   1行に収めようとすると狭い画面で溢れる) */
+.digest-generator {
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+/* どれがメインか(= 通知に届くのと同じ1本か)。読み比べの基準になるので出す */
+.digest-primary {
+    flex: none;
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--accent-border);
+    border-radius: var(--pill);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 0.68rem;
+    font-weight: 700;
 }

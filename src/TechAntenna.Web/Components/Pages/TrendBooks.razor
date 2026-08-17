@@ -53,10 +53,12 @@ else
     </p>
 
     @* 折りたたみは details/summary。静的 SSR のまま、JS も対話回線も無しで開閉できる
-       (興味トピックの書籍と同じ作り) *@
+       (興味トピックの書籍と同じ作り)。**既定は全部閉じる** —— 先頭だけ開けておくと、
+       そのテーマの冊数ぶん(数十行)がテーマの一覧を押し下げ、「どんなテーマがあるか」を
+       見るのに先頭を畳む操作が要る。ここは一望が先で、中身は選んで開くもの *@
     @foreach (var theme in _themes)
     {
-        <details class="theme-group" open="@(theme == _themes[0])">
+        <details class="theme-group">
             <summary class="@(_selected.Contains(theme.Tag) ? "interested" : "")">
                 <span class="theme-name">
                     @if (_selected.Contains(theme.Tag))
