@@ -126,4 +126,19 @@ public class DoorkeeperSweepEventSourceTests
         Assert.Empty(await source.FetchAsync());
         Assert.Empty(factory.RequestedUris);
     }
+
+    [Fact]
+    public async Task 画面で止めているあいだは叩きに行かない()
+    {
+        // 切り替えは**実行のたびに読む**(起動時に見て分岐すると、画面で入れても
+        // 再起動するまで効かない)。止まっているあいだは相手に 1 回も触らない
+        var factory = new StubHttpClientFactory("[]");
+        var source = new DoorkeeperSweepEventSource(factory, Clock(), 100, 2, TimeSpan.Zero, enabledProvider: () => false);
+
+        Assert.Empty(await source.FetchAsync());
+        Assert.Empty(factory.RequestedUris);
+        // **無効なら WorksWithoutTopics も false** —— true のままだと、面掃きを止めていても
+        // ランナーが「トピックが空でも集めるものがある」と判断し、案内が出なくなる
+        Assert.False(source.WorksWithoutTopics);
+    }
 }

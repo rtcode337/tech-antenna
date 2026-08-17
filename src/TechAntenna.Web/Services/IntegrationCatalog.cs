@@ -62,6 +62,11 @@ public enum IntegrationAxis
 /// <see cref="CredentialNeed.EitherRequired"/> の連携で、同じ機能を担う**もう一方**が
 /// 設定されているか(この行が未設定でも機能は動いている、を画面で言うため)。
 /// </param>
+/// <param name="ToggleName">
+/// 画面から<b>オン/オフを切り替えられる</b>連携の設定パス(<c>SweepSettings</c> のキー)。
+/// null なら切り替えは出さない —— ほとんどの連携は「キーがあれば使う」で、
+/// 止めたいかどうかを決める必要が無い(面掃きだけは相手を叩く量が大きいので明示的に入れる)。
+/// </param>
 public record Integration(
     IntegrationAxis Axis,
     string Purpose,
@@ -71,7 +76,8 @@ public record Integration(
     string Effect,
     bool Enabled = true,
     IReadOnlyList<string>? SecretNames = null,
-    bool AlternativeConfigured = false);
+    bool AlternativeConfigured = false,
+    string? ToggleName = null);
 
 /// <summary>
 /// 外部連携の一覧と、キーが設定されているかどうかを組み立てる。
@@ -229,20 +235,21 @@ public class IntegrationCatalog(
             IntegrationAxis.Interests | IntegrationAxis.Classics,
             "イベント", "connpass(面掃き)", CredentialNeed.Required,
             false,
-            $"月ごとに全件なめて、参加者 {connpass.Sweep.MinParticipants} 人以上だけを残す。"
+            $"月ごとに全件なめて、参加者 {connpass.Sweep.MinParticipants} 人以上だけを残す"
+            + $"({connpass.Sweep.Months} か月ぶん)。"
             + "検索語も名簿も使わないので、名前を知らない大型イベントを拾える。"
-            + "1か月ぶんで数十リクエストかかるため、appsettings の Connpass:Sweep:Enabled で明示的に入れる",
-            connpass.Sweep.Enabled),
-            "Connpass:ApiKey"));
+            + "1か月ぶんで数十リクエストかかるため、この行の切り替えで明示的に入れる",
+            SweepSettings.IsEnabled(credentials, SweepSettings.ConnpassName)),
+            "Connpass:ApiKey") with { ToggleName = SweepSettings.ConnpassName });
         integrations.Add(WithSecret(new Integration(
             IntegrationAxis.Interests | IntegrationAxis.Classics,
             "イベント", "Doorkeeper(面掃き)", CredentialNeed.Required,
             false,
             $"期間で全件なめて、参加者 {doorkeeper.Sweep.MinParticipants} 人以上だけを残す"
-            + "(connpass の面掃きと同じ役割で、相手だけが違う)。"
-            + "数十リクエストかかるため、appsettings の Doorkeeper:Sweep:Enabled で明示的に入れる",
-            doorkeeper.Sweep.Enabled),
-            "Doorkeeper:AccessToken"));
+            + $"({doorkeeper.Sweep.Months} か月ぶん。connpass の面掃きと同じ役割で、相手だけが違う)。"
+            + "数十リクエストかかるため、この行の切り替えで明示的に入れる",
+            SweepSettings.IsEnabled(credentials, SweepSettings.DoorkeeperName)),
+            "Doorkeeper:AccessToken") with { ToggleName = SweepSettings.DoorkeeperName });
         integrations.Add(new Integration(
             IntegrationAxis.Interests | IntegrationAxis.Classics,
             "イベント", "TECH PLAY", CredentialNeed.NotNeeded, true,

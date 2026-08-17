@@ -14,7 +14,8 @@ namespace TechAntenna.Infrastructure.Events;
 /// どちらも「知らない大型カンファレンス」を構造的に落とす。
 ///
 /// <b>既定では動かさない。</b> 1 回の収集で数十リクエストになりうるので、
-/// 使うかどうかは設定(<c>Doorkeeper:Sweep</c>)で明示する。
+/// 使うかどうかは<b>画面(設定 → 外部連携)で切り替える</b>。
+/// appsettings(<c>Doorkeeper:Sweep</c>)に残っているのは数の設定だけ。
 /// </summary>
 /// <param name="minParticipants">
 /// これ以上の参加者がいるものだけを残す。<b>この経路の存在意義そのもの</b>なので、
@@ -27,7 +28,8 @@ public class DoorkeeperSweepEventSource(
     int minParticipants,
     int months,
     TimeSpan? delayBetweenRequests = null,
-    Func<string?>? accessTokenProvider = null) : IEventSource
+    Func<string?>? accessTokenProvider = null,
+    Func<bool>? enabledProvider = null) : IEventSource
 {
     /// <summary>
     /// 読むページ数の上限。<b>打ち切ったら <see cref="Truncated"/> に残す</b> ——
@@ -40,8 +42,17 @@ public class DoorkeeperSweepEventSource(
 
     public string Name => "Doorkeeper(面掃き)";
 
-    /// <summary>検索語を一切使わないので、トピックの選択が空でも集まる。</summary>
-    public bool WorksWithoutTopics => true;
+    /// <summary>
+    /// この経路を使う設定になっているか(画面から切り替える。<b>既定は無効</b>)。
+    /// <b>実行のたびに読む</b>ので、起動しなおさずに効く。
+    /// </summary>
+    bool Enabled => enabledProvider?.Invoke() ?? true;
+
+    /// <summary>
+    /// 検索語を一切使わないので、トピックの選択が空でも集まる。
+    /// <b>無効のときは false</b>(connpass の面掃きと同じ理由)。
+    /// </summary>
+    public bool WorksWithoutTopics => Enabled;
 
     /// <summary>上限に当たって最後まで見られなかったか。収集のたびに作り直す。</summary>
     public bool Truncated { get; private set; }
@@ -51,8 +62,9 @@ public class DoorkeeperSweepEventSource(
 
     public async Task<IReadOnlyList<TechEvent>> FetchAsync(CancellationToken cancellationToken = default)
     {
-        // トークン未設定ならこの収集元だけスキップ(他のソースの収集は続く)
-        if (accessTokenProvider is not null && string.IsNullOrWhiteSpace(accessTokenProvider()))
+        // 画面で止めているか、トークン未設定ならこの収集元だけスキップ(他のソースの収集は続く)
+        if (!Enabled
+            || (accessTokenProvider is not null && string.IsNullOrWhiteSpace(accessTokenProvider())))
         {
             return [];
         }

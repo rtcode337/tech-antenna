@@ -213,8 +213,10 @@ builder.Services.AddSingleton<IEventSource>(sp => new ConnpassEventSource(
 
 // --- イベント収集(connpass の面掃き)---
 // **検索語も名簿も使わず、月ごとに全件なめて参加者数で切る。** 名前を知らない大型イベントを
-// 拾える唯一の経路だが、1か月ぶんで数十リクエストかかるので**既定では動かさない**
-if (connpass.Sweep is { Enabled: true, Months: > 0 } sweep)
+// 拾える唯一の経路だが、1か月ぶんで数十リクエストかかるので**既定では動かさない**。
+// **登録は無条件で、走らせるかどうかは実行のたびに画面の設定を読む**(キーと同じ扱い)——
+// 起動時に見て分岐すると、画面で入れても再起動するまで効かない
+if (connpass.Sweep is { Months: > 0 } sweep)
 {
     builder.Services.AddSingleton<IEventSource>(sp => new ConnpassSweepEventSource(
         sp.GetRequiredService<IHttpClientFactory>(),
@@ -223,7 +225,9 @@ if (connpass.Sweep is { Enabled: true, Months: > 0 } sweep)
         sweep.Months,
         TimeSpan.FromSeconds(sweep.DelayBetweenRequestsSeconds),
         catalog: topicCatalog,
-        apiKeyProvider: () => sp.GetRequiredService<ApiCredentials>().Get("Connpass:ApiKey")));
+        apiKeyProvider: () => sp.GetRequiredService<ApiCredentials>().Get("Connpass:ApiKey"),
+        enabledProvider: () => SweepSettings.IsEnabled(
+            sp.GetRequiredService<ApiCredentials>(), SweepSettings.ConnpassName)));
 }
 
 // --- イベント収集(Doorkeeper)---
@@ -261,7 +265,7 @@ var doorkeeper = builder.Configuration
     // --- イベント収集(Doorkeeper の面掃き)---
     // connpass の面掃きと同じ役割。**`q` を付けずに期間で引く**ので、こちらが名前を
     // 知らないイベントも拾える。**既定では動かさない**(Doorkeeper:Sweep で明示する)
-    if (doorkeeper.Sweep is { Enabled: true, Months: > 0 } doorkeeperSweep)
+    if (doorkeeper.Sweep is { Months: > 0 } doorkeeperSweep)
     {
         builder.Services.AddSingleton<IEventSource>(sp => new DoorkeeperSweepEventSource(
             sp.GetRequiredService<IHttpClientFactory>(),
@@ -270,7 +274,9 @@ var doorkeeper = builder.Configuration
             doorkeeperSweep.Months,
             TimeSpan.FromSeconds(doorkeeperSweep.DelayBetweenRequestsSeconds),
             accessTokenProvider: () =>
-                sp.GetRequiredService<ApiCredentials>().Get("Doorkeeper:AccessToken")));
+                sp.GetRequiredService<ApiCredentials>().Get("Doorkeeper:AccessToken"),
+            enabledProvider: () => SweepSettings.IsEnabled(
+                sp.GetRequiredService<ApiCredentials>(), SweepSettings.DoorkeeperName)));
     }
 }
 

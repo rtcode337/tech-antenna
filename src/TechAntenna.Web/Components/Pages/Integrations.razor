@@ -17,6 +17,14 @@
     環境変数や .env では渡せません(実値をリポジトリや設定ファイルに置かないため)。
 </p>
 
+<p class="text-muted">
+    <strong>面掃き</strong>(月ごと・期間ごとに全件なめて、参加者数の多いものだけを残す経路)は
+    <strong>「状態」列の「動かす」で入れます</strong> ——
+    検索語も購読の名簿も要らないので、<strong>名前を知らない大型イベントを拾える唯一の経路</strong>ですが、
+    1 回の収集で数十リクエストかかるため<strong>既定では走りません</strong>。
+    こちらも再起動なしで効きます(参加者数のしきい値と何か月ぶん見るかは設定ファイル側です)。
+</p>
+
 @if (_secretError is { Length: > 0 })
 {
     <p class="text-danger">@_secretError</p>
@@ -89,7 +97,20 @@ else if (_secretMessage is { Length: > 0 })
                     <td class="text-muted effect">@integration.Effect</td>
                     @* 状態はキーの設定の隣に置く —— 「未設定を見つける → その場で入れる」が
                        視線の移動なしにつながるようにするため *@
-                    <td><span class="badge @StatusClass(integration)">@StatusLabel(integration)</span></td>
+                    <td>
+                        <span class="badge @StatusClass(integration)">@StatusLabel(integration)</span>
+                        @* **オン/オフを持つ連携(面掃き)は、状態の隣で切り替える。**
+                           1 クリックで反転させる —— キーのように打ち込む値が無く、
+                           「保存」を挟むと押したのに効いていない状態が生まれるため。
+                           押した行は value に設定パスを入れて見分ける(キーの保存と同じ流儀) *@
+                        @if (integration.ToggleName is { Length: > 0 } toggleName)
+                        {
+                            <button type="submit" class="btn btn-outline-secondary btn-sm toggle"
+                                    name="Action" value="toggle:@((int)axis):@toggleName">
+                                @(integration.Enabled ? "止める" : "動かす")
+                            </button>
+                        }
+                    </td>
                     <td class="secret-cell">
                         @if (integration.SecretNames is { Count: > 0 } secretNames)
                         {
@@ -189,6 +210,29 @@ else if (_secretMessage is { Length: > 0 })
         // パスにもコロンが入るので 3 分割まで(3つ目以降はパスとして丸ごと残す)
         var parts = Action.Split(':', 3);
         var name = parts.Length > 2 ? parts[2] : "";
+
+        // **切り替えはキーの解決より前に処理する** —— 面掃きのオン/オフは
+        // 打ち込む値ではないので EditableSecrets には載っていない
+        if (parts[0] == "toggle")
+        {
+            var integration = _all.FirstOrDefault(i => i.ToggleName == name);
+            if (integration is null)
+            {
+                _secretError = "不明な切り替えです。";
+
+                return;
+            }
+
+            await SweepSettings.SetAsync(Credentials, name, !integration.Enabled);
+            _secretError = null;
+            _secretMessage = integration.Enabled
+                ? $"{integration.Name} を止めました。次の収集からは走りません。"
+                : $"{integration.Name} を動かします。再起動なしで、次の収集から走ります。";
+            _all = Catalog.GetAll();
+
+            return;
+        }
+
         var editable = IntegrationCatalog.EditableSecrets
             .FirstOrDefault(secret => secret.SecretName == name);
         if (editable is null)

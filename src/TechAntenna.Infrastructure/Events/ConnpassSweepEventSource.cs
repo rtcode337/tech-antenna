@@ -15,7 +15,8 @@ namespace TechAntenna.Infrastructure.Events;
 ///
 /// <b>既定では動かさない。</b> 1か月ぶんを取るのに数十リクエストかかり、
 /// connpass のレート制限(1 秒 1 リクエスト)と相談する必要があるため ——
-/// 使うかどうかは設定(<c>Connpass:Sweep</c>)で明示的に決める。
+/// 使うかどうかは<b>画面(設定 → 外部連携)で切り替える</b>。
+/// appsettings(<c>Connpass:Sweep</c>)に残っているのは数の設定だけ。
 /// </summary>
 /// <param name="minParticipants">
 /// これ以上の参加者がいるものだけを残す。<b>この経路の存在意義そのもの</b>なので、
@@ -29,7 +30,8 @@ public class ConnpassSweepEventSource(
     int months,
     TimeSpan? delayBetweenRequests = null,
     TopicCatalog? catalog = null,
-    Func<string?>? apiKeyProvider = null) : IEventSource
+    Func<string?>? apiKeyProvider = null,
+    Func<bool>? enabledProvider = null) : IEventSource
 {
     /// <summary>connpass の 1 リクエストあたりの上限。</summary>
     const int PageSize = 100;
@@ -47,8 +49,19 @@ public class ConnpassSweepEventSource(
 
     public string Name => "connpass(面掃き)";
 
-    /// <summary>検索語を一切使わないので、トピックの選択が空でも集まる。</summary>
-    public bool WorksWithoutTopics => true;
+    /// <summary>
+    /// この経路を使う設定になっているか(画面から切り替える。<b>既定は無効</b>)。
+    /// <b>実行のたびに読む</b>ので、起動しなおさずに効く。
+    /// </summary>
+    bool Enabled => enabledProvider?.Invoke() ?? true;
+
+    /// <summary>
+    /// 検索語を一切使わないので、トピックの選択が空でも集まる。
+    /// <b>無効のときは false</b> —— そうしないと、面掃きを止めているのに
+    /// 「トピックが空でも集めるものがある」とランナーが判断し、
+    /// 「トピックを選んでいないので集まりません」の案内が出なくなる。
+    /// </summary>
+    public bool WorksWithoutTopics => Enabled;
 
     /// <summary>
     /// 上限に当たって最後まで見られなかった月(<c>2026-09</c> の形)。
@@ -61,8 +74,8 @@ public class ConnpassSweepEventSource(
 
     public async Task<IReadOnlyList<TechEvent>> FetchAsync(CancellationToken cancellationToken = default)
     {
-        // キー未設定ならこの収集元だけスキップ(他のソースの収集は続く)
-        if (apiKeyProvider is not null && string.IsNullOrWhiteSpace(apiKeyProvider()))
+        // 画面で止めているか、キー未設定ならこの収集元だけスキップ(他のソースの収集は続く)
+        if (!Enabled || (apiKeyProvider is not null && string.IsNullOrWhiteSpace(apiKeyProvider())))
         {
             return [];
         }
