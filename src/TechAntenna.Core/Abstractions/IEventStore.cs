@@ -32,6 +32,13 @@ public interface IEventStore
     Task<IReadOnlyList<OrganizerCount>> GetOrganizerCountsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// 集めたイベントを<b>主催者 × 収集元</b>でまとめて返す(件数の多い順)。
+    /// URL を1件添えるのは、購読の候補(<see cref="FollowSuggestions"/>)がそこから
+    /// グループの識別子を起こすため —— 主催者名からは ID を引けない。
+    /// </summary>
+    Task<IReadOnlyList<OrganizerGroup>> GetOrganizerGroupsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// 記事の言及数(<see cref="Models.EventMentions"/>)をまとめて更新し、値が変わった件数を返す。
     /// 記事は後から増えるので、取れたら常に新しい値で上書きする(はてブ数と同じ扱い)。
     /// </summary>

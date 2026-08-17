@@ -13,6 +13,9 @@ namespace TechAntenna.Infrastructure.Events;
 /// 巡回して差分を溜めることで広く拾う。企業主催のウェビナーが多く、ベンダー系のイベントは
 /// connpass / Doorkeeper より厚い。
 ///
+/// <b>主催者は <c>dc:creator</c> から取れる</b>(参加者数は無いまま)。ここが空だと
+/// ベンダーのウェビナーが「公式」と判定されず、いちばん厚い経路が注目度で沈んでいた。
+///
 /// タグは RSS の <c>&lt;category&gt;</c> から作る。検索キーワードをタグにする他の収集元とは
 /// 出どころが違うが、`TagNormalizer` を通せば同じ土俵でトピック横断に乗る。
 /// </summary>
@@ -54,6 +57,9 @@ public class TechPlayEventSource(
                 EndsAt = entry.EndsAt,
                 Venue = entry.Place,
                 IsOnline = VenueClassifier.IsOnline(entry.Place, entry.Address),
+                // **主催者は dc:creator。** 参加者数は RSS に無いので null のまま ——
+                // そのぶん注目度は「公式かどうか」と記事の言及数で測ることになる
+                Organizer = entry.Organizer,
                 CollectedAt = collectedAt,
                 Tags = (catalog ?? TopicCatalog.Empty).Normalize(
                     entry.Categories.Where(c => !BoilerplateCategories.Contains(c))),

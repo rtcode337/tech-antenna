@@ -7,7 +7,7 @@ public class TechPlayFeedParserTests
     // 実際の配信と同じ形。日時は tp: 名前空間にあり、時差の表記が無い
     const string Feed = """
         <?xml version="1.0" encoding="utf-8"?>
-        <rss version="2.0" xmlns:tp="https://rss.techplay.jp/">
+        <rss version="2.0" xmlns:tp="https://rss.techplay.jp/" xmlns:dc="http://purl.org/dc/elements/1.1/">
           <channel>
             <title>TECH PLAY</title>
             <item>
@@ -22,6 +22,7 @@ public class TechPlayFeedParserTests
               <tp:eventEndTime>2026-08-08 14:00:00</tp:eventEndTime>
               <tp:eventPlace>オンライン</tp:eventPlace>
               <tp:eventAddress></tp:eventAddress>
+              <dc:creator>日本マイクロソフト株式会社</dc:creator>
             </item>
             <item>
               <title>開始時刻の無いイベント</title>
@@ -93,5 +94,19 @@ public class TechPlayFeedParserTests
 
         var ex = Assert.Throws<FormatException>(() => TechPlayFeedParser.Parse(atom));
         Assert.Contains("feed", ex.Message);
+    }
+
+    [Fact]
+    public void 主催者は_dc_creator_から取る()
+    {
+        // **RSS の標準要素でも tp: の独自要素でもない**ので、見落としていた ——
+        // ここが空だとベンダーのウェビナーが「公式」と判定されない
+        Assert.Equal("日本マイクロソフト株式会社", TechPlayFeedParser.Parse(Feed).First().Organizer);
+    }
+
+    [Fact]
+    public void 主催者が無いイベントは_null_のまま()
+    {
+        Assert.Null(TechPlayFeedParser.Parse(Feed).ElementAt(1).Organizer);
     }
 }

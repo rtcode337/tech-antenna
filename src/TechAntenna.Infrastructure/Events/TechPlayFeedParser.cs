@@ -5,6 +5,12 @@ using TechAntenna.Core;
 namespace TechAntenna.Infrastructure.Events;
 
 /// <summary>TECH PLAY の RSS から取り出した1イベント。カテゴリは未正規化のまま返す。</summary>
+/// <param name="Organizer">
+/// 主催者(<c>dc:creator</c>)。**RSS の標準要素ではなく Dublin Core の要素**に入っている ——
+/// tp: の独自要素ばかり見ていて見落としていた(実測では 50 件すべてに入っており、
+/// 「Ascent Business Consulting株式会社」のように企業名がそのまま来る)。
+/// 「公式のイベントか」の判定材料になる。
+/// </param>
 public record TechPlayEventEntry(
     string Title,
     Uri Url,
@@ -12,7 +18,8 @@ public record TechPlayEventEntry(
     DateTimeOffset? EndsAt,
     string? Place,
     string? Address,
-    IReadOnlyList<string> Categories);
+    IReadOnlyList<string> Categories,
+    string? Organizer = null);
 
 /// <summary>
 /// TECH PLAY のイベント RSS を解析する。
@@ -24,6 +31,9 @@ public static class TechPlayFeedParser
 {
     /// <summary>TECH PLAY 独自要素の名前空間。</summary>
     static readonly XNamespace Tp = "https://rss.techplay.jp/";
+
+    /// <summary>Dublin Core の名前空間。主催者(<c>dc:creator</c>)がここにある。</summary>
+    static readonly XNamespace Dc = "http://purl.org/dc/elements/1.1/";
 
     /// <summary>tp: の日時には時差の表記が無く、日本時間で書かれている。</summary>
     static readonly TimeSpan Jst = JapanTime.Offset;
@@ -74,7 +84,8 @@ public static class TechPlayFeedParser
             item.Elements("category")
                 .Select(c => c.Value.Trim())
                 .Where(c => c.Length > 0)
-                .ToList());
+                .ToList(),
+            Trimmed(item.Element(Dc + "creator")));
     }
 
     static string? Trimmed(XElement? element) =>

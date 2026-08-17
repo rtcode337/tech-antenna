@@ -108,4 +108,23 @@ public class EventPopularityTests
             EventPopularity.Score(Event("b", mentions: null), Official),
             6);
     }
+
+    [Fact]
+    public void 注目度の材料を持たないイベントは定番の一覧に出さない()
+    {
+        // 定番のイベント一覧(/classics/events)はトピックで絞らないので、
+        // 材料を1つも持たないものまで並べると「注目度の高いイベント」ではなく全件になる
+        Assert.False(EventPopularity.IsNotable(Event("無印"), Official));
+        Assert.False(EventPopularity.IsNotable(Event("小さな勉強会", "地域コミュニティ", 5, mentions: 1), Official));
+    }
+
+    [Fact]
+    public void 公式か人が集まっているか記事に書かれていれば材料になる()
+    {
+        Assert.True(EventPopularity.IsNotable(Event("公式", "Microsoft"), Official));
+        Assert.True(EventPopularity.IsNotable(
+            Event("集まっている", participants: EventPopularity.MidThreshold), Official));
+        Assert.True(EventPopularity.IsNotable(
+            Event("書かれている", mentions: EventPopularity.MidMentions), Official));
+    }
 }

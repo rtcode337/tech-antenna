@@ -257,6 +257,21 @@ var doorkeeper = builder.Configuration
         accessTokenProvider: () =>
             sp.GetRequiredService<ApiCredentials>().Get("Doorkeeper:AccessToken"),
         followedProvider: () => FollowSettings.Resolve(sp.GetRequiredService<ApiCredentials>())));
+
+    // --- イベント収集(Doorkeeper の面掃き)---
+    // connpass の面掃きと同じ役割。**`q` を付けずに期間で引く**ので、こちらが名前を
+    // 知らないイベントも拾える。**既定では動かさない**(Doorkeeper:Sweep で明示する)
+    if (doorkeeper.Sweep is { Enabled: true, Months: > 0 } doorkeeperSweep)
+    {
+        builder.Services.AddSingleton<IEventSource>(sp => new DoorkeeperSweepEventSource(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<TimeProvider>(),
+            doorkeeperSweep.MinParticipants,
+            doorkeeperSweep.Months,
+            TimeSpan.FromSeconds(doorkeeperSweep.DelayBetweenRequestsSeconds),
+            accessTokenProvider: () =>
+                sp.GetRequiredService<ApiCredentials>().Get("Doorkeeper:AccessToken")));
+    }
 }
 
 // --- イベント収集(TECH PLAY の RSS)---

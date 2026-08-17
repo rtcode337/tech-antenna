@@ -1,7 +1,9 @@
 @page "/settings/follows"
 @using TechAntenna.Core
+@using TechAntenna.Core.Abstractions
 @using TechAntenna.Web.Services
 @inject ApiCredentials Credentials
+@inject IEventStore EventStore
 
 @* 購読しているグループの名簿。**「探す」のではなく「発信元を購読する」**ための経路で、
    キーワード検索では構造的に落ちる固有名詞のカンファレンス(RubyKaigi・DroidKaigi)を
@@ -64,6 +66,57 @@
     </div>
 </form>
 
+@* **公式の名簿から購読の候補を出す。** 「公式」は集めたイベントに付く印でしかなく、
+   提供元のイベントを狙って取りに行く経路は無い —— 一方でグループを購読すれば
+   トピックに関係なく全部入るので、**すでに集まっているイベントのうち公式と判定された
+   主催者のグループ**を候補にすれば、名簿を人が調べて書き写さずに済む。
+   識別子は保存済みイベントの URL から起こす(外部へは問い合わせない) *@
+<h2 class="h4 mt-4">公式の主催者から足す</h2>
+
+<p class="page-note text-muted">
+    集めたイベントのうち、<a href="/settings/organizers">公式と判定された主催者</a>のグループです。
+    <strong>購読すればトピックに関係なく全部入る</strong>ので、
+    たまたま検索語に当たったときだけ載る状態から抜けられます。
+    <strong>すでに購読しているものは出しません</strong>。
+</p>
+
+@if (_suggestions is null)
+{
+    <p>読み込み中…</p>
+}
+else if (_suggestions.Count == 0)
+{
+    <p class="text-muted">
+        候補はありません（公式と判定された主催者のイベントがまだ集まっていないか、すべて購読済みです）。
+        <a href="/settings/organizers">設定 → 主催者</a>で名簿を足すと候補が増えることがあります。
+    </p>
+}
+else
+{
+    @* **名簿のフォームとは別の form**(並べるのは正しく、入れ子にするのが不正)。
+       名簿は「書いたとおりに保存する」もの、こちらは「選んだ行を足す」ものなので、
+       送る中身が別 —— 1 つにまとめると、候補を足すだけのつもりで打ちかけの名簿まで保存される *@
+    <form method="post" @formname="follow-suggestions" @onsubmit="AddSuggestedAsync">
+        <AntiforgeryToken />
+        <ul class="list-unstyled suggestions">
+            @foreach (var suggestion in _suggestions)
+            {
+                <li>
+                    <label>
+                        <input type="checkbox" name="Selected" value="@($"{suggestion.Source}:{suggestion.Id}")" />
+                        <strong>@suggestion.Label</strong>
+                        <code>@suggestion.Source:@suggestion.Id</code>
+                        <span class="text-muted">集まっているイベント @suggestion.Count 件</span>
+                    </label>
+                </li>
+            }
+        </ul>
+        <div class="actions">
+            <button type="submit" class="btn btn-primary">チェックしたグループを購読する</button>
+        </div>
+    </form>
+}
+
 @if (_rejected.Count > 0)
 {
     <p class="notice">
@@ -122,26 +175,82 @@
     FollowedGroups _followed = FollowedGroups.Empty;
     IReadOnlyList<string> _rejected = [];
 
+    /// <summary>
+    /// 公式の主催者から起こした購読の候補。**読み込みが終わるまで null**
+    /// (`default!` にすると、DB につないだ本番でだけ現れる初回の描画で落ちる)。
+    /// </summary>
+    IReadOnlyList<FollowSuggestion>? _suggestions;
+
+    @* **フォームが2つあるので、どちらの値かを名前で明示する。** 省略すると
+       「いま送られてきたフォーム」から拾おうとするので、候補を足す POST でも
+       名簿の値を拾いに行くことになる(そちらには textarea が無いので空になる) *@
     /// <summary>編集中の名簿。**保存してある生のテキストをそのまま出す**(コメント行も残す)。</summary>
-    [SupplyParameterFromForm]
+    [SupplyParameterFromForm(FormName = "followed-groups", Name = "Groups")]
     string? Groups { get; set; }
 
     /// <summary>押されたボタン。行ごとにフォームを分けない流儀に合わせて value で見分ける。</summary>
-    [SupplyParameterFromForm]
+    [SupplyParameterFromForm(FormName = "followed-groups", Name = "Action")]
     string? Action { get; set; }
 
-    protected override void OnInitialized()
+    /// <summary>チェックされた候補(<c>&lt;収集元&gt;:&lt;識別子&gt;</c>)。</summary>
+    [SupplyParameterFromForm(FormName = "follow-suggestions", Name = "Selected")]
+    string[]? Selected { get; set; }
+
+    protected override async Task OnInitializedAsync()
     {
         Load();
         // POST で戻ってきたときは打ちかけの値を残す(初回だけ保存済みの名簿を流し込む)
         Groups ??= FollowSettings.Raw(Credentials);
+        await LoadSuggestionsAsync();
     }
+
+    /// <summary>
+    /// 候補を作り直す。**外部へは問い合わせない** —— 集めたイベントを主催者でまとめ、
+    /// 公式の名簿と突き合わせ、URL からグループの識別子を起こすだけ。
+    /// </summary>
+    async Task LoadSuggestionsAsync() =>
+        _suggestions = FollowSuggestions.From(
+            await EventStore.GetOrganizerGroupsAsync(),
+            OrganizerSettings.Resolve(Credentials),
+            _followed);
 
     void Load()
     {
         var raw = FollowSettings.Raw(Credentials);
         _followed = FollowedGroups.Parse(raw);
         _rejected = FollowedGroups.Rejected(raw);
+    }
+
+    /// <summary>
+    /// チェックした候補を名簿へ足す。**書いてある行は消さず、末尾に足すだけ** ——
+    /// 名簿はメモを添えて育てるもので、画面が整形して書き戻すと書き置きが消える。
+    /// </summary>
+    async Task AddSuggestedAsync()
+    {
+        var keys = Selected ?? [];
+        var suggestions = _suggestions ?? [];
+        var lines = suggestions
+            .Where(s => keys.Contains($"{s.Source}:{s.Id}", StringComparer.OrdinalIgnoreCase))
+            // 押すまでのあいだに名簿へ手で書かれていることもあるので、ここでも重複を見る
+            .Where(s => !FollowedGroups.Parse(Groups).Contains(s.Source, s.Id))
+            .Select(s => s.Line)
+            .ToList();
+
+        if (lines.Count == 0)
+        {
+            _message = "足すものがありませんでした（チェックが無いか、すでに名簿にあります）。";
+            await LoadSuggestionsAsync();
+
+            return;
+        }
+
+        var current = (Groups ?? "").TrimEnd();
+        Groups = current.Length == 0 ? string.Join("\n", lines) : $"{current}\n{string.Join("\n", lines)}";
+        await Credentials.SetAsync(FollowSettings.GroupsName, Groups);
+        _message = $"{lines.Count} 件を購読に足しました。";
+
+        Load();
+        await LoadSuggestionsAsync();
     }
 
     async Task SaveAsync()
@@ -161,5 +270,7 @@
         }
 
         Load();
+        // 名簿が変わると「すでに購読しているもの」も変わるので、候補も作り直す
+        await LoadSuggestionsAsync();
     }
 }

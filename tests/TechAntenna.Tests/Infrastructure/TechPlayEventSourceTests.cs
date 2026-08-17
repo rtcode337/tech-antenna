@@ -7,7 +7,7 @@ public class TechPlayEventSourceTests
 {
     const string Feed = """
         <?xml version="1.0" encoding="utf-8"?>
-        <rss version="2.0" xmlns:tp="https://rss.techplay.jp/">
+        <rss version="2.0" xmlns:tp="https://rss.techplay.jp/" xmlns:dc="http://purl.org/dc/elements/1.1/">
           <channel>
             <item>
               <title>生成AI 実践ハンズオン</title>
@@ -19,6 +19,7 @@ public class TechPlayEventSourceTests
               <category>初心者</category>
               <tp:eventStartTime>2026-08-08 12:30:00</tp:eventStartTime>
               <tp:eventPlace>オンライン</tp:eventPlace>
+              <dc:creator>日本マイクロソフト株式会社</dc:creator>
             </item>
             <item>
               <title>会場開催のセミナー</title>
@@ -93,5 +94,20 @@ public class TechPlayEventSourceTests
         var events = await Source().FetchAsync();
 
         Assert.All(events, e => Assert.Equal("TECH PLAY", e.SourceName));
+    }
+
+    [Fact]
+    public async Task 主催者を取り込む()
+    {
+        // TECH PLAY は参加者数を持たないので、**公式かどうかがこの収集元の唯一の重み** ——
+        // 主催者を落とすと、いちばん厚いベンダーのウェビナーが注目度で沈む
+        var events = await Source().FetchAsync();
+
+        Assert.Equal(
+            "日本マイクロソフト株式会社",
+            events.Single(e => e.Title == "生成AI 実践ハンズオン").Organizer);
+        Assert.Null(events.Single(e => e.Title == "会場開催のセミナー").Organizer);
+        // 参加者数は RSS に無いので null のまま(0 と区別する)
+        Assert.Null(events.First().ParticipantCount);
     }
 }

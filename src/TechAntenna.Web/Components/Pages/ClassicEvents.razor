@@ -1,0 +1,162 @@
+@page "/classics/events"
+@using TechAntenna.Core
+@using TechAntenna.Core.Abstractions
+@using TechAntenna.Core.Models
+@using TechAntenna.Core.Topics
+@using TechAntenna.Web.Services
+@inject IEventStore EventStore
+@inject ITopicStore TopicStore
+@inject TopicCatalog Catalog
+@inject ApiCredentials Credentials
+@inject TimeProvider Clock
+
+@* 定番(第三の軸)の子ページ。**トピックの選択で絞らない**イベントの一覧で、
+   興味トピック側(/interests/events)と対になる —— あちらは「自分が選んだ語に当たるもの」、
+   こちらは「選んでいるかどうかに関わらず、外で注目されているもの」。
+
+   **「毎年開かれる定番のカンファレンス」を見分ける方法はまだ持っていない。**
+   RubyKaigi・JJUG CCC のような回を重ねるイベントを、開催の履歴から拾うのが本来の姿だが、
+   こちらはまだ 1 年ぶんの履歴も溜まっていない。ひとまず**注目度**(公式・参加者数・
+   記事の言及数)で代用し、材料を1つも持たないものは出さない。
+
+   カレンダーは置かない —— 日付で見る場所は興味トピック側にあり、ここは「規模の大きいものから
+   拾う」ための一覧だから(そのぶん既定の並びも注目度順で、あちらとは逆にしてある)。 *@
+
+<PageTitle>Tech Antenna — 定番 / イベント</PageTitle>
+
+<h1>定番 / イベント</h1>
+
+<p class="text-muted">
+    <strong>トピックの選択に関係なく</strong>、集まっているイベントの中から
+    <strong>注目度の高いもの</strong>を出します ——
+    選んだトピックに当たるイベントは<a href="/interests/events">興味トピック → イベント</a>へ。
+    注目度は<strong>公式であること・参加者数・記事の言及数</strong>の3つで測り、
+    <strong>そのどれも持たないイベントは出しません</strong>
+    (カードの強調が付く条件と同じ基準です)。
+    <strong>選んだトピック(配下を含む)に当たるタグは強調</strong>するので、
+    定番の中から自分の関心に近いものを見つけられます。
+</p>
+
+@* 収集のボタンは設定にある(イベントの収集は軸をまたいで1つ) *@
+<CollectionHint Job="イベントの収集" />
+
+@if (_events is null)
+{
+    <p>読み込み中…</p>
+}
+else if (_events.Count == 0)
+{
+    @* **空のときこそ、何をすれば埋まるのかを書く。** 収集そのものが
+       「選んだトピックの検索」を主にしているので、トピックに当たらないイベントは
+       購読か面掃きを入れないと 1 件も入ってこない。
+       **「1件も集めていない」と「集めたが全部足切りされた」を書き分ける** ——
+       同じ「ありません」で片付けると、打つ手が違うのに同じに見える *@
+    @if (_filteredOut > 0)
+    {
+        <p>これからのイベント @_filteredOut 件は集まっていますが、
+            <strong>注目度の材料(公式・参加者数・記事の言及数)をどれも持たない</strong>ため出していません。
+            小さな勉強会まで日付順に見るなら<a href="/interests/events">興味トピック → イベント</a>へ
+            (そちらは選んだトピックと購読しているグループのものだけです)。</p>
+    }
+    else
+    {
+        <p>まだありません。<a href="/settings/general">設定</a>の「イベントの収集」を実行してください。</p>
+    }
+    <p class="text-muted">
+        実行しても増えないときは、<strong>トピックに当たらないイベントを集める経路</strong>が
+        入っていない可能性があります ——
+        <a href="/settings/follows">設定 → 購読</a>で追いかけるグループを登録するか、
+        connpass の<strong>面掃き</strong>(月ごとに全件なめて参加者数で切る経路。
+        状態は<a href="/settings/integrations">設定 → 外部連携</a>で確認できます)を
+        有効にしてください。
+    </p>
+}
+else
+{
+    @* **既定は注目度順**(興味トピック側は開催日順)—— このページの目的が
+       「規模の大きいものから拾う」ことなので、日付順を既定にすると意味が薄れる。
+       それでも「近いものから見たい」は要るのでタブで切り替える *@
+    <nav class="view-switch" aria-label="並び順の切り替え">
+        <a class="@(IsByDate ? "" : "active")" href="/classics/events">注目度順</a>
+        <a class="@(IsByDate ? "active" : "")" href="/classics/events?sort=date">開催日順</a>
+    </nav>
+
+    <p class="text-muted">
+        @if (IsByDate)
+        {
+            <text><strong>開催日の早い順</strong>に並べています。</text>
+        }
+        else
+        {
+            <text><strong>注目度の高い順</strong>に並べています。
+                言及数を混ぜてあるので、<strong>参加者数を出さない大型カンファレンスでも
+                記事が書かれていれば上に来ます</strong>。</text>
+        }
+        @* **落とした件数は黙って隠さない** —— 「集めたのに出てこない」の理由が
+           画面から読めないと、絞り込みが壊れているように見える *@
+        @if (_filteredOut > 0)
+        {
+            <text>注目度の材料を持たないイベント @_filteredOut 件は出していません。</text>
+        }
+    </p>
+
+    <ul class="list-unstyled">
+        @foreach (var techEvent in _events)
+        {
+            <EventItem Event="techEvent" SelectedTags="_interests" EmphasizeByPopularity="true" />
+        }
+    </ul>
+}
+
+@code {
+    /// <summary>一覧に出す件数(興味トピック側と同じ)。</summary>
+    const int Limit = 100;
+
+    /// <summary>
+    /// 読み込む件数。**足切りの前に読む数**なので一覧の上限より多く取る ——
+    /// 同じ数だけ読むと、材料を持たないイベントが多い日に一覧がすかすかになる。
+    /// </summary>
+    const int LoadLimit = 500;
+
+    /// <summary>並び順。既定(null)は注目度順で、"date" なら開催日順。</summary>
+    [SupplyParameterFromQuery(Name = "sort")]
+    string? Sort { get; set; }
+
+    bool IsByDate => Sort == "date";
+
+    /// <summary>
+    /// 読み込みが終わるまで null。**null 許容のまま持つ** ——
+    /// `default!` にすると、DB につないだ本番でだけ現れる「初回の描画」で落ちる
+    /// (InMemory のストアは同期に完了するので手元では出ない)。
+    /// </summary>
+    IReadOnlyList<TechEvent>? _events;
+
+    /// <summary>足切りで落としたイベントの数(画面に理由として出す)。</summary>
+    int _filteredOut;
+
+    /// <summary>選んだトピック+その配下のキー。**絞り込みではなくタグの強調にだけ使う**。</summary>
+    HashSet<string> _interests = new(StringComparer.Ordinal);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    async Task LoadAsync()
+    {
+        var official = OrganizerSettings.Resolve(Credentials);
+        var upcoming = await EventStore.GetUpcomingAsync(Clock.GetUtcNow(), LoadLimit);
+
+        // **絞るのは注目度の材料だけ。** トピックにも購読にも触れない ——
+        // 「選択に依存しない」がこの軸の約束なので、ここで絞ると軸ごと意味を失う
+        var notable = upcoming.Where(techEvent => EventPopularity.IsNotable(techEvent, official)).ToList();
+        _filteredOut = upcoming.Count - notable.Count;
+
+        _events = (IsByDate ? notable.OrderBy(techEvent => techEvent.StartsAt).AsEnumerable()
+                            : notable.ByPopularity(official))
+            .Take(Limit)
+            .ToList();
+
+        // 強調は配下込み —— 親(AI)を選んだ人にとって、子(LLM・RAG)も興味の範囲
+        _interests = Catalog
+            .ExpandWithDescendants((await TopicStore.GetSelectedAsync()).Select(topic => topic.Key))
+            .ToHashSet(StringComparer.Ordinal);
+    }
+}

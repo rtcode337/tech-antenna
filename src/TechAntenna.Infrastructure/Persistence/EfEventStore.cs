@@ -134,6 +134,43 @@ public class EfEventStore(IDbContextFactory<TechAntennaDbContext> contextFactory
             .ThenBy(row => row.Organizer)
             .Select(row => new OrganizerCount(row.Organizer, row.Count));
 
+    /// <summary>
+    /// 主催者 × 収集元。<b>生 SQL なのは URL を 1 件添えるため</b> ——
+    /// <c>Url</c> は値変換(Uri ↔ text)の掛かった列で、LINQ で集約関数(<c>Min</c>)に
+    /// 掛けると EF が翻訳できない。列そのものを SQL で扱えばただの text で済む。
+    /// </summary>
+    public async Task<IReadOnlyList<OrganizerGroup>> GetOrganizerGroupsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var rows = await db.Database
+            .SqlQuery<OrganizerGroupRow>(
+                $"""
+                 SELECT "Organizer" AS "Organizer", "SourceName" AS "SourceName",
+                        MIN("Url") AS "SampleUrl", COUNT(*)::int AS "Count"
+                 FROM "Events"
+                 WHERE "Organizer" IS NOT NULL AND "Organizer" <> ''
+                 GROUP BY "Organizer", "SourceName"
+                 ORDER BY COUNT(*) DESC, "Organizer"
+                 """)
+            .ToListAsync(cancellationToken);
+
+        // **読めない URL の行は落とす**(http/https 以外は WebUrl が弾く)。
+        // 画面はこの URL からグループの識別子を起こすので、読めない行を通すと候補が壊れる
+        return
+        [
+            .. rows
+                .Select(row => WebUrl.TryCreate(row.SampleUrl, out var url)
+                    ? new OrganizerGroup(row.Organizer, row.SourceName, url, row.Count)
+                    : null)
+                .OfType<OrganizerGroup>()
+        ];
+    }
+
+    /// <summary>上の問い合わせの受け皿。<c>Uri</c> のままでは SqlQuery が組み立てられないので text で受ける。</summary>
+    record OrganizerGroupRow(string Organizer, string SourceName, string SampleUrl, int Count);
+
     // タグ関連が生 SQL である理由は EfArticleStore を参照
     public async Task<IReadOnlyList<TechEvent>> GetByTagAsync(string tag, int count, CancellationToken cancellationToken = default)
     {

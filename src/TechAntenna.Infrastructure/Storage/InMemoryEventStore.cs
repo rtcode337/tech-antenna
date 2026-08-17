@@ -88,6 +88,24 @@ public class InMemoryEventStore : IEventStore
         }
     }
 
+    public Task<IReadOnlyList<OrganizerGroup>> GetOrganizerGroupsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            IReadOnlyList<OrganizerGroup> result = _byUrl.Values
+                .Where(e => !string.IsNullOrWhiteSpace(e.Organizer))
+                .GroupBy(e => (e.Organizer!, e.SourceName))
+                .Select(g => new OrganizerGroup(
+                    g.Key.Item1, g.Key.SourceName, g.First().Url, g.Count()))
+                .OrderByDescending(g => g.Count)
+                .ThenBy(g => g.Organizer, StringComparer.Ordinal)
+                .ToList();
+
+            return Task.FromResult(result);
+        }
+    }
+
     public Task<IReadOnlyList<OrganizerCount>> GetOrganizerCountsAsync(CancellationToken cancellationToken = default)
     {
         lock (_gate)

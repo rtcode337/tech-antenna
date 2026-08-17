@@ -50,6 +50,21 @@ public static class EventPopularity
     public const int HighMentions = 5;
 
     /// <summary>
+    /// <b>注目度の材料を1つでも持っているか</b>(公式・人が集まっている・記事に書かれている)。
+    ///
+    /// 定番のイベント一覧(<c>/classics/events</c>)がここで足切りする ——
+    /// トピックの選択で絞らない一覧なので、材料を持たないものまで並べると
+    /// 「注目度の高いイベント」ではなく単なる全件になる。
+    /// <b>カードの強調(hot-mid)と同じ規則</b>にしてあるのが要点で、
+    /// 「目立たせる基準」と「並べる基準」がずれると、強調されていないものが上位に来る。
+    /// </summary>
+    public static bool IsNotable(TechEvent techEvent, OfficialOrganizers official) =>
+        official.IsOfficial(techEvent.Organizer)
+        // null(未取得)は比較が false になるので、そのまま「材料なし」に落ちる
+        || techEvent.ParticipantCount >= MidThreshold
+        || techEvent.MentionCount >= MidMentions;
+
+    /// <summary>
     /// 注目度。**参加者数が取れていない(null)イベントは 0 人として扱う** ——
     /// 書籍の <c>ReviewCount</c> のように null を後ろへ回す作りにすると、
     /// 参加者数を持たない収集元(TECH PLAY)のイベントが公式判定ごと沈むため。

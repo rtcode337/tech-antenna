@@ -100,8 +100,9 @@
 
         return participants >= EventPopularity.HighThreshold || mentions >= EventPopularity.HighMentions
             ? "hot-high"
-            : IsOfficial || participants >= EventPopularity.MidThreshold
-                || mentions >= EventPopularity.MidMentions ? "hot-mid"
-                : "";
+            // **中段の条件は EventPopularity.IsNotable に置いてある** —— 定番のイベント一覧
+            // (/classics/events)がそこで足切りするので、規則を2か所に書くと
+            // 「強調されていないイベントが一覧に出る」形でずれが表に出る
+            : EventPopularity.IsNotable(Event, OrganizerSettings.Resolve(Credentials)) ? "hot-mid" : "";
     }
 }

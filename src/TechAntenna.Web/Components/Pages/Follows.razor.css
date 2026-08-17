@@ -1,0 +1,78 @@
+/* 名簿の画面(設定 → 主催者)と同じ見た目にそろえてある —— どちらも「1行1件のテキストを
+   編集して保存する」画面なので、片方だけ素の HTML のままだと同じ操作に見えない。
+   ここにしか無いのは、下の「公式の主催者から足す」候補の一覧 */
+
+/* 冒頭の説明文。本文より一段落として読み幅を抑える(他のページと同じ扱い) */
+.page-note {
+    max-width: 62rem;
+    font-size: 0.89rem;
+}
+
+/* 保存の結果。次の操作の邪魔にならないよう、面は薄く */
+.notice {
+    max-width: 62rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--accent-border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+    font-size: 0.9rem;
+}
+
+form {
+    max-width: 62rem;
+}
+
+/* 名簿の入力。**等幅で1行1件**にして、どこで行が切れているかを見えるようにする */
+textarea {
+    display: block;
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    resize: vertical;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+}
+
+/* 購読の候補。1件1行で、チェック → 名前 → 識別子 → 件数 の順に読ませる */
+.suggestions {
+    display: grid;
+    gap: 0.35rem;
+    max-width: 62rem;
+    margin-bottom: 0.2rem;
+}
+
+.suggestions label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-size: 0.9rem;
+}
+
+.suggestions label:hover {
+    border-color: var(--border-strong);
+}
+
+/* 識別子はそのまま名簿へ写る値なので、等幅で本文と区別する */
+.suggestions code {
+    font-size: 0.82rem;
+}

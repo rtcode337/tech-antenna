@@ -77,6 +77,9 @@ public class DoorkeeperOptions
 
     /// <summary>検索するキーワード。1つずつ問い合わせ、見つかったイベントのタグになる。</summary>
     public List<string> Keywords { get; set; } = [];
+
+    /// <summary>期間ごとの面掃き(検索語を使わず、参加者数で切る)の設定。</summary>
+    public EventSweepOptions Sweep { get; set; } = new();
 }
 
 /// <summary>TECH PLAY のイベント RSS の設定。appsettings の TechPlay セクションから読む。</summary>
@@ -255,18 +258,20 @@ public class ConnpassOptions
     public List<string> Keywords { get; set; } = [];
 
     /// <summary>月ごとの面掃き(検索語を使わず、参加者数で切る)の設定。</summary>
-    public ConnpassSweepOptions Sweep { get; set; } = new();
+    public EventSweepOptions Sweep { get; set; } = new();
 }
 
 /// <summary>
-/// connpass を<b>月ごとに全件なめて、人が集まっているものだけ残す</b>経路の設定。
+/// <b>面掃き</b>(検索語も名簿も使わず全件をなめて、人が集まっているものだけ残す)の設定。
+/// connpass(<c>Connpass:Sweep</c>)と Doorkeeper(<c>Doorkeeper:Sweep</c>)で
+/// <b>同じ形を使う</b> —— 相手が違うだけで、決めることは同じだから。
 ///
-/// <b>既定では動かさない。</b> 1か月ぶん取るのに数十リクエストかかり、connpass の
-/// レート制限(1 秒 1 リクエスト)と相談して決めることになるため —— 使うかどうかは
+/// <b>既定では動かさない。</b> 1 回の収集で数十リクエストかかり、相手のレート制限
+/// (どちらも実質 1 秒 1 リクエスト)と相談して決めることになるため —— 使うかどうかは
 /// ここで明示する。キーワードで拾えない大型イベントを名前を知らないまま拾える、
 /// 唯一の経路でもある。
 /// </summary>
-public class ConnpassSweepOptions
+public class EventSweepOptions
 {
     /// <summary>面掃きを行うか。<b>既定は false</b>。</summary>
     public bool Enabled { get; set; }
@@ -277,10 +282,13 @@ public class ConnpassSweepOptions
     /// </summary>
     public int MinParticipants { get; set; } = 100;
 
-    /// <summary>今月から何か月ぶん見るか。先の月ほど登録が少ないので、遠くまで見ても実入りは少ない。</summary>
+    /// <summary>
+    /// 今日(connpass は今月)から何か月ぶん見るか。
+    /// 先の月ほど登録が少ないので、遠くまで見ても実入りは少ない。
+    /// </summary>
     public int Months { get; set; } = 2;
 
-    /// <summary>1リクエストごとの待ち時間(秒)。connpass のレート制限は 1 秒 1 リクエスト。</summary>
+    /// <summary>1リクエストごとの待ち時間(秒)。</summary>
     public int DelayBetweenRequestsSeconds { get; set; } = 2;
 }
 

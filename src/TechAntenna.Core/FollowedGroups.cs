@@ -130,6 +130,15 @@ public sealed class FollowedGroups
         return true;
     }
 
+    /// <summary>
+    /// もう名簿に入っているか。<b>収集元と識別子の組で見る</b>(表示名は問わない)——
+    /// 購読の候補を出す側が「すでに追いかけているもの」を除くために使う。
+    /// </summary>
+    public bool Contains(string source, string id) =>
+        _groups.Any(group =>
+            string.Equals(group.Source, source, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(group.Id, id, StringComparison.OrdinalIgnoreCase));
+
     /// <summary>保存する形。読み書きで同じ表記にそろえる。</summary>
     public static string Format(IEnumerable<FollowedGroup> groups) =>
         string.Join("\n", groups.Select(group =>
