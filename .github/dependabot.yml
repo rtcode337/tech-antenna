@@ -37,6 +37,12 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "mcr.microsoft.com/dotnet/aspnet"
         update-types: ["version-update:semver-major"]
+      # **Node のメジャーは LTS 入りしたものだけを使う**(Current は追わない)。
+      # ここの node は Claude Code の CLI を取り出すだけのビルドステージだが、
+      # 他のリポジトリと方針を揃える(travel-log の同じ設定を参照)。
+      # 26 は 2026-10 に LTS 入り予定で、それまでは現行 Active LTS の 24
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions(actions/checkout 等。ランタイム非推奨化への追従もこれで拾う)
   - package-ecosystem: github-actions

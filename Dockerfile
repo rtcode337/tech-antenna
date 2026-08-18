@@ -39,7 +39,7 @@ RUN mkdir -p /app/keys /home/app
 #
 # バージョンは固定する —— latest だと同じイメージタグでも中身が変わり、
 # 「昨日まで動いていた要約が落ちる」を再現できなくなる。上げるときはここを変える。
-FROM --platform=$BUILDPLATFORM node:22-slim AS claude-cli
+FROM --platform=$BUILDPLATFORM node:24-slim AS claude-cli
 ARG TARGETARCH
 ARG CLAUDE_CODE_VERSION=2.1.234
 RUN arch="$(echo "$TARGETARCH" | sed 's/amd64/x64/')" \
