@@ -75,6 +75,15 @@ public static class TagNormalizer
                 continue;
             }
 
+            // **制御文字(改行・タブ等)も落とす。** `Trim()` が消すのは前後だけなので、
+            // 収集元のタグの**途中**に紛れ込むとキーに残り、そのまま DB・画面・ログへ流れる
+            // (ログに改行が入ると、偽の行を差し込める = ログの偽装)。
+            // ここで落とせば、キーを扱うすべての場所が同時に守られる
+            if (char.IsControl(c))
+            {
+                continue;
+            }
+
             key.Append(c);
         }
 

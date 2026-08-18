@@ -46,6 +46,17 @@ public class TagNormalizerTests
     }
 
     [Fact]
+    public void 語の途中の制御文字を落とす()
+    {
+        // `Trim()` が消すのは前後だけ。**途中**に改行が残ると、そのキーが DB・画面・
+        // ログへ流れる(ログでは偽の行を差し込める = ログの偽装)
+        Assert.Equal(["生成ai"], TagNormalizer.Normalize(["生成\nAI"]));
+        Assert.Equal(["ai"], TagNormalizer.Normalize(["A\tI"]));
+        // 制御文字だけのタグは何も残らない
+        Assert.Empty(TagNormalizer.Normalize(["\r\n"]));
+    }
+
+    [Fact]
     public void カンマ入りのタグ名は語ごとに分ける()
     {
         // **収集元のタグ名にカンマが入っていることが実際にある** —— 実測で Qiita の直近

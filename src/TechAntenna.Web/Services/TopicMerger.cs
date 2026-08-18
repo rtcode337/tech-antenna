@@ -46,7 +46,8 @@ public class TopicMerger(
         var source = await topicStore.GetAsync(from, cancellationToken);
         if (source is { IsSelected: true })
         {
-            logger.LogInformation("収集対象に選ばれているので寄せない: {From} → {Into}", from, into);
+            logger.LogInformation(
+                "収集対象に選ばれているので寄せない: {From} → {Into}", ForLog(from), ForLog(into));
 
             return false;
         }
@@ -75,7 +76,8 @@ public class TopicMerger(
         }
 
         await catalogRefresher.RefreshAsync(cancellationToken);
-        logger.LogInformation("トピックを寄せた: {From} → {Into}(タグ {Moved} 件)", from, into, moved.Count);
+        logger.LogInformation(
+            "トピックを寄せた: {From} → {Into}(タグ {Moved} 件)", ForLog(from), ForLog(into), moved.Count);
 
         return true;
     }
@@ -98,4 +100,14 @@ public class TopicMerger(
         await topicStore.RemoveAsync([key], cancellationToken);
         await catalogRefresher.RefreshAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// ログに出す前に改行を潰す。**キーは人と収集元から来る** ——
+    /// 改行が混ざったまま出すと、ログに偽の行を差し込める(CodeQL の `cs/log-forging`)。
+    ///
+    /// **根っこは <see cref="TechAntenna.Core.Topics.TagNormalizer.ToKey"/> が制御文字を
+    /// 落として塞いである。** ここで重ねて落とすのは、正規化を通らない値が将来
+    /// 混ざっても、ログの安全がこの1か所で保たれるようにするため。
+    /// </summary>
+    static string ForLog(string value) => value.Replace('\r', ' ').Replace('\n', ' ');
 }

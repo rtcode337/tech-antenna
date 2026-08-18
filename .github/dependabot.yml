@@ -1,0 +1,47 @@
+# 依存の更新 PR を週 1 でまとめて受け取る(月曜 JST)。**脆弱性対応の security updates とは別**で、
+# こちらは「普段の更新」を定期的に上げるための設定。
+#
+# 公開リポジトリなので Actions の実行時間は無料枠の外(標準ランナーは無料)。
+# イメージのビルド(build-and-push-image)は main への push でしか走らないため、
+# PR が増えてもビルドの実行時間は増えない。
+version: 2
+updates:
+  # NuGet(csproj は src/ と tests/ の下に1つずつ)。
+  # **ディレクトリはワイルドカードで書く** —— プロジェクトを足したときに、ここを直し忘れて
+  # 「そのプロジェクトだけ更新が来ない」状態になるのを避ける
+  - package-ecosystem: nuget
+    directories:
+      - /src/*
+      - /tests/*
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Tokyo
+    # minor・patch は 1 本の PR にまとめる(個別 PR の洪水を避ける)。major だけ個別 PR
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  # Dockerfile のベースイメージ(dotnet の sdk / aspnet と、CLI を載せる node)
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Tokyo
+    ignore:
+      # **.NET のメジャーは自動で上げない。** このアプリは .NET 10(LTS・2028-11 まで)を
+      # 選んでいて、STS の版へ上げると寿命が縮む(CLAUDE.md「技術スタック」参照)。
+      # 次の LTS へ移るのは、移行を決めたときに手で上げる
+      - dependency-name: "mcr.microsoft.com/dotnet/sdk"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "mcr.microsoft.com/dotnet/aspnet"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions(actions/checkout 等。ランタイム非推奨化への追従もこれで拾う)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Tokyo
