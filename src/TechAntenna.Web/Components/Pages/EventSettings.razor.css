@@ -1,0 +1,126 @@
+/* 購読と主催者を1ページにまとめた画面。**2つの名簿は同じ見た目にそろえる** ——
+   どちらも「1行1件のテキストを編集して保存する」操作なので、片方だけ体裁が違うと
+   別の操作に見える(かつては別ページで、CSS も2つに分かれていた) */
+
+/* 冒頭と各節の説明文。本文より一段落として読み幅を抑える(他のページと同じ扱い) */
+.page-note {
+    max-width: 62rem;
+    font-size: 0.89rem;
+}
+
+/* 節の見出しの右に置く `?`(説明チップの開閉)。**見出しの字とは大きさを揃えない** ——
+   .help-toggle は固定の丸なので、見出しに合わせて伸ばすと丸が歪む */
+h2 .help-toggle {
+    margin-left: 0.4rem;
+    vertical-align: middle;
+}
+
+/* 節の間。1ページに2つの名簿が並ぶので、境目が分かるだけ空ける */
+h2 {
+    margin-top: 2.5rem;
+}
+
+h3 {
+    margin-top: 1.75rem;
+    font-size: 1.05rem;
+}
+
+/* 保存の結果。次の操作の邪魔にならないよう、面は薄く(タグの画面と同じ) */
+.notice {
+    max-width: 62rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--accent-border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+    font-size: 0.9rem;
+}
+
+form {
+    max-width: 62rem;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: 650;
+}
+
+/* 名簿の入力。**等幅で1行1件**にして、どこで行が切れているかを見えるようにする */
+textarea {
+    display: block;
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    resize: vertical;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+}
+
+/* 購読の候補。1件1行で、チェック → 名前 → 識別子 → 件数 の順に読ませる */
+.suggestions {
+    display: grid;
+    gap: 0.35rem;
+    max-width: 62rem;
+    margin-bottom: 0.2rem;
+}
+
+/* 候補の行は label 全体が押せる。名簿の label(ブロックの見出し)とは別物なので上書きする */
+.suggestions label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-size: 0.9rem;
+    font-weight: 400;
+}
+
+.suggestions label:hover {
+    border-color: var(--border-strong);
+}
+
+/* 識別子はそのまま名簿へ写る値なので、等幅で本文と区別する */
+.suggestions code {
+    font-size: 0.82rem;
+}
+
+/* 件数の列。桁をそろえて、多い主催者を上から追えるようにする */
+.count {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+/* 狭い画面(スマホ)。**主催者の表は畳まない** —— 数十行あり、1 行 1 枚のカードにすると
+   縦に伸びて「どの主催者が公式か」を見比べられなくなる。3 列とも短いので、
+   数と判定の列を詰めれば名前が折り返して収まる(見出しの折り返しは app.css 側で許してある) */
+@media (max-width: 640px) {
+    .table .count {
+        width: 3.5rem;
+        text-align: right;
+    }
+
+    /* 判定(公式のバッジ)。字は入るが、列としては最小でよい */
+    .table:not(.stack) td:last-child,
+    .table:not(.stack) th:last-child {
+        width: 3.2rem;
+    }
+}

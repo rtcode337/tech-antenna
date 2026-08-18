@@ -14,7 +14,6 @@
 
 <h1>設定 / トピック</h1>
 
-<p><a href="/settings/general">← 設定</a></p>
 
 @if (_topics is null)
 {
@@ -92,6 +91,61 @@ else
         </p>
     }
 
+    @* 整備のボタン(話題度の取り直し・タグの仕分け)は**設定に集めてある** ——
+       ジョブのボタンは1か所に置き、この画面は「何を集めるかを選ぶ」に専念させる。
+       行き先だけはここに書いておく(押し場所を探して迷わないように) *@
+    <p class="page-note text-muted">
+        話題度が古いと感じたら、<a href="/settings/jobs">ジョブ</a>の「話題度を取り直す」で取り直せます
+        (外部トレンドをその場から引き直します。<strong>LLM は使いません</strong>)。
+        未仕分けの語を語彙へ入れるのは、同じく<a href="/settings/jobs">ジョブ</a>の「タグを仕分けなおす」です。
+    </p>
+
+    @* **語彙と仕分けをファイルで運ぶ。** LLM の仕分けは呼ぶたびに枠を使うので、本番で仕分けた
+       結果を開発サーバーへ持って行けるようにしてある(逆向き・バックアップにも使える)。
+       畳んであるのは日々の操作ではないため。**置き場は一覧のすぐ上** ——
+       ページの一番下に置いていた頃は、数百行のツリーの下で見つからなかった
+       (畳んであるので、日々の操作の邪魔にはならない) *@
+    <details class="score-help transfer">
+        <summary>ファイルで持ち出す / 取り込む</summary>
+        <p>
+            <strong>語彙(トピック)とタグの仕分けだけ</strong>を JSON で運びます。
+            <strong>件数・話題度は入りません</strong> —— それは各環境が集めたデータの話なので、
+            取り込んだ先では次の「話題度を取り直す」が集め直します。
+            取り込みは<strong>足し込みで、この環境にしか無い語彙や仕分けは消しません</strong>。
+            <strong>画面から手で直した仕分けは守ります</strong>(ファイル側で上書きしません)。
+        </p>
+
+        <p><a class="btn btn-outline-primary btn-sm" href="/export/topics.json" download>JSON で書き出す</a></p>
+
+        @* ファイルの受け取りは HttpContext から読む(静的 SSR のフォームはファイルを束縛しない) *@
+        <form method="post" enctype="multipart/form-data" @formname="import-topics" @onsubmit="ImportAsync">
+            <AntiforgeryToken />
+            <p>
+                <input type="file" name="file" accept=".json,application/json" required
+                       aria-label="取り込むトピックのファイル" />
+            </p>
+            <p>
+                <label>
+                    <input type="checkbox" name="import-selection" value="true" />
+                    収集対象の選択も取り込む
+                </label>
+                <span class="text-muted">
+                    （既定では取り込みません。イベントと書籍の検索語が黙って変わらないようにするためです）
+                </span>
+            </p>
+            <button type="submit" class="btn btn-outline-primary btn-sm">ファイルを取り込む</button>
+        </form>
+
+        @if (_importMessage is { Length: > 0 })
+        {
+            <p class="import-result">@_importMessage</p>
+        }
+        @if (_importError is { Length: > 0 })
+        {
+            <p class="import-error">@_importError</p>
+        }
+    </details>
+
     @* **チェックはその場で保存する**(wwwroot/topic-select.js が 1 件ずつ
        `POST /api/topics/select` へ送る)。このフォームは**その JS が動かないときの経路**として
        残してある —— 押せる保存の手段が画面から消えないようにするため。
@@ -163,60 +217,6 @@ else
         <p class="select-status" data-select-status role="status" hidden></p>
     </form>
 }
-
-@* 整備のボタン(話題度の取り直し・タグの仕分け)は**設定に集めてある** ——
-   ジョブのボタンは1か所に置き、この画面は「何を集めるかを選ぶ」に専念させる。
-   行き先だけはここに書いておく(押し場所を探して迷わないように) *@
-<p class="page-note text-muted">
-    話題度が古いと感じたら、<a href="/settings/general">設定</a>の「話題度を取り直す」で取り直せます
-    (外部トレンドをその場から引き直します。<strong>LLM は使いません</strong>)。
-    未仕分けの語を語彙へ入れるのは、同じく設定の「タグを仕分けなおす」です。
-</p>
-
-@* **語彙と仕分けをファイルで運ぶ。** LLM の仕分けは呼ぶたびに枠を使うので、本番で仕分けた
-   結果を開発サーバーへ持って行けるようにしてある(逆向き・バックアップにも使える)。
-   畳んであるのは日々の操作ではないため。置き場はページの一番下(話題度ボタンの下)——
-   日々の操作(選択・検索)より先に目に入る必要が無い *@
-<details class="score-help transfer">
-    <summary>ファイルで持ち出す / 取り込む</summary>
-    <p>
-        <strong>語彙(トピック)とタグの仕分けだけ</strong>を JSON で運びます。
-        <strong>件数・話題度は入りません</strong> —— それは各環境が集めたデータの話なので、
-        取り込んだ先では次の「話題度を取り直す」が集め直します。
-        取り込みは<strong>足し込みで、この環境にしか無い語彙や仕分けは消しません</strong>。
-        <strong>画面から手で直した仕分けは守ります</strong>(ファイル側で上書きしません)。
-    </p>
-
-    <p><a class="btn btn-outline-primary btn-sm" href="/export/topics.json" download>JSON で書き出す</a></p>
-
-    @* ファイルの受け取りは HttpContext から読む(静的 SSR のフォームはファイルを束縛しない) *@
-    <form method="post" enctype="multipart/form-data" @formname="import-topics" @onsubmit="ImportAsync">
-        <AntiforgeryToken />
-        <p>
-            <input type="file" name="file" accept=".json,application/json" required
-                   aria-label="取り込むトピックのファイル" />
-        </p>
-        <p>
-            <label>
-                <input type="checkbox" name="import-selection" value="true" />
-                収集対象の選択も取り込む
-            </label>
-            <span class="text-muted">
-                （既定では取り込みません。イベントと書籍の検索語が黙って変わらないようにするためです）
-            </span>
-        </p>
-        <button type="submit" class="btn btn-outline-primary btn-sm">ファイルを取り込む</button>
-    </form>
-
-    @if (_importMessage is { Length: > 0 })
-    {
-        <p class="import-result">@_importMessage</p>
-    }
-    @if (_importError is { Length: > 0 })
-    {
-        <p class="import-error">@_importError</p>
-    }
-</details>
 
 @* タグの再正規化に専用ボタンは無い —— 「タグを仕分けなおす」が毎回、保存済みデータの
    タグを生タグ + カタログから作り直す(正規化の規則を変えたらこれを押せば効く) *@

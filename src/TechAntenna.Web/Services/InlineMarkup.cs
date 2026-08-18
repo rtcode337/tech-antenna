@@ -6,7 +6,7 @@ namespace TechAntenna.Web.Services;
 /// <summary>
 /// 画面に出す説明文の中の**ごく限られた装飾**(強調とコード)を HTML に直す。
 ///
-/// 説明文(<see cref="IntegrationCatalog"/> の <c>Effect</c> など)は、コードのコメントと
+/// 説明文(<see cref="IntegrationCatalog"/> の <c>Description</c> など)は、コードのコメントと
 /// 同じ書き方で `**強調**` と `` `コード` `` を使って書いてある。**そのまま出すと記号が
 /// 画面に見えるだけ**(実際に「**CLI は別コンテナ…**」とアスタリスクごと出ていた)。
 ///

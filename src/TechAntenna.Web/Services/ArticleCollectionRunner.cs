@@ -15,6 +15,7 @@ namespace TechAntenna.Web.Services;
 /// </summary>
 public class ArticleCollectionRunner(
     IEnumerable<IArticleSource> sources,
+    SourceToggles toggles,
     IArticleStore store,
     TagObserver tagObserver,
     IOptions<CollectionOptions> options,
@@ -35,13 +36,21 @@ public class ArticleCollectionRunner(
 
     async Task<CollectionRunResult> CollectAsync(CancellationToken cancellationToken)
     {
+        // **止めた収集元は叩きに行かない。** 実行のたびに読むので、画面の切り替えは
+        // 再起動なしで効く(起動時に絞ると、切り替えても次の再起動まで変わらない)
+        var enabled = toggles.Enabled(_sources, SourceToggles.Article, source => source.Name);
+        if (enabled.Count == 0)
+        {
+            return CollectionRunResult.AllDisabled("トレンド");
+        }
+
         // 収集先へ同時アクセスしないよう、並列化せず1本ずつ間隔を空けて読む
         var delay = TimeSpan.FromSeconds(options.Value.DelayBetweenSourcesSeconds);
         int fetched = 0, added = 0, failed = 0;
 
-        for (var i = 0; i < _sources.Count; i++)
+        for (var i = 0; i < enabled.Count; i++)
         {
-            var source = _sources[i];
+            var source = enabled[i];
             try
             {
                 var articles = await source.FetchAsync(cancellationToken);
@@ -64,7 +73,7 @@ public class ArticleCollectionRunner(
             }
 
             // 最後の収集元の後は待たない(手動実行で無駄に待たせないため)
-            if (i < _sources.Count - 1 && delay > TimeSpan.Zero)
+            if (i < enabled.Count - 1 && delay > TimeSpan.Zero)
             {
                 await Task.Delay(delay, cancellationToken);
             }
@@ -90,6 +99,12 @@ public class ArticleCollectionRunner(
     /// </summary>
     async Task RefreshBookmarkCountsAsync(CancellationToken cancellationToken)
     {
+        // ブックマーク数の補完も1つの収集元として止められる(止めたら叩きに行かない)
+        if (!toggles.IsEnabled(SourceToggles.Bookmark, BookmarkCountRefresher.SourceName))
+        {
+            return;
+        }
+
         if (bookmarkRefresher is null)
         {
             return;

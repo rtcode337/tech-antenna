@@ -14,6 +14,7 @@ namespace TechAntenna.Web.Services;
 /// </summary>
 public class NewReleaseCollectionRunner(
     IEnumerable<INewReleaseSource> sources,
+    SourceToggles toggles,
     INewReleaseStore store,
     IOptions<NewReleaseOptions> options,
     TimeProvider clock,
@@ -34,6 +35,14 @@ public class NewReleaseCollectionRunner(
 
     async Task<CollectionRunResult> CollectAsync(CancellationToken cancellationToken)
     {
+        // **止めた収集元は叩きに行かない。** 実行のたびに読むので、画面の切り替えは
+        // 再起動なしで効く(起動時に絞ると、切り替えても次の再起動まで変わらない)
+        var enabled = toggles.Enabled(_sources, SourceToggles.NewRelease, source => source.Name);
+        if (enabled.Count == 0)
+        {
+            return CollectionRunResult.AllDisabled("出版トレンド");
+        }
+
         int found = 0, added = 0, failed = 0;
         // **窓は毎回同じ**(直近 N か月)。同じ本を引き直すことになるが、URL で上書きするので
         // 増えず、タグは最新の語彙で付け直される
@@ -41,7 +50,7 @@ public class NewReleaseCollectionRunner(
         var since = DateOnly.FromDateTime(
             JapanTime.To(clock.GetUtcNow()).AddMonths(-options.Value.WindowMonths).Date);
 
-        foreach (var source in _sources)
+        foreach (var source in enabled)
         {
             try
             {

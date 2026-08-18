@@ -31,7 +31,9 @@ public class ConnpassSweepEventSource(
     TimeSpan? delayBetweenRequests = null,
     TopicCatalog? catalog = null,
     Func<string?>? apiKeyProvider = null,
-    Func<bool>? enabledProvider = null) : IEventSource
+    Func<bool>? enabledProvider = null,
+    Func<DateTimeOffset?>? incrementalSinceProvider = null,
+    Func<Task>? onSwept = null) : IEventSource
 {
     /// <summary>connpass の 1 リクエストあたりの上限。</summary>
     const int PageSize = 100;
@@ -45,7 +47,21 @@ public class ConnpassSweepEventSource(
     const string EndpointFormat =
         "https://connpass.com/api/v2/events/?ym={0}&order=2&count={1}&start={2}";
 
-    readonly TimeSpan _delay = delayBetweenRequests ?? TimeSpan.FromSeconds(2);
+    /// <summary>
+    /// **差分取得の口。** `publish_ymd`(公開された年月日。複数指定可)で「前回からあとに
+    /// 公開されたイベント」だけを引く —— 全掃きは月ごとに最大 10 ページ x 月数かかるが、
+    /// こちらは**たいてい 1 リクエスト**で済む(1 日に公開されるイベントは 100 件前後)。
+    /// </summary>
+    const string IncrementalEndpointFormat =
+        "https://connpass.com/api/v2/events/?order=2&count={0}&start={1}{2}";
+
+    /// <summary>
+    /// 差分で遡れる日数の上限。**これを超えたら全掃きに戻す** ——
+    /// 長く止めていた後に何十日ぶんも `publish_ymd` を並べるより、月ごとに掃くほうが速い。
+    /// </summary>
+    const int MaxIncrementalDays = 8;
+
+    readonly TimeSpan _delay = delayBetweenRequests ?? TimeSpan.FromSeconds(5);
 
     public string Name => "connpass(面掃き)";
 
@@ -89,6 +105,22 @@ public class ConnpassSweepEventSource(
         // **月の起点は日本時間の今月。** UTC で数えると、月初の朝 9 時までは前の月を掃くことになる
         var start = JapanTime.To(collectedAt);
 
+        // **前回からの差分で済むならそうする。** 全掃きは「期間の全件を数え上げる」ので高い
+        // (月ごとに最大 10 ページ x 月数)が、**新しく公開されたぶんだけなら 1 リクエスト**で足りる。
+        // ただし**参加者数が伸びてしきい値を越えたイベントは差分に出てこない**(公開日は変わらない)ので、
+        // 呼び出し側が週に一度は全掃きへ戻す(`SweepSettings.FullInterval`)
+        if (IncrementalDays(incrementalSinceProvider?.Invoke(), start) is { Count: > 0 } days)
+        {
+            await SweepPublishedAsync(client, days, collectedAt, start, byUrl, cancellationToken);
+            Truncated = [];
+            if (onSwept is not null)
+            {
+                await onSwept();
+            }
+
+            return byUrl.Values.ToList();
+        }
+
         for (var offset = 0; offset < months; offset++)
         {
             var month = new DateTime(start.Year, start.Month, 1).AddMonths(offset);
@@ -99,8 +131,90 @@ public class ConnpassSweepEventSource(
         }
 
         Truncated = truncated;
+        // **掃けたときだけ記録する。** 途中で例外なら記録しない(次の収集で掃き直す)
+        if (onSwept is not null)
+        {
+            await onSwept();
+        }
 
         return byUrl.Values.ToList();
+    }
+
+    /// <summary>
+    /// 差分で引く日付(日本時間)。**null か、遡りすぎ・未来なら空**(= 全掃きに戻す)。
+    /// 前回の実行日を含めるのは、その日の途中で走ったときに取りこぼさないため。
+    /// </summary>
+    static IReadOnlyList<DateTime> IncrementalDays(DateTimeOffset? since, DateTimeOffset nowInJapan)
+    {
+        if (since is not { } from)
+        {
+            return [];
+        }
+
+        var first = JapanTime.To(from).Date;
+        var last = nowInJapan.Date;
+        if (first > last || (last - first).TotalDays + 1 > MaxIncrementalDays)
+        {
+            return [];
+        }
+
+        var days = new List<DateTime>();
+        for (var day = first; day <= last; day = day.AddDays(1))
+        {
+            days.Add(day);
+        }
+
+        return days;
+    }
+
+    /// <summary>
+    /// 指定した日に**公開された**イベントだけを取る(`publish_ymd` は複数指定できるので、
+    /// 何日ぶんでも 1 リクエストにまとまる)。
+    /// **開催が掃く期間の外にあるものは捨てる** —— 全掃きと同じ範囲だけを持つため
+    /// (差分で入る/入らないが実行時刻で変わらないようにする)。
+    /// </summary>
+    async Task SweepPublishedAsync(
+        HttpClient client,
+        IReadOnlyList<DateTime> days,
+        DateTimeOffset collectedAt,
+        DateTimeOffset startInJapan,
+        Dictionary<Uri, TechEvent> byUrl,
+        CancellationToken cancellationToken)
+    {
+        var query = string.Concat(days.Select(day => $"&publish_ymd={day:yyyyMMdd}"));
+        // **全掃きと同じ範囲**にそろえる —— 全掃きは今月の頭から months か月ぶんを
+        // `ym` で引くので、差分でもその範囲の開催だけを残す
+        // (そろえないと、差分で入るか全掃きで入るかによって持ち物が変わる)
+        var windowStart = new DateTime(startInJapan.Year, startInJapan.Month, 1);
+        var windowEnd = windowStart.AddMonths(months);
+
+        for (var page = 0; page < MaxPagesPerMonth; page++)
+        {
+            var requestUri = string.Format(
+                IncrementalEndpointFormat, PageSize, page * PageSize + 1, query);
+            var json = await client.GetStringAsync(requestUri, cancellationToken);
+            var result = ConnpassResponseParser.ParsePage(json);
+
+            foreach (var entry in result.Events)
+            {
+                if (entry.StartsAt is { } startsAt
+                    && JapanTime.To(startsAt).Date is var startDate
+                    && startDate >= windowStart && startDate < windowEnd)
+                {
+                    Take(entry, collectedAt, byUrl);
+                }
+            }
+
+            if (result.Events.Count < PageSize)
+            {
+                return;
+            }
+
+            if (page < MaxPagesPerMonth - 1 && _delay > TimeSpan.Zero)
+            {
+                await Task.Delay(_delay, cancellationToken);
+            }
+        }
     }
 
     /// <summary>1か月ぶんを頭から取る。最後まで見られたら true、上限で打ち切ったら false。</summary>

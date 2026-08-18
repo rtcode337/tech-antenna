@@ -54,7 +54,7 @@ public class ClassicsCollectionRunnerTests
 
     static ClassicsCollectionRunner Runner(
         IBookRecommendationSource source, IBookEnricher enricher, InMemoryBookStore books) =>
-        new([source], [enricher], books,
+        new([source], [enricher], SourceTogglesTests.AllEnabled(), books,
             new TagObserver(
                 new InMemoryTagStore(), new InMemoryArticleStore(), new InMemoryEventStore(),
                 books, new FakeTimeProvider(Now)),

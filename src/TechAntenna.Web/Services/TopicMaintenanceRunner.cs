@@ -49,6 +49,7 @@ namespace TechAntenna.Web.Services;
 public class TopicMaintenanceRunner(
     TopicCatalog catalog,
     IEnumerable<ITrendTopicSource> sources,
+    SourceToggles toggles,
     ITagStore tagStore,
     ITopicStore topicStore,
     TagObserver tagObserver,
@@ -553,7 +554,8 @@ public class TopicMaintenanceRunner(
         var merged = new Dictionary<string, (double Score, int Sources)>(StringComparer.Ordinal);
         _failedSources = 0;
 
-        foreach (var source in _sources)
+        // **止めたトレンドの収集元は叩きに行かない**(実行のたびに読む)
+        foreach (var source in toggles.Enabled(_sources, SourceToggles.Trend, source => source.Name))
         {
             IReadOnlyList<TrendTopicCandidate> candidates;
             try

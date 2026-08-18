@@ -128,4 +128,66 @@ public class ConnpassSweepEventSourceTests
         // ランナーが「トピックが空でも集めるものがある」と判断し、案内が出なくなる
         Assert.False(source.WorksWithoutTopics);
     }
+
+    [Fact]
+    public async Task 差分では公開日で引き一回で済ませる()
+    {
+        // **2回目からは「前回以降に公開されたぶん」だけ引く。** 全掃きは月ごとに
+        // 最大10ページ×月数かかるが、`publish_ymd` は複数指定できるので
+        // 何日ぶんでも 1 リクエストにまとまる
+        var factory = new StubHttpClientFactory(Response(("大きいカンファレンス", 500)));
+        var since = new DateTimeOffset(2026, 8, 13, 12, 0, 0, TimeSpan.FromHours(9));
+
+        var source = new ConnpassSweepEventSource(
+            factory, Clock(), minParticipants: 100, months: 2, TimeSpan.Zero,
+            incrementalSinceProvider: () => since);
+
+        var events = await source.FetchAsync();
+
+        Assert.Single(events);
+        var uri = Assert.Single(factory.RequestedUris);
+        // 前回の日から今日(JST)までを並べる。**前回の日も含める** ——
+        // その日の途中で走ったときに取りこぼさないため
+        Assert.Contains("publish_ymd=20260813", uri.Query);
+        Assert.Contains("publish_ymd=20260815", uri.Query);
+        // 月ごとの全掃きには行っていない
+        Assert.DoesNotContain("ym=", uri.Query);
+    }
+
+    [Fact]
+    public async Task 差分でも掃く期間の外は取り込まない()
+    {
+        // 公開日で引くと、**開催が遠い先のイベントも一緒に返ってくる** ——
+        // 全掃きと同じ範囲だけを持たないと、実行した時刻で入る/入らないが変わる
+        var far = """
+            { "events": [ {
+              "title": "半年先の大型カンファレンス",
+              "url": "https://example.connpass.com/event/99/",
+              "started_at": "2027-03-10T10:00:00+09:00",
+              "accepted": 900
+            } ], "results_available": 1 }
+            """;
+        var factory = new StubHttpClientFactory(far);
+
+        var source = new ConnpassSweepEventSource(
+            factory, Clock(), minParticipants: 100, months: 2, TimeSpan.Zero,
+            incrementalSinceProvider: () => new DateTimeOffset(2026, 8, 14, 0, 0, 0, TimeSpan.FromHours(9)));
+
+        Assert.Empty(await source.FetchAsync());
+    }
+
+    [Fact]
+    public async Task 長く止めていたら全掃きへ戻す()
+    {
+        // 何十日ぶんも publish_ymd を並べるより、月ごとに掃くほうが速い
+        var factory = new StubHttpClientFactory(Response(("大きいカンファレンス", 500)));
+
+        var source = new ConnpassSweepEventSource(
+            factory, Clock(), minParticipants: 100, months: 1, TimeSpan.Zero,
+            incrementalSinceProvider: () => new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.FromHours(9)));
+
+        await source.FetchAsync();
+
+        Assert.All(factory.RequestedUris, uri => Assert.Contains("ym=", uri.Query));
+    }
 }

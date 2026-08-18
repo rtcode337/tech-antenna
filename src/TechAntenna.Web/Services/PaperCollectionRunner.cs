@@ -13,6 +13,7 @@ namespace TechAntenna.Web.Services;
 /// </summary>
 public class PaperCollectionRunner(
     IEnumerable<IPaperSource> sources,
+    SourceToggles toggles,
     IArticleStore store,
     ITopicStore topicStore,
     TagObserver tagObserver,
@@ -31,6 +32,14 @@ public class PaperCollectionRunner(
 
     async Task<CollectionRunResult> CollectAsync(CancellationToken cancellationToken)
     {
+        // **止めた収集元は叩きに行かない。** 実行のたびに読むので、画面の切り替えは
+        // 再起動なしで効く(起動時に絞ると、切り替えても次の再起動まで変わらない)
+        var enabled = toggles.Enabled(_sources, SourceToggles.Paper, source => source.Name);
+        if (enabled.Count == 0)
+        {
+            return CollectionRunResult.AllDisabled("論文");
+        }
+
         // 収集対象が空なら何も取りに行かない。**理由を結果に載せる** ——
         // 0 件の結果だけ返すと、設定の問題なのか本当に無いのか分からない。
         // 例外にはしない(集まらないのは設定どおりの動作で、失敗ではない)
@@ -42,9 +51,9 @@ public class PaperCollectionRunner(
         var delay = TimeSpan.FromSeconds(options.Value.DelayBetweenSourcesSeconds);
         int fetched = 0, added = 0, failed = 0;
 
-        for (var i = 0; i < _sources.Count; i++)
+        for (var i = 0; i < enabled.Count; i++)
         {
-            var source = _sources[i];
+            var source = enabled[i];
             Progress = $"{source.Name} から取得中…";
             try
             {
@@ -64,7 +73,7 @@ public class PaperCollectionRunner(
             }
 
             // 最後の収集元の後は待たない(手動実行で無駄に待たせないため)
-            if (i < _sources.Count - 1 && delay > TimeSpan.Zero)
+            if (i < enabled.Count - 1 && delay > TimeSpan.Zero)
             {
                 await Task.Delay(delay, cancellationToken);
             }

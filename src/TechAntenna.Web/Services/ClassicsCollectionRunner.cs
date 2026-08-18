@@ -17,6 +17,7 @@ namespace TechAntenna.Web.Services;
 public class ClassicsCollectionRunner(
     IEnumerable<IBookRecommendationSource> sources,
     IEnumerable<IBookEnricher> enrichers,
+    SourceToggles toggles,
     IBookStore store,
     TagObserver tagObserver,
     TopicCatalog catalog,
@@ -44,7 +45,14 @@ public class ClassicsCollectionRunner(
     {
         int found = 0, added = 0, failed = 0;
 
-        foreach (var source in _sources)
+        // **止めた収集元は叩きに行かない**(実行のたびに読む)
+        var enabled = toggles.Enabled(_sources, SourceToggles.Recommendation, source => source.Name);
+        if (enabled.Count == 0)
+        {
+            return CollectionRunResult.AllDisabled("定番の書籍");
+        }
+
+        foreach (var source in enabled)
         {
             try
             {
@@ -131,7 +139,8 @@ public class ClassicsCollectionRunner(
     async Task<IReadOnlyList<Book>> EnrichAsync(
         IReadOnlyList<Book> books, CancellationToken cancellationToken)
     {
-        foreach (var enricher in enrichers)
+        // 補完も1つずつ止められる(書籍の収集と同じ扱い)
+        foreach (var enricher in toggles.Enabled(enrichers, SourceToggles.Enricher, e => e.Name))
         {
             try
             {

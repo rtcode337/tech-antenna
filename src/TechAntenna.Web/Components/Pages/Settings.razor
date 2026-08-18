@@ -1,4 +1,4 @@
-@page "/settings/general"
+@page "/settings/jobs"
 @using TechAntenna.Core
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Web.Services
@@ -8,13 +8,14 @@
 @inject ApiCredentials Credentials
 @inject ITagStore TagStore
 
-<PageTitle>Tech Antenna — 設定 / 全般</PageTitle>
+<PageTitle>Tech Antenna — 設定 / ジョブ</PageTitle>
 
-<h1>設定 / 全般</h1>
+<h1>設定 / ジョブ</h1>
 
-@* 設定は種類ごとにページを分けてある(トピックの一覧は長く、外部連携は表なので、
-   1ページに詰めると目的の操作へ辿り着けない)。ここは入口と、手動実行のボタンを持つ。
-   サイドバーからも同じページへ直接行ける *@
+@* **このページはジョブだけを持つ。** かつては「全般」という名前で、設定の子ページ
+   (トピック・イベント・外部連携)への入口も兼ねていたが、**入口はサイドバーにある** ——
+   同じ行き先を2か所に持つと、片方だけ古くなるうえ「まず設定を開く」という余計な一段が挟まる。
+   旧 URL(`/settings/general`)はリダイレクトを置いてある(ブックマークを切らさないため) *@
 
 @* **ジョブのボタンはすべてここに集める。** 一覧を見ている画面にボタンを置くと、
    読みに来た人が押す場所と、集めなおしたい人が探す場所が混ざる —— 各ページには
@@ -77,7 +78,7 @@
         こちらも<strong>トピックの選択には依存しません</strong>。
         <strong><a href="/classics/events">定番 → イベント</a>に専用の収集はありません</strong> ——
         上の「イベントの収集」で集めたものから、注目度の高いものをトピックの選択で絞らずに出します。
-        トピックに当たらないイベントが入る経路は<a href="/settings/follows">購読</a>と
+        トピックに当たらないイベントが入る経路は<a href="/settings/events#follows">購読</a>と
         connpass の面掃きなので、そこが空だと選んだトピックのイベントしか並びません。
     </p>
 
@@ -260,72 +261,7 @@
         }
     </p>
 
-    @* 通知は定期実行とは別の話(手動生成でも通知する)なので見出しを分ける。
-       オン/オフは接続先の設定(外部連携)とは独立に持つ ——
-       接続先を消さなくても一時的に通知だけ止められるようにするため。
-       チェックボックスは未チェックだと POST に乗らないので、hidden の印(Submitted)で
-       「保存が押されたのに値が無い = オフにした」を見分ける *@
-    <h2 class="h5">通知</h2>
-    <form method="post" @formname="ntfy-toggle" @onsubmit="SaveNtfyToggleAsync" class="ntfy-toggle">
-        <AntiforgeryToken />
-        <input type="hidden" name="Submitted" value="true" />
-        <label>
-            <input type="checkbox" name="NotifyEnabled" value="true"
-                   checked="@NtfySettings.IsEnabled(Credentials)" />
-            今日のサマリーを ntfy へ通知する
-        </label>
-        <button type="submit" class="btn btn-outline-primary btn-sm ms-2">保存</button>
-        @if (_ntfyMessage is { Length: > 0 })
-        {
-            <span class="ms-2 text-body-secondary">@_ntfyMessage</span>
-        }
-        else if (!NtfySettings.IsConfigured(Credentials))
-        {
-            <span class="ms-2 text-body-secondary">
-                通知先が未設定です(<a href="/settings/integrations">外部連携</a>で ntfy のトピック名を設定すると届きます)。
-            </span>
-        }
-    </form>
 </section>
-
-<h2 class="h5">設定のページ</h2>
-
-<ul class="settings-links list-unstyled">
-    <li>
-        <a href="/settings/topics">トピック</a>
-        <span class="text-muted">
-            何を集めるかの選択(チェックボックス)と、「話題度を取り直す」「タグを仕分けなおす」——
-            話題度の取り直し・未知の語の LLM 分類・タグの作り直し。
-            トピック名から<strong>同義語と親子ツリー</strong>も見られます。
-            その下の<a href="/settings/tags">タグ</a>では、語彙になる前の語を状態ごとに見て、
-            <strong>仕分けを手で直せます</strong>。
-        </span>
-    </li>
-    <li>
-        <a href="/settings/organizers">主催者</a>
-        <span class="text-muted">
-            <strong>「公式のイベント」と見なす提供元(ベンダー)の名簿</strong>。
-            イベントのバッジ・カレンダーの色・注目度順の並びに効きます。
-            集まっているイベントの主催者を件数つきで見ながら直せます。
-        </span>
-    </li>
-    <li>
-        <a href="/settings/follows">購読</a>
-        <span class="text-muted">
-            <strong>グループ単位で追いかけるイベントの名簿</strong>（connpass のシリーズ /
-            Doorkeeper のコミュニティ）。ここに載せたグループのイベントは
-            <strong>収集対象のトピックに当たらなくても集めます</strong> ——
-            キーワード検索だけだと、名前に収集語が入らない大きなカンファレンスが構造的に落ちるためです。
-        </span>
-    </li>
-    <li>
-        <a href="/settings/integrations">外部連携</a>
-        <span class="text-muted">
-            どこから何を集めているか、キーの要否と設定できているか
-            (<strong>キーの値そのものは表示しません</strong>)。
-        </span>
-    </li>
-</ul>
 
 @* グループに属するジョブの行(番号は実行順)。**インラインテンプレートはマークアップ側の
    @@{ } にしか書けない**ので、@@code ではなくここに置く(タグの画面と同じ) *@
@@ -347,7 +283,6 @@
 @code {
     string? _scheduleMessage;
     string? _scheduleError;
-    string? _ntfyMessage;
 
     /// <summary>時刻の入力欄。保存済みの値で初期化し、保存に失敗したときは打った文字を残す。</summary>
     string _timesInput = "";
@@ -456,30 +391,4 @@
             : Credentials.RemoveAsync(name);
     }
 
-    [SupplyParameterFromForm(FormName = "ntfy-toggle", Name = "Submitted")]
-    public string? NtfyToggleSubmitted { get; set; }
-
-    [SupplyParameterFromForm(FormName = "ntfy-toggle", Name = "NotifyEnabled")]
-    public string? NotifyEnabled { get; set; }
-
-    async Task SaveNtfyToggleAsync()
-    {
-        if (NtfyToggleSubmitted is null)
-        {
-            return;
-        }
-
-        // 有効が既定なので、オンは行を消す(= 既定に戻す)、オフだけ "false" を書く
-        var enable = NotifyEnabled == "true";
-        if (enable)
-        {
-            await Credentials.RemoveAsync(NtfySettings.EnabledName);
-        }
-        else
-        {
-            await Credentials.SetAsync(NtfySettings.EnabledName, "false");
-        }
-
-        _ntfyMessage = enable ? "通知を有効にしました。" : "通知を無効にしました(接続先の設定は残ります)。";
-    }
 }

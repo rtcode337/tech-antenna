@@ -67,6 +67,7 @@ public class TopicMaintenanceRunnerTests
         return new TopicMaintenanceRunner(
             catalog,
             [source],
+            SourceTogglesTests.AllEnabled(),
             tagStore,
             topicStore,
             new TagObserver(tagStore, articles, events, books, TimeProvider.System),

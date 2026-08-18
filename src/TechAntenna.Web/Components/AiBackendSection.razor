@@ -19,19 +19,38 @@
    持っているので、こちらは相手を選ぶだけでよい。Chiezo の URL が未設定なら、
    Chiezo の相手は並ばない(同梱の Claude Code CLI / Anthropic API は選べる) *@
 
-<h2 class="axis">どの AI に書かせるか</h2>
+@* 見出しの右の `?` を押すと決めごとがチップで出る(HTML 標準の popover。
+   ジョブの説明チップと同じ流儀)。**表の前に残すのは「何を選ぶ画面か」の1行だけ** ——
+   選べる相手・キー未設定のときの扱い・メイン未選択の既定・サブの決まりを地の文で並べると、
+   肝心の表に辿り着く前に読むものが増える(読むのは迷ったときだけでよい) *@
+<h2 class="axis">
+    AI
+    <button class="help-toggle" type="button" popovertarget="ai-help"
+            aria-label="「AI」の説明">?</button>
+</h2>
 
 <p class="page-note text-muted">
     要約・翻訳・タグの仕分け・今日のサマリーを<strong>どの AI に書かせるか</strong>を選びます。
-    選べるのは <strong>Claude Code(サブスクの枠)</strong>・<strong>Anthropic API(従量課金)</strong>と、
-    <strong>Chiezo に登録してある相手</strong>です(Chiezo の相手は鍵をあちらが持っているので、
-    こちらにキーを入れる必要はありません)。
-    <strong>キーが未設定の相手は選べません</strong> —— 下の「キーの設定」で入れると選べるようになります。
-    <strong>メインを選んでいないときは</strong>従来どおり、
-    Claude Code のトークン → Anthropic API キーの順に、設定されている方で動きます。
-    <strong>サブの AI は今日のサマリーだけ</strong>メインと同時に書き、
-    ホームで読み比べられます(サブに選べるのは Chiezo の相手だけです)。
 </p>
+
+<div class="help-popover" id="ai-help" popover>
+    <strong>どの AI に何を書かせるか</strong>
+    <p>
+        選べるのは <strong>Claude Code(サブスクの枠)</strong>・
+        <strong>Anthropic API(従量課金)</strong>と、<strong>Chiezo に登録してある相手</strong>です
+        (Chiezo の相手は鍵をあちらが持っているので、こちらにキーを入れる必要はありません)。
+    </p>
+    <ul>
+        <li><strong>キーが未設定の相手は選べません</strong> ——
+            下の「キーの設定」で入れると選べるようになります。</li>
+        <li><strong>メインを選んでいないとき</strong>は従来どおり、
+            Claude Code のトークン → Anthropic API キーの順に、設定されている方で動きます。</li>
+        <li><strong>サブは今日のサマリーだけ</strong>メインと同時に書き、ホームで読み比べられます。
+            <strong>最大 @AiSettings.MaxSubs 個</strong>まで、選べるのは Chiezo の相手だけで、
+            <strong>メインに選んだ相手はサブにできません</strong>
+            (同じ相手に2回書かせても読み比べにならないため)。</li>
+    </ul>
+</div>
 
 @if (_error is { Length: > 0 })
 {
@@ -187,13 +206,7 @@ else if (_backends.Count == 0)
                 </tbody>
             </table>
 
-            <p class="text-muted">
-                サブは最大 @AiSettings.MaxSubs 個までで、<strong>今日のサマリーだけ</strong>を
-                メインと同時に書きます。
-                <strong>メインに選んだ相手はサブにできません</strong>(同じ相手に2回書かせても
-                読み比べにならないため)。
-            </p>
-
+            @* 表の下にも説明を置かない —— 決めごとは見出しの `?` のチップにまとめてある *@
             <button type="submit" class="btn btn-primary">保存</button>
         </form>
 
@@ -205,10 +218,10 @@ else if (_backends.Count == 0)
         var secret = row.Secret!;
         <div popover id="@KeyModalId(row)" class="key-modal">
             <h4>@secret.Label</h4>
-            @if (row.Effect is { Length: > 0 } effect)
+            @if (row.Description is { Length: > 0 } description)
             {
                 @* 説明文の `**強調**` は HTML に直して出す(そのままだと記号が見える) *@
-                <p class="text-muted effect">@InlineMarkup.ToHtml(effect)</p>
+                <p class="text-muted effect">@InlineMarkup.ToHtml(description)</p>
             }
             @* 保存の form は相手ごとに1つ(@@formname は画面の中で重複できない)。
                送信すると普通の POST でページが戻るので、モーダルはそのまま閉じる *@
@@ -283,11 +296,11 @@ else if (_backends.Count == 0)
     /// <param name="ModelText">ローカルの相手で使われるモデル(設定で決まっている)。</param>
     /// <param name="Secret">この相手を使うために要るキー。**その場で設定できる相手だけ持つ**
     /// (Chiezo の相手は鍵をあちらが持っているので null)。</param>
-    /// <param name="Effect">キーが未設定・無効のときどうなるか(外部連携の一覧と同じ文)。</param>
+    /// <param name="Description">この相手が何のためにあるか(外部連携の一覧と同じ文)。</param>
     record Row(
         string Id, string Label, bool Selectable, string? Reason, bool CanBeSub,
         ChiezoBackend? Backend, string ModelText,
-        IntegrationCatalog.EditableSecret? Secret = null, string? Effect = null);
+        IntegrationCatalog.EditableSecret? Secret = null, string? Description = null);
 
     /// <summary>
     /// Chiezo ではない相手。**キーが無ければ選べない**(押せてしまうと、保存しても
@@ -300,13 +313,13 @@ else if (_backends.Count == 0)
             AiSettings.ClaudeCodeBackend, "Claude Code(サブスクの枠)", hasToken,
             hasToken ? null : "トークン未設定", false, null,
             string.IsNullOrWhiteSpace(ClaudeCode.Value.Model) ? "CLI の既定" : ClaudeCode.Value.Model,
-            SecretOf(LlmGateway.ClaudeCodeTokenName), EffectOf("Claude Code(サブスクの枠)"));
+            SecretOf(LlmGateway.ClaudeCodeTokenName), DescriptionOf("Claude Code(サブスクの枠)"));
 
         var hasApiKey = Credentials.Has(LlmGateway.AnthropicApiKeyName);
         yield return new Row(
             AiSettings.AnthropicBackend, "Anthropic API(従量課金)", hasApiKey,
             hasApiKey ? null : "API キー未設定", false, null, Anthropic.Value.Model,
-            SecretOf(LlmGateway.AnthropicApiKeyName), EffectOf("Anthropic API(従量課金)"));
+            SecretOf(LlmGateway.AnthropicApiKeyName), DescriptionOf("Anthropic API(従量課金)"));
     }
 
     /// <summary>モーダルの id。**`local:` のコロンを落とす** —— `popovertarget` は
@@ -317,12 +330,12 @@ else if (_backends.Count == 0)
         IntegrationCatalog.EditableSecrets.FirstOrDefault(s => s.SecretName == secretName);
 
     /// <summary>
-    /// 未設定・無効のときどうなるかの説明。**外部連携の一覧と同じ文を使う**
+    /// この相手が何のためにあるかの説明。**外部連携の一覧と同じ文を使う**
     /// (`IntegrationCatalog`)—— 同じことを2か所に書くと、片方だけ古くなる。
     /// </summary>
-    string? EffectOf(string integrationName) => Catalog.GetAll()
+    string? DescriptionOf(string integrationName) => Catalog.GetAll()
         .FirstOrDefault(i => i.Purpose == IntegrationCatalog.LlmPurpose && i.Name == integrationName)
-        ?.Effect;
+        ?.Description;
 
     /// <summary>キーの保存・削除の結果(モーダルを閉じた後に表の上へ出す)。</summary>
     async Task SaveKeyAsync(Row row)

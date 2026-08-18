@@ -1,10 +1,24 @@
 /* 軸(直近動向 / 興味トピック)の見出し。**用途の見出しより上位**だと分かるよう、
    上に間を空けて罫線で切る */
-.axis {
-    margin-top: 2rem;
+/* 節の見出し(AI / 通知 / 収集)と、その中の軸の見出し(トレンドで使う…)。
+   **同じ .axis でも段が違うので、字の大きさと罫線の濃さで差をつける** ——
+   かつては両方 1.15rem・同じ罫線で、h2 と h3 が同じ高さに見えていた
+   (「収集」と「トレンドで使う」がどちらも節の見出しに読めた) */
+h2.axis {
+    margin-top: 2.25rem;
     padding-top: 1.25rem;
     border-top: 1px solid var(--border-strong);
-    font-size: 1.15rem;
+    font-size: 1.35rem;
+    font-weight: 750;
+}
+
+h3.axis {
+    margin-top: 1.75rem;
+    padding-top: 0.75rem;
+    /* 罫線は残すが**薄く** —— 節の切れ目(濃い線)より弱いことが見た目で分かるように */
+    border-top: 1px solid var(--border);
+    font-size: 1.08rem;
+    font-weight: 700;
 }
 
 .axis-note {
@@ -14,6 +28,50 @@
 }
 
 /* 用途の見出し。軸の見出し(.axis)より一段下なので、字を小さくして間も詰める */
+/* 面掃きの切り替え(キーの設定の中)。キーの入力欄の下に一段置く */
+.sweep-toggle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--border);
+    font-size: 0.82rem;
+}
+
+/* 面掃きの見出し。状態のバッジより先に名前が読めるように少し強く */
+.sweep-label {
+    font-weight: 650;
+}
+
+/* 必須の印(ntfy のトピック名)。ラベルの右に小さく添える */
+.required {
+    color: var(--danger);
+}
+
+/* 通知のオン/オフ。状態のバッジと切り替えボタンを横に並べる(表の「状態」列と同じ文法) */
+.notify-toggle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.86rem;
+}
+
+/* 未設定の行は薄く赤く塗る。**スマホでは 1 行が 1 枚のカード**(app.css の .table.stack)
+   なので、行に塗ればカード全体が染まる。状態の列を持たない表(通知)で、
+   直すべき行がひと目で分かるようにするため */
+.table tbody tr.unset {
+    background: var(--danger-soft);
+}
+
+/* 連携先の横のかっこ書き(設定済み / 未設定)。名前より一段小さく、控えめに */
+.state {
+    font-size: 0.85em;
+}
+
 .purpose {
     margin: 1.5rem 0 0.5rem;
     font-size: 1rem;

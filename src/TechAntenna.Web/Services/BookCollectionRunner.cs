@@ -8,6 +8,7 @@ namespace TechAntenna.Web.Services;
 public class BookCollectionRunner(
     IEnumerable<IBookCatalog> catalogs,
     IEnumerable<IBookEnricher> enrichers,
+    SourceToggles toggles,
     IBookStore store,
     ITopicStore topicStore,
     TagObserver tagObserver,
@@ -28,6 +29,12 @@ public class BookCollectionRunner(
     async Task<CollectionRunResult> CollectAsync(
         IBookCatalog catalog, CancellationToken cancellationToken)
     {
+        // **止めていたら叩きに行かない**(実行のたびに読むので再起動なしで効く)
+        if (!toggles.IsEnabled(SourceToggles.Book, catalog.Name))
+        {
+            return CollectionRunResult.AllDisabled("書籍");
+        }
+
         // 検索先へ同時アクセスしないよう、キーワードを1つずつ間隔を空けて処理する
         var delay = TimeSpan.FromSeconds(options.Value.DelayBetweenKeywordsSeconds);
         // Google Books へ投げる検索語。**正式表記のほう**(`生成ai` ではなく `生成AI`)
@@ -120,7 +127,8 @@ public class BookCollectionRunner(
     async Task<IReadOnlyList<Book>> EnrichAsync(
         IReadOnlyList<Book> books, CancellationToken cancellationToken)
     {
-        foreach (var enricher in enrichers)
+        // 補完も1つずつ止められる(止めたものは叩きに行かない)
+        foreach (var enricher in toggles.Enabled(enrichers, SourceToggles.Enricher, e => e.Name))
         {
             try
             {

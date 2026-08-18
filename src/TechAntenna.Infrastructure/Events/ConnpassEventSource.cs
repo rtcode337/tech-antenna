@@ -48,7 +48,12 @@ public class ConnpassEventSource(
     const string GroupEndpointFormat = "https://connpass.com/api/v2/groups/?subdomain={0}";
 
     /// <summary>キーワードを1つ検索してから次に移るまでの待ち時間。</summary>
-    readonly TimeSpan _delayBetweenKeywords = delayBetweenKeywords ?? TimeSpan.FromSeconds(2);
+    /// <summary>
+    /// キーワードの間に空ける時間。**実際の間隔は HttpClient の層が守る**
+    /// (`RequestPacingHandler`。connpass は 5 秒に 1 リクエスト)——
+    /// ここの既定を同じ値にしてあるのは、設定を読んだ人が別の数を期待しないため。
+    /// </summary>
+    readonly TimeSpan _delayBetweenKeywords = delayBetweenKeywords ?? TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// サブドメイン → シリーズ ID。<b>プロセスの間ずっと覚えておく</b> ——

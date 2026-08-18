@@ -11,6 +11,7 @@ using TechAntenna.Infrastructure.Bridge;
 using TechAntenna.Infrastructure.Chiezo;
 using TechAntenna.Infrastructure.Events;
 using TechAntenna.Infrastructure.Feeds;
+using TechAntenna.Infrastructure.Http;
 using TechAntenna.Infrastructure.Notifications;
 using TechAntenna.Infrastructure.Persistence;
 using TechAntenna.Infrastructure.Storage;
@@ -27,6 +28,11 @@ using TechAntenna.Web.Workers;
 // (超過は HttpRequestException になり、そのソースの収集が失敗するだけで済む)。
 // 実データはフィードで数百 KB、書籍 API で数十 KB なので 10MB は十分に余裕がある
 const long MaxResponseBytes = 10 * 1024 * 1024;
+
+// **connpass への最短間隔。** API の利用申請のページに「5 秒に 1 リクエストを超えないよう」
+// とあるので、こちらの都合(何ページ読みたいか)で破らない。
+// 収集元ごとの待ちではなく HttpClient の層で守る(RequestPacingHandler)
+var connpassMinRequestInterval = TimeSpan.FromSeconds(5);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,7 +56,13 @@ builder.Services.AddHttpClient(QiitaTrendTopicSource.HttpClientName, client =>
         "TechAntenna/0.1 (+https://github.com/rtcode337/tech-antenna)");
     client.Timeout = TimeSpan.FromSeconds(30);
     client.MaxResponseContentBufferSize = MaxResponseBytes;
-});
+})
+// **connpass への要求は 5 秒に 1 回まで。** API の利用申請のページにそう書いてある。
+// **収集元の側の待ちではなくここに置く** —— connpass は検索・購読・サブドメインの
+// 引き直し・面掃きの4経路が同じ相手を叩いていて、それぞれ自分のぶんの待ちしか知らない。
+// この層なら、同じ名前付き HttpClient を使う限りどの経路からでも守られる
+.AddHttpMessageHandler(sp => new RequestPacingHandler(
+    connpassMinRequestInterval, sp.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton<ITrendTopicSource, QiitaTrendTopicSource>();
 // はてブの人気エントリー RSS からも話題度を作る(その場で1リクエスト。収集済み記事に依存しない)
 builder.Services.AddSingleton<ITrendTopicSource, HatenaHotentryTrendSource>();
@@ -110,6 +122,9 @@ else
 // 外部 API のキー・トークンの実行時解決。**設定の入口は画面(外部連携)だけ**で、
 // 暗号化して DB に保存する。各収集元・LLM は実行のたびに引くので、設定した直後に効く
 builder.Services.AddSingleton<ApiCredentials>();
+// 収集元1つ1つのオン/オフ(止めたものは叩きに行かない)。**実行のたびに読む**ので、
+// ランナーはこれを通して収集元を絞る
+builder.Services.AddSingleton<SourceToggles>();
 
 var collection = builder.Configuration
     .GetSection(CollectionOptions.SectionName)
@@ -227,7 +242,22 @@ if (connpass.Sweep is { Months: > 0 } sweep)
         catalog: topicCatalog,
         apiKeyProvider: () => sp.GetRequiredService<ApiCredentials>().Get("Connpass:ApiKey"),
         enabledProvider: () => SweepSettings.IsEnabled(
-            sp.GetRequiredService<ApiCredentials>(), SweepSettings.ConnpassName)));
+            sp.GetRequiredService<ApiCredentials>(), SweepSettings.ConnpassName),
+        // **2回目からは差分で引く**(`publish_ymd` で前回以降に公開されたぶんだけ。
+        // たいてい 1 リクエスト)。null を返したときだけ全掃き —— 初回と、最後の全掃きから
+        // 1週間たったとき(参加者数が伸びてしきい値を越えたイベントを拾い直すため)
+        incrementalSinceProvider: () => SweepSettings.IncrementalSince(
+            sp.GetRequiredService<ApiCredentials>(),
+            sp.GetRequiredService<TimeProvider>(),
+            SweepSettings.ConnpassName),
+        onSwept: () => SweepSettings.MarkRunAsync(
+            sp.GetRequiredService<ApiCredentials>(),
+            sp.GetRequiredService<TimeProvider>(),
+            SweepSettings.ConnpassName,
+            full: SweepSettings.IncrementalSince(
+                sp.GetRequiredService<ApiCredentials>(),
+                sp.GetRequiredService<TimeProvider>(),
+                SweepSettings.ConnpassName) is null)));
 }
 
 // --- イベント収集(Doorkeeper)---
@@ -276,7 +306,19 @@ var doorkeeper = builder.Configuration
             accessTokenProvider: () =>
                 sp.GetRequiredService<ApiCredentials>().Get("Doorkeeper:AccessToken"),
             enabledProvider: () => SweepSettings.IsEnabled(
-                sp.GetRequiredService<ApiCredentials>(), SweepSettings.DoorkeeperName)));
+                sp.GetRequiredService<ApiCredentials>(), SweepSettings.DoorkeeperName),
+            // **Doorkeeper は差分で引けない** —— 公開日で絞るパラメータが無く、
+            // sort=published_at の向きも仕様に書かれていない。1日1回に絞るだけにする
+            // (1ページ 25 件・最大 10 リクエストなので、全掃きでも connpass より軽い)
+            dueProvider: () => SweepSettings.IsDue(
+                sp.GetRequiredService<ApiCredentials>(),
+                sp.GetRequiredService<TimeProvider>(),
+                SweepSettings.DoorkeeperName),
+            onSwept: () => SweepSettings.MarkRunAsync(
+                sp.GetRequiredService<ApiCredentials>(),
+                sp.GetRequiredService<TimeProvider>(),
+                SweepSettings.DoorkeeperName,
+                full: true)));
     }
 }
 

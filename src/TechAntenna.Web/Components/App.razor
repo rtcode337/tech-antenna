@@ -40,6 +40,10 @@
     <script src="@Assets["tag-select.js"]" defer></script>
     @* 入力欄の値をクリップボードへ写す「コピー」ボタン。無くても手で選んでコピーできる *@
     <script src="@Assets["copy-field.js"]" defer></script>
+
+    @* 押したボタンの位置に留まる(収集元の「止める / 動かす」・キーの保存)。
+       静的 SSR の POST は画面を作り直すので、そのままだと先頭へ戻って結果が読めない *@
+    <script src="@Assets["keep-focus.js"]" defer></script>
     @* PWA で消えるブラウザの戻る/進むを画面の中に置き直す(スタンドアロン表示のときだけ) *@
     <script src="@Assets["history-nav.js"]" defer></script>
     @* 上端から引っ張って読み込み直す。iOS のホーム画面起動には標準の引っ張り更新が

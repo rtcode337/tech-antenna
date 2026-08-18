@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -50,8 +51,26 @@ public class EventCollectionRunnerTests
         RawTags = tags,
     };
 
+    /// <summary>止めた収集元を渡して組み立てる(叩きに行かないことを確かめるため)。</summary>
+    static async Task<(EventCollectionRunner Runner, InMemoryEventStore Store)> BuildDisabledAsync(
+        StubSource source, string sourceName, params string[] selectedTopics)
+    {
+        var credentials = new ApiCredentials(
+            new InMemorySecretStore(TimeProvider.System),
+            new EphemeralDataProtectionProvider(),
+            NullLogger<ApiCredentials>.Instance);
+        var toggles = new SourceToggles(credentials);
+        await toggles.SetAsync(SourceToggles.KeyOf(SourceToggles.Event, sourceName), enabled: false);
+
+        return await BuildAsync(source, toggles, selectedTopics);
+    }
+
+    static Task<(EventCollectionRunner Runner, InMemoryEventStore Store)> BuildAsync(
+        IEventSource source, params string[] selectedTopics) =>
+        BuildAsync(source, SourceTogglesTests.AllEnabled(), selectedTopics);
+
     static async Task<(EventCollectionRunner Runner, InMemoryEventStore Store)> BuildAsync(
-        IEventSource source, params string[] selectedTopics)
+        IEventSource source, SourceToggles toggles, params string[] selectedTopics)
     {
         var topics = new InMemoryTopicStore();
         var catalog = new TopicCatalog([.. selectedTopics.Select(t => new TopicCatalogEntry(t, [], null))]);
@@ -65,7 +84,7 @@ public class EventCollectionRunnerTests
         var clock = new FakeTimeProvider(Now);
 
         return (new EventCollectionRunner(
-            [source], events, topics, catalog,
+            [source], toggles, events, topics, catalog,
             new TagObserver(new InMemoryTagStore(), articles, events, new InMemoryBookStore(), clock),
             new EventMentionRefresher(events, articles, catalog, clock),
             Options.Create(new CollectionOptions { DelayBetweenSourcesSeconds = 0 }),
@@ -120,5 +139,22 @@ public class EventCollectionRunnerTests
 
         Assert.Equal(0, source.FetchCount);
         Assert.NotNull(result.Note);
+    }
+
+    [Fact]
+    public async Task 止めた収集元は叩きに行かない()
+    {
+        // **画面で止めたら、リクエストを出す前に落とす。** 集めた結果を捨てるのでは
+        // 相手を叩いてしまうので、収集元の一覧から外す形にしてある
+        var source = new StubSource(true, Event("止めた相手のイベント", pickedBy: "テスト"));
+        var (runner, store) = await BuildDisabledAsync(source, "テスト用の収集元", "AI");
+
+        var result = await runner.RunOnceAsync();
+
+        Assert.Equal(0, source.FetchCount);
+        Assert.Equal(0, result.Added);
+        Assert.Empty(await store.GetUpcomingAsync(Now, 10));
+        // 失敗ではなく「止めている」ことが結果の文言に出る
+        Assert.Contains("止まっています", result.Note);
     }
 }

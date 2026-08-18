@@ -9,6 +9,7 @@ namespace TechAntenna.Web.Services;
 /// <summary>登録されたイベントソースを1巡し、ストアへ保存する。</summary>
 public class EventCollectionRunner(
     IEnumerable<IEventSource> sources,
+    SourceToggles toggles,
     IEventStore store,
     ITopicStore topicStore,
     TopicCatalog catalog,
@@ -41,9 +42,17 @@ public class EventCollectionRunner(
         // **選択が空でも、検索語を使わない経路(グループの購読・面掃き)があれば走らせる。**
         // 逆にその経路を持たない収集元は、選択が空なら結果が全部捨てられると分かっているので
         // 叩きに行かない —— 集まらないと分かっている相手にリクエストを投げない
+        // **止めた収集元は叩きに行かない。** 実行のたびに読むので、画面の切り替えは
+        // 再起動なしで効く
+        var enabled = toggles.Enabled(_sources, SourceToggles.Event, source => source.Name);
+        if (enabled.Count == 0)
+        {
+            return CollectionRunResult.AllDisabled("イベント");
+        }
+
         IReadOnlyList<IEventSource> usable = selectedTags.Count > 0
-            ? _sources
-            : _sources.Where(source => source.WorksWithoutTopics).ToList();
+            ? enabled
+            : enabled.Where(source => source.WorksWithoutTopics).ToList();
         if (usable.Count == 0)
         {
             // 何も集まらない理由を文言にする(論文・書籍と同じ扱い)

@@ -37,7 +37,7 @@
         <strong>収集対象に選んだトピックを検索語</strong>にして arXiv(英語)と
         J-STAGE(日本語)へ問い合わせます —— <a href="/settings/topics">トピック</a>を選んでいないと
         1 件も集まりません。arXiv には<strong>英語表記</strong>を投げます(日本語のままだと 0 件)。
-        英語タイトルの翻訳は<a href="/settings/general">設定</a>の「論文タイトルの翻訳」で付きます。
+        英語タイトルの翻訳は<a href="/settings/jobs">ジョブ</a>の「論文タイトルの翻訳」で付きます。
         トピックに関係なく話題のものを見たいときは<a href="/recent/papers">トレンド → 論文</a>へ。
     </p>
 }
@@ -48,8 +48,8 @@ else if (_kind == ArticleKind.TrendingPaper)
     <CollectionHint />
     <p class="page-note text-muted">
         Hugging Face Daily Papers から<strong>トピックの選択に関係なく</strong>拾います
-        (投稿と upvote で選ばれた論文)。収集は<a href="/settings/general">設定</a>の「トレンドの収集」に、
-        英語タイトルの翻訳は同じく設定の「論文タイトルの翻訳」にあります。
+        (投稿と upvote で選ばれた論文)。収集は<a href="/settings/jobs">ジョブ</a>の「トレンドの収集」に、
+        英語タイトルの翻訳は同じく<a href="/settings/jobs">ジョブ</a>の「論文タイトルの翻訳」にあります。
         並びは<strong>新着順</strong>が既定で、上のタブで<strong>upvote の多い順</strong>にも
         切り替えられます(どちらの並びでも、upvote の多いものはカードの濃さで目立ちます)。
         日本語の論文は<a href="/interests/papers">興味トピック → 論文</a>の担当です。
@@ -73,16 +73,16 @@ else if (_kind == ArticleKind.TrendingPaper)
 }
 else if (_articles.Count == 0)
 {
-    @* 空のときの行き先も種別で変える —— 論文は設定の「論文の収集」、
-       ほかは設定の「トレンドの収集」で集まる *@
+    @* 空のときの行き先も種別で変える —— 論文はジョブの「論文の収集」、
+       ほかはジョブの「トレンドの収集」で集まる *@
     @if (_kind == ArticleKind.Paper)
     {
-        <p>まだありません。<a href="/settings/general">設定</a>の「論文の収集」を実行してください
+        <p>まだありません。<a href="/settings/jobs">ジョブ</a>の「論文の収集」を実行してください
             (<a href="/settings/topics">トピック</a>を選んでいないと集まりません)。</p>
     }
     else
     {
-        <p>まだありません。<a href="/settings/general">設定</a>の「トレンドの収集」を実行してください。</p>
+        <p>まだありません。<a href="/settings/jobs">ジョブ</a>の「トレンドの収集」を実行してください。</p>
     }
 }
 else

@@ -169,6 +169,15 @@ public record CollectionRunResult(int Fetched, int Added, int FailedSources, str
 {
     public static readonly CollectionRunResult Nothing = new(0, 0, 0);
 
+    /// <summary>
+    /// 収集元を全部止めているとき。**例外にしない** ——
+    /// 画面で止めたとおりに動いているだけで、失敗ではない
+    /// (「何も集まらなかった理由は結果に載せる」と同じ扱い)。
+    /// </summary>
+    public static CollectionRunResult AllDisabled(string what) =>
+        new(0, 0, 0, $"{what}の収集元がすべて止まっています。"
+            + " 設定 → 外部連携の「収集」で動かしてください。");
+
     /// <summary>選んだトピックを検索語にするジョブ(論文・イベント・書籍)で、選択が空のとき。</summary>
     public static CollectionRunResult NoTopics(string what) =>
         new(0, 0, 0, $"収集対象のトピックが選ばれていません（{what}は選んだトピックを検索語にします）。"

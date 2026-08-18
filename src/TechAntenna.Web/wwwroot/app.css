@@ -30,6 +30,8 @@
     --accent-border: #d9d1ff;
 
     --danger: #c02a37;
+    /* 「直したほうがいい」を面で示す薄い赤(未設定の行など)。文字色の --danger と対で使う */
+    --danger-soft: #fdecec;
     --success-soft: #e7f6ee;
     --success-text: #17694a;
     --warning-text: #8a6216;
@@ -76,6 +78,7 @@
         --accent-border: #3a3260;
 
         --danger: #ff7b85;
+        --danger-soft: #3a1c20;
         --success-soft: #14301f;
         --success-text: #6ddba2;
         --warning-text: #d9ab55;

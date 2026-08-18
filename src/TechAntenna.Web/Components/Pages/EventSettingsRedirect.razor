@@ -1,0 +1,17 @@
+@page "/settings/organizers"
+@page "/settings/follows"
+@inject NavigationManager Navigation
+
+@* かつての「設定 / 主催者」と「設定 / 購読」。**中身は「設定 / イベント」の2つの節へ統合した**
+   —— 購読の候補は公式と判定された主催者から起こし、公式かどうかは購読で集めたイベントにも
+   効くので、行き来せずに見比べられるほうがよい。ここが受けるのはブックマークと外から
+   貼られたリンクで、消すと 404 になる。`replace: true` は戻るボタンでまた転送されるのを
+   避けるため(軸の入口の `SectionRedirect`・旧 `/settings/ai` と同じ流儀)。
+
+   **節へのアンカーは付けない** —— どちらの URL から来ても、まずページ全体を見せる
+   (2つの名簿は互いを見ながら直すものなので、片方だけを指して開く意味が薄い) *@
+
+@code {
+    protected override void OnInitialized() =>
+        Navigation.NavigateTo("/settings/events", replace: true);
+}

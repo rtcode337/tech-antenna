@@ -18,6 +18,12 @@ public class BookmarkCountRefresher(
     HatenaBookmarkCounts bookmarkCounts,
     TimeProvider timeProvider)
 {
+    /// <summary>
+    /// 画面(外部連携)と収集のオン/オフで使う名前。**両方が同じ値を見るように定数にする**
+    /// —— 片方だけ直すと「止めたのに叩きに行く」形でずれる。
+    /// </summary>
+    public const string SourceName = "はてなブックマーク件数 API";
+
     /// <summary>種別ごとに何件まで引き直すか(50 件 = 1 リクエスト)。</summary>
     const int Limit = 200;
 

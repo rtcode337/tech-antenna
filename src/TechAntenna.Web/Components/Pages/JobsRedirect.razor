@@ -1,0 +1,12 @@
+@page "/settings/general"
+@inject NavigationManager Navigation
+
+@* かつての「設定 / 全般」。**中身はジョブだけになり、名前も URL も `jobs` へ移した**
+   —— 設定の子ページへの入口はサイドバーが持っているので、このページが入口を兼ねる必要が
+   なくなった。ここが受けるのはブックマークと外から貼られたリンクで、消すと 404 になる。
+   `replace: true` は戻るボタンでまた転送されるのを避けるため(他のリダイレクトと同じ流儀) *@
+
+@code {
+    protected override void OnInitialized() =>
+        Navigation.NavigateTo("/settings/jobs", replace: true);
+}

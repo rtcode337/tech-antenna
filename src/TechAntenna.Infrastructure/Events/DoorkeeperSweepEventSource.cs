@@ -29,7 +29,9 @@ public class DoorkeeperSweepEventSource(
     int months,
     TimeSpan? delayBetweenRequests = null,
     Func<string?>? accessTokenProvider = null,
-    Func<bool>? enabledProvider = null) : IEventSource
+    Func<bool>? enabledProvider = null,
+    Func<bool>? dueProvider = null,
+    Func<Task>? onSwept = null) : IEventSource
 {
     /// <summary>
     /// 読むページ数の上限。<b>打ち切ったら <see cref="Truncated"/> に残す</b> ——
@@ -69,6 +71,13 @@ public class DoorkeeperSweepEventSource(
             return [];
         }
 
+        // **前回から間もないなら掃かない**(connpass の面掃きと同じ)。期間の全件を
+        // 数え上げる経路なので 1 回が高く、中身は 1 日でほとんど変わらない
+        if (dueProvider is not null && !dueProvider())
+        {
+            return [];
+        }
+
         using var client = httpClientFactory.CreateClient(DoorkeeperEventSource.HttpClientName);
 
         var collectedAt = timeProvider.GetUtcNow();
@@ -92,6 +101,12 @@ public class DoorkeeperSweepEventSource(
             var entries = DoorkeeperResponseParser.Parse(json);
             if (entries.Count == 0)
             {
+                // **掃けたときだけ記録する**(途中で例外なら記録せず、次の収集で掃き直す)
+                if (onSwept is not null)
+                {
+                    await onSwept();
+                }
+
                 return byUrl.Values.ToList();
             }
 
@@ -108,6 +123,10 @@ public class DoorkeeperSweepEventSource(
 
         // 上限まで読んでも空のページに当たらなかった = まだ先がある
         Truncated = true;
+        if (onSwept is not null)
+        {
+            await onSwept();
+        }
 
         return byUrl.Values.ToList();
     }
