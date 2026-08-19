@@ -2087,6 +2087,11 @@ dotnet watch --project src/TechAntenna.Web --launch-profile watch
 - ビルド: `dotnet build`
 - テスト: `dotnet test`
 - Web 起動: `dotnet run --project src/TechAntenna.Web`(http://localhost:7020)
+  - **`--no-launch-profile` を付けると `ASPNETCORE_ENVIRONMENT` が Production になり、
+    scoped CSS のバンドル(`TechAntenna.Web.styles.css`)が 500 になる** ——
+    `MapStaticAssets` が publish 済みの静的アセットを探すため。画面は app.css だけが効いた
+    見た目になり、崩れているのに原因が分かりにくい。ポートだけ変えたいときは
+    `ASPNETCORE_ENVIRONMENT=Development` を一緒に渡すこと
 - ホットリロード付きで起動:
   `dotnet watch --project src/TechAntenna.Web --launch-profile watch`(http://localhost:7022)
 - 本番同等の起動(GHCR から pull): `docker compose pull && docker compose up -d`
