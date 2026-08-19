@@ -44,6 +44,23 @@ public class EfBookStore(IDbContextFactory<TechAntennaDbContext> contextFactory)
         return added;
     }
 
+    public async Task<bool?> ToggleReadAsync(
+        Guid id, DateTimeOffset now, CancellationToken cancellationToken = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var book = await db.Books.FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
+        if (book is null)
+        {
+            return null;
+        }
+
+        book.ReadAt = book.IsRead ? null : now;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return book.IsRead;
+    }
+
     public async Task<IReadOnlyList<Book>> GetRecentAsync(int count, CancellationToken cancellationToken = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);

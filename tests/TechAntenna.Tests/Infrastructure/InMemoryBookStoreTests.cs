@@ -23,6 +23,49 @@ public class InMemoryBookStoreTests
         RawTags = [rawTag],
     };
 
+    static readonly DateTimeOffset ReadOn = new(2026, 8, 19, 3, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task 読んだ印は押すたびに裏返る()
+    {
+        var store = new InMemoryBookStore();
+        var book = NewBook("読む本", "9784111111111");
+        await store.AddRangeAsync([book]);
+
+        Assert.True(await store.ToggleReadAsync(book.Id, ReadOn));
+        Assert.Equal(ReadOn, (await store.GetRecentAsync(10)).Single().ReadAt);
+
+        Assert.False(await store.ToggleReadAsync(book.Id, ReadOn));
+        Assert.Null((await store.GetRecentAsync(10)).Single().ReadAt);
+    }
+
+    [Fact]
+    public async Task 知らない本の印は裏返さずnullを返す()
+    {
+        // 画面は「見つからなかった」を黙って読み直すだけにするので、例外にはしない
+        var store = new InMemoryBookStore();
+
+        Assert.Null(await store.ToggleReadAsync(Guid.NewGuid(), ReadOn));
+    }
+
+    [Fact]
+    public async Task 再収集しても読んだ印は消えない()
+    {
+        // **読んだかどうかは外から取れる情報ではない。** 収集元の本は ReadAt が常に null なので、
+        // 合流でそれを写すと再収集のたびに印が消える(BookMerge が触らないことの確認)
+        var store = new InMemoryBookStore();
+        var book = NewBook("読む本", "9784111111111");
+        await store.AddRangeAsync([book]);
+        await store.ToggleReadAsync(book.Id, ReadOn);
+
+        await store.AddRangeAsync([Tagged("読む本", "9784111111111", "ai", "AI")]);
+
+        var stored = (await store.GetRecentAsync(10)).Single();
+        Assert.Equal(ReadOn, stored.ReadAt);
+        // 合流そのものは効いている(タグは足されている)
+        Assert.Equal(["ai"], stored.Tags);
+    }
+
     [Fact]
     public async Task 同じISBNの書籍は二重に追加されない()
     {

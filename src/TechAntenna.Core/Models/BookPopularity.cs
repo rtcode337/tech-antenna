@@ -41,15 +41,30 @@ public static class BookPopularity
     }
 
     /// <summary>
+    /// **読んだ本を後ろへ回す。** 並びの規則が何であれ最初に効かせる第一のキーで、
+    /// これだけを掛ければ元の並びは<b>各グループの中でそのまま残る</b>
+    /// (LINQ の <c>OrderBy</c> は安定なので、収集日時順で取ってきた一覧に
+    /// 後から掛けても未読・既読それぞれの中の順序は変わらない)。
+    ///
+    /// **消さずに沈めるだけ**なのが要点 —— 読んだ本も「何を読んだか」の記録として
+    /// 一覧に残っていてほしいし、間違えて付けた印をその場で戻せる必要がある。
+    /// </summary>
+    public static IOrderedEnumerable<Book> ReadLast(this IEnumerable<Book> books) =>
+        books.OrderBy(book => book.IsRead);
+
+    /// <summary>
     /// 読んでおくべき度の高い順に並べる。
     ///
-    /// **推薦回数(記事で薦められた数)を最優先**にする —— レビュー数は「読まれた量」で
-    /// 一般向けの本ほど有利になるが、推薦は「詳しい人が名指しで薦めた」ぶん精度が高い。
-    /// 同数ならレビューの指標で、それも取れていない本(null)は後ろへ。
+    /// **まず読んだ本を後ろへ回す**(<see cref="ReadLast"/>)—— 読み終えた本がいつまでも
+    /// 上位を占めると、この一覧の用途(次に読む本を選ぶ)を果たさない。
+    /// そのうえで**推薦回数(記事で薦められた数)を最優先**にする —— レビュー数は
+    /// 「読まれた量」で一般向けの本ほど有利になるが、推薦は「詳しい人が名指しで薦めた」
+    /// ぶん精度が高い。同数ならレビューの指標で、それも取れていない本(null)は後ろへ。
     /// </summary>
     public static IOrderedEnumerable<Book> ByPopularity(this IEnumerable<Book> books) =>
         books
-            .OrderByDescending(book => book.RecommendationCount)
+            .ReadLast()
+            .ThenByDescending(book => book.RecommendationCount)
             .ThenByDescending(book => Score(book) is not null)
             .ThenByDescending(book => Score(book) ?? 0)
             .ThenByDescending(book => book.CollectedAt);

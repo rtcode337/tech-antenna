@@ -202,8 +202,11 @@ else
         <ul class="list-unstyled">
             @foreach (var book in _detail.Books)
             {
-                @* 記事で薦められている本は強調する(/books のトピック一覧と同じ見せ方) *@
-                <li class="mb-2 @(book.RecommendationCount > 0 ? "recommended-book" : "")">
+                @* 記事で薦められている本は強調する(/books のトピック一覧と同じ見せ方)。
+                   **読んだ本は薄くして末尾へ回す**(並べ替えは TopicService)——
+                   印を付け直すのは書籍の一覧(/interests/books・/classics/books)の仕事で、
+                   ここは「なぜ下にいるのか」が読めればよい *@
+                <li class="mb-2 @(book.RecommendationCount > 0 ? "recommended-book" : "") @(book.IsRead ? "read-book" : "")">
                     @if (book.Url is { } url)
                     {
                         <a href="@url" target="_blank" rel="noopener">@book.Title</a>
@@ -211,6 +214,10 @@ else
                     else
                     {
                         <span>@book.Title</span>
+                    }
+                    @if (book.ReadAt is { } readAt)
+                    {
+                        <span class="read-mark ms-1" title="@($"{JapanTime.FormatDate(readAt)} に読んだ")">✓ 読んだ</span>
                     }
                     <br />
                     <small class="text-muted">

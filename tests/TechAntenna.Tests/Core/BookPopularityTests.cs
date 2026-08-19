@@ -54,4 +54,34 @@ public class BookPopularityTests
             ["定番", "そこそこ", "レビュー0件", "未取得"],
             books.ByPopularity().Select(book => book.Title));
     }
+
+    [Fact]
+    public void 読んだ本は読まれている度合いに関わらず後ろへ回る()
+    {
+        // 「読んだかどうか」は外から取れる指標より優先する軸 ——
+        // 読み終えた定番がいつまでも先頭にいると、次に読む本を選ぶ用途を果たさない
+        var read = Reviewed("読み終えた定番", 300, 4.3);
+        read.ReadAt = new DateTimeOffset(2026, 8, 18, 12, 0, 0, TimeSpan.Zero);
+
+        var books = new[] { read, Reviewed("未取得", null), Reviewed("そこそこ", 10, 4.0) };
+
+        Assert.Equal(
+            ["そこそこ", "未取得", "読み終えた定番"],
+            books.ByPopularity().Select(book => book.Title));
+    }
+
+    [Fact]
+    public void 読んだ本を後ろへ回しても元の並びは崩さない()
+    {
+        // ReadLast は安定な並べ替え —— 収集日時順で取ってきた一覧(トピック詳細)に
+        // 後から掛けても、未読・既読それぞれの中の順序は変わらない
+        var second = Reviewed("2番目", 0);
+        second.ReadAt = new DateTimeOffset(2026, 8, 18, 12, 0, 0, TimeSpan.Zero);
+
+        var books = new[] { Reviewed("1番目", 0), second, Reviewed("3番目", 0), Reviewed("4番目", 0) };
+
+        Assert.Equal(
+            ["1番目", "3番目", "4番目", "2番目"],
+            books.ReadLast().Select(book => book.Title));
+    }
 }

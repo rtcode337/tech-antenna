@@ -37,6 +37,23 @@ public class InMemoryBookStore : IBookStore
         }
     }
 
+    public Task<bool?> ToggleReadAsync(
+        Guid id, DateTimeOffset now, CancellationToken cancellationToken = default)
+    {
+        lock (_gate)
+        {
+            var book = _byKey.Values.FirstOrDefault(b => b.Id == id);
+            if (book is null)
+            {
+                return Task.FromResult<bool?>(null);
+            }
+
+            book.ReadAt = book.IsRead ? null : now;
+
+            return Task.FromResult<bool?>(book.IsRead);
+        }
+    }
+
     public Task<IReadOnlyList<Book>> GetRecentAsync(int count, CancellationToken cancellationToken = default)
     {
         lock (_gate)

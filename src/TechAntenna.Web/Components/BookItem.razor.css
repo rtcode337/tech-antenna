@@ -107,3 +107,25 @@ small {
     color: var(--warning-text);
     white-space: nowrap;
 }
+
+/* 「読んだ」の印と切り替え。**行の右端**に置く(タグの数で位置が動かないよう、
+   メタ行の中ではなく flex の3つ目の子。`margin-left: auto` で右へ寄せる)。
+   **見た目そのもの(色・薄さ)は app.css** —— トピック詳細・タグ詳細でも同じ印を出すため */
+.read-toggle,
+.read-mark {
+    flex: none;
+    align-self: flex-start;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+/* 押していない状態は控えめに。**未読の行で目立つと、読むべき本より操作が先に目に入る** */
+.read-toggle {
+    color: var(--text-muted);
+}
+
+/* 立っている状態。**色と ✓ の両方で示す** —— 色だけだと、並び替わった理由が分からない */
+.read-toggle.is-read {
+    color: var(--accent);
+    font-weight: 650;
+}

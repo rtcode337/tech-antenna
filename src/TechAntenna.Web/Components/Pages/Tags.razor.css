@@ -4,18 +4,6 @@
     font-size: 0.89rem;
 }
 
-/* 手直しの結果。次の操作の邪魔にならないよう、面は薄く */
-.notice {
-    max-width: 62rem;
-    margin-bottom: 1rem;
-    padding: 0.6rem 0.9rem;
-    border: 1px solid var(--accent-border);
-    border-left: 3px solid var(--accent);
-    border-radius: var(--radius);
-    background: var(--accent-soft);
-    font-size: 0.9rem;
-}
-
 /* 状態の説明。普段は畳んでおく */
 /* 説明の details(.score-help)は app.css にある(3画面で同じ見た目を使うため) */
 

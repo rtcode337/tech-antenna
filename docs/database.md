@@ -63,6 +63,7 @@ erDiagram
         double ReviewAverage "楽天。レビュー無しは null"
         integer ReviewCount "null=未取得 / 0=レビューなし"
         jsonb RecommendedBy "推薦元の記事(URL と題名)"
+        timestamptz ReadAt "本人が読み終えた日時。未読は null（収集は触らない）"
         text_array Tags
         text_array RawTags
         text SourceName
@@ -192,6 +193,12 @@ erDiagram
   `Events` は主催者・参加者数・`PickedBy`、`Books` はレビューだけを取り込む(取れなかった回に
   `null` で上書きもしない)。`Events.MentionCount` は収集とは別に、収集の最後で
   手元の記事と突き合わせて数え直す(外部は叩かない)
+- **`Books.ReadAt` だけは収集が一切触らない列**。外から取れる指標(`ReviewCount` /
+  `RecommendedBy`)が「世の中でどれだけ読まれ、薦められているか」なのに対し、これは
+  **本人しか持てない記録**で、画面の「読んだ」からだけ書き換わる
+  (`IBookStore.ToggleReadAsync`)。合流(`BookMerge`)が写すと、収集元の本は常に
+  `null` なので**再収集のたびに印が消える**。真偽値ではなく日時にしてあるのは、
+  いつ読んだかを画面に出せるようにするため
 - **人気の指標は収集元ごとに列を分ける**(`BookmarkCount` = はてブ、`UpvoteCount` = HF の
   upvote)。母集団が違うものを 1 列に混ぜると、2 つの意味が 1 つの数字に潰れる
 - **重複判定のキーは列にしてユニーク索引を張る**(`Articles.Url` / `Events.Url` /

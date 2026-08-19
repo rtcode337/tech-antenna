@@ -18,6 +18,11 @@ public static class BookMerge
     /// 例外は**レビュー**で、これは時間とともに増える数値なので新しい値で上書きする。
     /// **欠けている書影は埋める**(上書きはしない)—— 補完で取れた値をここで捨てると、
     /// 既に保存済みの本には表紙が永久に付かない。
+    ///
+    /// **「読んだ」の印(<see cref="Book.ReadAt"/>)はここで一切触らない。** 収集元から
+    /// 来る本の <c>ReadAt</c> は常に null なので、写すと再収集のたびに印が消える ——
+    /// あれは外から取れる情報ではなく本人の記録で、<see cref="Abstractions.IBookStore.SetReadAsync"/>
+    /// だけが書き換える。
     /// </summary>
     public static bool Merge(Book stored, Book incoming)
     {

@@ -53,6 +53,22 @@ public class Book
     /// <summary>何本の記事で薦められたか。<see cref="RecommendedBy"/> から導くので列は持たない。</summary>
     public int RecommendationCount => RecommendedBy.Count;
 
+    /// <summary>
+    /// 読み終えた日時。**未読は null**(画面から立てる)。
+    ///
+    /// **外から取れる指標(<see cref="ReviewCount"/>・<see cref="RecommendedBy"/>)とは別の軸**。
+    /// あちらは「世の中でどれだけ読まれ、薦められているか」で、こちらは**本人しか持てない情報**
+    /// —— 混ぜると「読まれている本」と「自分が読んだ本」の区別が付かなくなる。
+    ///
+    /// 日時で持つのは、いつ読んだかを画面に出せるようにするため(真偽値だと後から足せない)。
+    /// init ではなく set なのは後から立てるからで、**収集は決してここを触らない**
+    /// (<see cref="BookMerge"/>)—— 触ると再収集のたびに読んだ印が消える。
+    /// </summary>
+    public DateTimeOffset? ReadAt { get; set; }
+
+    /// <summary>読んだ本か。<see cref="ReadAt"/> から導くので列は持たない。</summary>
+    public bool IsRead => ReadAt is not null;
+
     public required DateTimeOffset CollectedAt { get; init; }
 
     /// <summary>

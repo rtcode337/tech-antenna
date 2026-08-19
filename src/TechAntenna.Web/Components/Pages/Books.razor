@@ -6,6 +6,7 @@
 @inject IBookStore BookStore
 @inject ITopicStore TopicStore
 @inject TopicCatalog Catalog
+@inject TimeProvider Clock
 
 <PageTitle>Tech Antenna — 興味トピック / 書籍</PageTitle>
 
@@ -36,29 +37,46 @@ else
         (トピックに関係なく薦められている定番は<a href="/classics/books">定番 → 書籍</a>へ)。
         <strong>雑誌・ムック・増刊は出していません</strong> —— 号を重ねるぶん数が多く、
         「読んでおくべき本」を探すのに埋もれるためです。
+        <strong>読み終えた本は右端の「読んだ」で印を付けられます</strong> ——
+        印の付いた本は一覧から消えず、<strong>各グループの末尾へ回ります</strong>。
     </p>
+
+    @if (_message is { Length: > 0 })
+    {
+        <p class="notice">@_message</p>
+    }
 
     @* 記事で薦められた本の枠はここには無い —— 第三の軸として /classics(定番)へ移した。
        トピックの中の強調(左帯)は残す(トピックで絞った上でなら 1 本の推薦でも意味がある) *@
-    @foreach (var group in _groups)
-    {
-        @* 折りたたみは details/summary。静的 SSR のまま、JS も対話回線も無しで開閉できる。
-           **既定は全部閉じる**(トレンドの書籍と同じ) —— 先頭だけ開けておくと、その
-           トピックの冊数ぶんが下のトピックを押し下げ、「どのトピックに何冊あるか」を
-           見るのに先頭を畳む操作が要る *@
-        <details class="topic-group">
-            <summary>
-                <span class="topic-name">@group.Display</span>
-                <span class="badge bg-secondary ms-1">@group.Books.Count</span>
-            </summary>
-            <ul class="list-unstyled">
-                @foreach (var book in group.Books)
-                {
-                    <BookItem Book="book" HighlightTags="group.Subtree" EmphasizeRecommended="true" />
-                }
-            </ul>
-        </details>
-    }
+    @* 「読んだ」の切り替えは**1ページ1フォーム**。行ごとにフォームを作ると @formname が
+       冊数ぶん並ぶので、押された本は submit の value(`read:<Id>`)で見分ける
+       (タグの画面と同じ流儀)。**data-keep-focus** を付けるのは、POST で画面が
+       作り直されると押した行が画面外へ消えるため(keep-focus.js が同じボタンへ戻す) *@
+    <form method="post" @formname="books-read" @onsubmit="ToggleReadAsync" data-keep-focus>
+        <AntiforgeryToken />
+        @foreach (var group in _groups)
+        {
+            @* 折りたたみは details/summary。静的 SSR のまま、JS も対話回線も無しで開閉できる。
+               **既定は全部閉じる**(トレンドの書籍と同じ) —— 先頭だけ開けておくと、その
+               トピックの冊数ぶんが下のトピックを押し下げ、「どのトピックに何冊あるか」を
+               見るのに先頭を畳む操作が要る。
+               **例外は「読んだ」を押した直後**(_openGroups)—— POST で作り直された画面が
+               全部畳まれていると、押した本もボタンも見えず、何が起きたのか分からない *@
+            <details class="topic-group" open="@_openGroups.Contains(group.Tag)">
+                <summary>
+                    <span class="topic-name">@group.Display</span>
+                    <span class="badge bg-secondary ms-1">@group.Books.Count</span>
+                </summary>
+                <ul class="list-unstyled">
+                    @foreach (var book in group.Books)
+                    {
+                        <BookItem Book="book" HighlightTags="group.Subtree"
+                                  EmphasizeRecommended="true" ShowReadToggle="true" />
+                    }
+                </ul>
+            </details>
+        }
+    </form>
 
     @if (_needsRakutenCredit)
     {
@@ -76,8 +94,45 @@ else
 
     IReadOnlyList<TopicGroup>? _groups;
     bool _needsRakutenCredit;
+    string? _message;
+
+    /// <summary>
+    /// 開いた状態で描くグループ。**「読んだ」を押した直後だけ**中身が入る ——
+    /// 押した本を含むグループを開き直さないと、POST 後の画面では全部畳まれていて
+    /// 結果が見えない。1冊が複数のグループに出るので集合で持つ。
+    /// </summary>
+    HashSet<string> _openGroups = new(StringComparer.Ordinal);
+
+    [SupplyParameterFromForm(FormName = "books-read")]
+    string? Action { get; set; }
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    /// <summary>
+    /// 「読んだ」の印を裏返す。押された本は submit の value(`toggle:&lt;Id&gt;`)で分かる。
+    /// </summary>
+    async Task ToggleReadAsync()
+    {
+        if (!BookReadAction.TryReadId(Action, out var id))
+        {
+            return;
+        }
+
+        // 見つからないときは黙って読み直すだけ(消えた本の印を画面に残さない)
+        _message = await BookStore.ToggleReadAsync(id, Clock.GetUtcNow()) switch
+        {
+            true => "読んだ本として印を付けました（一覧の末尾へ回ります）。",
+            false => "「読んだ」の印を外しました。",
+            null => null,
+        };
+
+        await LoadAsync();
+        // 押した本を含むグループだけ開き直す(押した行のそばに結果が出るようにする)
+        _openGroups = _groups!
+            .Where(group => group.Books.Any(book => book.Id == id))
+            .Select(group => group.Tag)
+            .ToHashSet(StringComparer.Ordinal);
+    }
 
     // バックグラウンドで走らせる(完了後の一覧は自動リロードの GET が読み直す)
     async Task LoadAsync()

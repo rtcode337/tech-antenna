@@ -1,4 +1,5 @@
 using TechAntenna.Core.Abstractions;
+using TechAntenna.Core.Models;
 
 namespace TechAntenna.Core.Topics;
 
@@ -25,6 +26,10 @@ public class TopicService(
             normalized,
             await articleStore.GetByTagAsync(normalized, perType, cancellationToken),
             await eventStore.GetByTagAsync(normalized, perType, cancellationToken),
-            await bookStore.GetByTagAsync(normalized, perType, cancellationToken));
+            // **読んだ本は後ろへ回す**(トピックの詳細でも一覧と同じ規則)。
+            // ReadLast は安定な並べ替えなので、ストアの収集日時順は未読・既読それぞれの中で残る
+            (await bookStore.GetByTagAsync(normalized, perType, cancellationToken))
+                .ReadLast()
+                .ToList());
     }
 }

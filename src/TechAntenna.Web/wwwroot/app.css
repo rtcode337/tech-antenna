@@ -360,6 +360,41 @@ hr {
     font-weight: 650;
 }
 
+/* 読んだ本。**消さずに沈めるだけ**(並べ替えは BookPopularity.ReadLast)なので一覧には
+   残る —— 未読と見分けが付くよう薄くし、印は ✓ と色の両方で出す。書籍の一覧・トピック詳細・
+   タグ詳細の3か所で同じ見せ方をするので app.css に置く。
+   **触れているあいだは濃さを戻す**(薄いままだと、押し間違いを取り消す操作がしにくい) */
+.read-book {
+    opacity: 0.55;
+}
+
+.read-book:hover,
+.read-book:focus-within {
+    opacity: 1;
+}
+
+.read-mark {
+    padding: 0.25rem 0.5rem;
+    color: var(--accent);
+    font-size: 0.8rem;
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+/* 操作の結果を出す1行。**押した結果が画面に残る**ようにするためのもので、
+   タグの手直し・イベントの設定・書籍の「読んだ」で同じ見た目を使う。
+   次の操作の邪魔にならないよう面は薄く */
+.notice {
+    max-width: 62rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--accent-border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    background: var(--accent-soft);
+    font-size: 0.9rem;
+}
+
 /* 畳んだ説明(details)。トピック・タグ・設定で同じ見た目を使う */
 .score-help {
     margin-bottom: 1rem;

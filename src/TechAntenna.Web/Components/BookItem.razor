@@ -1,5 +1,7 @@
+@using TechAntenna.Core
 @using TechAntenna.Core.Models
 @using TechAntenna.Core.Topics
+@using TechAntenna.Web.Services
 @inject TopicCatalog Catalog
 
 @* 1冊分の表示。/books(トピックの折りたたみ)と /classics/books(定番の書籍)で
@@ -9,7 +11,7 @@
    まとめるので、どのタグでそのグループに載ったのかがタグの帯から分かるようにする。
    EmphasizeRecommended はトピックの中で推薦本を目立たせるか ——
    推薦本だけを並べる枠では全冊が該当して意味を成さないので切る *@
-<li class="mb-3 d-flex gap-2 @(EmphasizeRecommended && Book.RecommendationCount > 0 ? "recommended-book" : "")">
+<li class="mb-3 d-flex gap-2 @(EmphasizeRecommended && Book.RecommendationCount > 0 ? "recommended-book" : "") @(Book.IsRead ? "read-book" : "")">
     @if (Book.CoverUrl is { } coverUrl)
     {
         <img src="@coverUrl" alt="" width="48" loading="lazy" />
@@ -70,6 +72,27 @@
             }
         </small>
     </div>
+    @* 「読んだ」の印。**行の右端に固定する**(タグの数で位置が動かないよう、
+       メタ行の中ではなく flex の3つ目の子として置く)。
+       押せるのは ShowReadToggle を立てたページだけ —— 出版トレンドの書籍
+       (TrendBooks)は NewRelease を Book の形に写しただけで保存された本ではなく、
+       押しても記録する先が無い。**押せないページでも印は出す**(下に沈む理由が読める) *@
+    @if (ShowReadToggle)
+    {
+        @* **value は状態で変えない**(`toggle:<Id>` のまま)—— keep-focus.js は押した値で
+           ボタンを探し直すので、`read:` ↔ `unread:` と入れ替わると POST 後に見つからず、
+           数百行の一覧の先頭へ戻ってしまう。裏返す判断は保存先が持つ(IBookStore) *@
+        <button type="submit" class="btn btn-sm read-toggle @(Book.IsRead ? "is-read" : "")"
+                name="Action" value="@BookReadAction.Value(Book.Id)"
+                aria-pressed="@(Book.IsRead ? "true" : "false")"
+                title="@ToggleHint()">
+            @(Book.IsRead ? "✓ 読んだ" : "読んだ")
+        </button>
+    }
+    else if (Book.IsRead)
+    {
+        <span class="read-mark" title="@ToggleHint()">✓ 読んだ</span>
+    }
 </li>
 
 @code {
@@ -86,4 +109,18 @@
     /// <summary>推薦本を左帯 + 薄い面で目立たせるか。</summary>
     [Parameter]
     public bool EmphasizeRecommended { get; set; }
+
+    /// <summary>
+    /// 「読んだ」を押せるようにするか。**押すのはページのフォームへの submit** なので、
+    /// 立てるページは <c>&lt;form method="post"&gt;</c> で囲み、<c>Action</c> を
+    /// <c>read:&lt;Id&gt;</c> / <c>unread:&lt;Id&gt;</c> として受けること。
+    /// </summary>
+    [Parameter]
+    public bool ShowReadToggle { get; set; }
+
+    /// <summary>印の吹き出し。**いつ読んだかは日本時間で出す**(JapanTime)。</summary>
+    string ToggleHint() =>
+        Book.ReadAt is { } readAt
+            ? $"{JapanTime.FormatDate(readAt)} に読んだ" + (ShowReadToggle ? "(押すと戻す)" : "")
+            : "読んだ本として印を付ける(一覧では下に回ります)";
 }
