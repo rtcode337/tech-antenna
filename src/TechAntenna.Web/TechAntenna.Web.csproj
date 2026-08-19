@@ -7,10 +7,13 @@
 
   <ItemGroup>
     <!--
-      ランタイムの EF Core と版をそろえる。実際に動くのは Npgsql.EntityFrameworkCore.PostgreSQL
-      (現行の最新 10.0.3)が連れてくる EF Core 10.0.4 で、ここだけ新しい版を指すと
-      Microsoft.EntityFrameworkCore.Relational が 10.0.4 と 10.0.11 で衝突する(MSB3277)。
-      Npgsql 側が追いついたら、この版も一緒に上げること。
+      ランタイムの EF Core と版をそろえる。Npgsql.EntityFrameworkCore.PostgreSQL(10.0.3)が
+      要求する EF Core は [10.0.4, 11.0.0) の範囲なので、ここで指した版に全部そろう
+      (実測: Design を 10.0.11 にすると EntityFrameworkCore と .Relational も 10.0.11 に統一され、
+      警告 0 でビルドが通る)。
+      かつて 10.0.4 に留めていたのは、.Relational が 10.0.4 と 10.0.11 で衝突して MSB3277 が
+      出たため。Npgsql の範囲が広がって解消したので、その制約は外してある。
+      Npgsql が 11 系(= EF Core 11)へ上がるときは、こちらも一緒に上げること。
     -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
