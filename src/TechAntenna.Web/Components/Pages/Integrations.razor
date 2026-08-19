@@ -58,18 +58,22 @@
         @NotifyTable(notify)
     }
 
-    @* **キーは軸で分けずに1か所へ集める。** 同じキーを複数の軸・複数の経路で使う
+    @* **軸で分けずに1か所へ集める。** 同じキーを複数の軸・複数の経路で使う
        (connpass は興味トピックと定番の両方、検索と面掃きの両方)ので、軸ごとの表に置くと
        **同じ入力欄が何度も出る** —— 名前が重複し、片方に打った値ともう片方の空欄が
-       混ざる形で保存を壊していた。ここでは**キー1つにつき1行**にする *@
+       混ざる形で保存を壊していた。ここでは**キー1つにつき入力欄1つ**にする。
+
+       **節の名前は「設定」。** キーだけでなく面掃きの切り替えも並ぶので、
+       「キーの設定」では中身より狭い名前になる(見出しは目次であって説明ではない) *@
     <h2 class="axis">
-        キーの設定
+        設定
         <button class="help-toggle" type="button" popovertarget="keys-help"
-                aria-label="「キーの設定」の説明">?</button>
+                aria-label="「設定」の説明">?</button>
     </h2>
     <p class="text-muted">
-        キーやトークンが要る連携はここでまとめて設定します。
-        <strong>説明はそのキーを入れると何に使われるか</strong>です（用途ごとに並べています）。
+        キーやトークンが要る連携と、<strong>同じキーで引く別の経路(面掃き)</strong>を
+        ここでまとめて設定します。<strong>説明は入れる・動かすと何に使われるか</strong>です
+        （用途ごとに並べています）。
     </p>
 
     <div class="help-popover" id="keys-help" popover>
@@ -81,16 +85,24 @@
             (実値をリポジトリや設定ファイルに置かないため)。
         </p>
         <p>
-            <strong>同じキーを使う経路は1行にまとめています</strong> ——
+            <strong>同じキーを使う行は、入力欄を1つだけ出します</strong> ——
             connpass のキーは、興味トピックでも定番でも、検索でも面掃きでも同じものです。
+            2 行目からは<strong>どの行と同じキーか</strong>だけを書いています。
             どの経路で使われるかは下の「収集」の表で見てください。
+        </p>
+        <p>
+            <strong>面掃き</strong>(月ごと・期間ごとに全件なめて、参加者数の多いものだけを
+            残す経路)は<strong>同じ表の別の行</strong>で、「状態」列の「動かす」で入れます ——
+            検索語も購読の名簿も要らないので<strong>名前を知らない大型イベントを拾える
+            唯一の経路</strong>ですが、1 回の収集で数十リクエストかかるため
+            <strong>既定では走りません</strong>。
         </p>
     </div>
 
     @* 用途(書籍・イベント…)で束ねる。**軸(トレンドで使う…)では分けない** ——
        キーは軸をまたいで同じものなので、軸で分けると同じキーが2度出る *@
-    @foreach (var group in KeyRows()
-        .GroupBy(integration => integration.Purpose)
+    @foreach (var group in SettingRows()
+        .GroupBy(row => row.Integration.Purpose)
         .OrderBy(group => IntegrationCatalog.OrderOf(group.Key)))
     {
         <h3 class="purpose">@group.Key</h3>
@@ -110,46 +122,54 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach (var integration in group)
+                @foreach (var row in group)
                 {
+                    var integration = row.Integration;
                     <tr>
                         <td>@integration.Name</td>
                         <td class="text-muted effect" data-label="説明">
                             @InlineMarkup.ToHtml(integration.Description)
                         </td>
                         <td data-label="状態">
-                            <span class="badge @StatusClass(integration)">@StatusLabel(integration)</span>
+                            @* **面掃きの行は「有効 / 無効」+ 切り替え。** ここは経路のオン/オフなので、
+                               ほかの行の「設定済み / 未設定」(キーの有無)とは意味が違う *@
+                            @if (row.IsSweep)
+                            {
+                                <span class="badge @(integration.Enabled ? "bg-success" : "bg-secondary")">
+                                    @(integration.Enabled ? "有効" : "無効")
+                                </span>
+                                @* **キーが無いと動かせない。** 面掃きは同じキーで叩く経路なので、
+                                   キー未設定で入れても毎回スキップされるだけ ——
+                                   押せたのに何も起きない状態を作らない。
+                                   **止めるのはいつでもできる**(キーを消した後に止められないと詰む) *@
+                                <button type="submit" class="btn btn-outline-secondary btn-sm toggle"
+                                        name="Action" value="toggle:sweep:@integration.ToggleName"
+                                        disabled="@(!integration.Enabled && !integration.Configured)">
+                                    @(integration.Enabled ? "止める" : "動かす")
+                                </button>
+                                @if (!integration.Enabled && !integration.Configured)
+                                {
+                                    @* 黙って disabled にすると壊れて見えるので理由を書く *@
+                                    <span class="text-muted">キーを入れると動かせます。</span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="badge @StatusClass(integration)">@StatusLabel(integration)</span>
+                            }
                         </td>
                         <td class="secret-cell" data-label="キーの設定">
-                            @SecretCell("keys", integration)
-                            @* **面掃きのオン/オフはここ。** 同じキーで引ける「もう1つの引き方」なので、
-                               キーの隣にあるのが素直(収集の表には状態だけ出る) *@
-                            @foreach (var sweep in SweepsFor(integration))
+                            @* **入力欄はキー1つにつき1つだけ**(最初に出てきた行が持つ)——
+                               同じ name の入力欄が2つ出ると、Request.Form が値をカンマで
+                               連結して保存が壊れる。2行目からは<b>どの行と同じキーか</b>を書く ——
+                               空欄にすると「キーが要らない連携」と読めてしまう *@
+                            @if (row.OwnsKey)
                             {
-                                <div class="sweep-toggle">
-                                    @* 見出しは「面掃き」、状態はバッジに「有効 / 無効」だけ ——
-                                       バッジの中で「面掃きは無効」と言うと、名前と状態が
-                                       同じ塗りの中に混ざって、状態だけを目で拾えない *@
-                                    <span class="sweep-label">面掃き</span>
-                                    <span class="badge @(sweep.Enabled ? "bg-success" : "bg-secondary")">
-                                        @(sweep.Enabled ? "有効" : "無効")
-                                    </span>
-                                    @* **キーが無いと動かせない。** 面掃きは同じキーで叩く経路なので、
-                                       キー未設定で入れても毎回スキップされるだけ ——
-                                       押せたのに何も起きない状態を作らない。
-                                       **止めるのはいつでもできる**(キーを消した後に止められないと詰む) *@
-                                    <button type="submit" class="btn btn-outline-secondary btn-sm toggle"
-                                            name="Action" value="toggle:sweep:@sweep.ToggleName"
-                                            disabled="@(!sweep.Enabled && !sweep.Configured)">
-                                        @(sweep.Enabled ? "止める" : "動かす")
-                                    </button>
-                                    @if (!sweep.Enabled && !sweep.Configured)
-                                    {
-                                        @* 黙って disabled にすると壊れて見えるので理由を書く *@
-                                        <span class="text-muted">キーを入れると動かせます。</span>
-                                    }
-                                    <span class="text-muted">@InlineMarkup.ToHtml(sweep.Description)</span>
-                                </div>
+                                @SecretCell("keys", integration)
+                            }
+                            else if (row.KeyOwner is { Length: > 0 } owner)
+                            {
+                                <span class="text-muted">「@owner」と同じキー</span>
                             }
                         </td>
                     </tr>
@@ -170,13 +190,17 @@
     </p>
 
     <div class="help-popover" id="collect-help" popover>
-        <strong>「面掃き」の動かし方</strong>
+        <strong>「状態」列の見かた</strong>
+        <p>
+            <strong>収集元は1つずつ止められます</strong>(「止める」を押したものは収集のときに
+            叩きに行きません)。<strong>再起動なしで効きます</strong>。
+        </p>
         <p>
             <strong>面掃き</strong>(月ごと・期間ごとに全件なめて、参加者数の多いものだけを残す経路)は
-            <strong>「状態」列の「動かす」で入れます</strong> ——
-            検索語も購読の名簿も要らないので、<strong>名前を知らない大型イベントを拾える唯一の経路</strong>ですが、
-            1 回の収集で数十リクエストかかるため<strong>既定では走りません</strong>。
-            こちらも再起動なしで効きます(参加者数のしきい値と何か月ぶん見るかは設定ファイル側です)。
+            この表では<strong>状態しか出ません</strong> ——
+            入れる・止めるのは<strong>上の「設定」の表(イベント)</strong>です
+            (同じキーで引く別の経路なので、キーと同じ行の並びに置いてあります)。
+            参加者数のしきい値と何か月ぶん見るかは設定ファイル側です。
         </p>
     </div>
 
@@ -357,7 +381,7 @@ else if (_secretMessage is { Length: > 0 })
         {
             <h4 class="purpose">@group.Key</h4>
         }
-    @* **キーの列は持たない。** 必須か任意かと入力欄は上の「キーの設定」に集めてある
+    @* **キーの列は持たない。** 必須か任意かと入力欄は上の「設定」に集めてある
        —— 同じキーが軸ごとに何度も出るのを避けるため。3 列になったが、説明が長いので
        スマホでは引き続きカードに畳む(app.css の .table.stack) *@
     <table class="table align-middle stack">
@@ -374,7 +398,7 @@ else if (_secretMessage is { Length: > 0 })
                 <tr>
                     <td>@integration.Name</td>
                     @* **「未設定のとき何が起きるか」ではなく用途を書く列。** キーの要否は
-                       上の「キーの設定」と隣の「状態」が言うので、ここで繰り返すと
+                       上の「設定」と隣の「状態」が言うので、ここで繰り返すと
                        キーの要らない連携で「未設定のとき」の欄に用途が書いてある形になり、
                        読み手の直感と食い違う。
                        説明文の `**強調**` と `` `コード` `` は HTML に直して出す
@@ -388,8 +412,8 @@ else if (_secretMessage is { Length: > 0 })
                         <span class="badge @StatusClass(integration)">@StatusLabel(integration)</span>
                         @* **ここで切り替えるのは収集元そのもののオン/オフだけ。**
                            面掃きは connpass / Doorkeeper の「引き方」の選択なので、
-                           キーと同じ行(上の「キーの設定」)に置いてある ——
-                           同じ相手の設定が2か所に分かれないようにするため。
+                           上の「設定」の表に別の行として置いてある ——
+                           同じキーで引く経路なので、キーと同じ並びで見られるようにするため。
                            1 クリックで反転させる —— キーのように打ち込む値が無く、
                            「保存」を挟むと押したのに効いていない状態が生まれるため *@
                         @if (integration.ToggleName is { Length: > 0 } toggleName
@@ -412,34 +436,47 @@ else if (_secretMessage is { Length: > 0 })
     IReadOnlyList<Integration> _all = [];
 
     /// <summary>
-    /// その連携と同じキーを使う「面掃き」の行。**キーの設定の側に切り替えを置く**ため、
-    /// キーで結び直す —— 面掃きは connpass / Doorkeeper の別の引き方で、鍵は同じもの。
+    /// 「設定」の表の1行。<paramref name="OwnsKey"/> が立った行だけがキーの入力欄を出し、
+    /// 立っていない行は <paramref name="KeyOwner"/>(同じキーを持つ最初の行の名前)を書く。
+    /// <paramref name="IsSweep"/> は面掃きの行 —— 状態の見せ方が「有効 / 無効」+ 切り替えになる。
     /// </summary>
-    IEnumerable<Integration> SweepsFor(Integration integration) =>
-        integration.SecretNames is { Count: > 0 } names
-            ? _all.Where(i => i.ToggleName is { Length: > 0 } toggle
-                && !SourceToggles.IsSourceKey(toggle)
-                && i.SecretNames is { Count: > 0 } other
-                && other.Intersect(names).Any())
-            : [];
+    record SettingRow(Integration Integration, bool OwnsKey, string? KeyOwner, bool IsSweep);
 
     /// <summary>
-    /// 「キーの設定」に出す行。**キー1つにつき1行**にする ——
-    /// 同じキーを複数の連携が使う(connpass は検索と面掃き、興味トピックと定番)ので、
-    /// そのまま並べると同じ入力欄が何度も出て、name の重複で保存が壊れる。
+    /// 「設定」に出す行。**キーを使う連携と面掃きを、同じ表の別の行として並べる** ——
+    /// 面掃きは connpass / Doorkeeper の「もう1つの引き方」で、鍵は同じもの。
+    ///
+    /// **入力欄だけはキー1つにつき1つ**にする(<c>OwnsKey</c>)—— 同じキーを複数の行が
+    /// 使う(connpass は検索と面掃き、興味トピックと定番)ので、そのまま並べると同じ
+    /// name の入力欄が何度も出て、<c>Request.Form</c> が値をカンマで連結して保存が壊れる。
+    /// かつては行そのものを落としていたが、それだと**面掃きが表に出てこない**。
+    ///
     /// **LLM と通知は別の節にあるので外す**(相手の行のボタン / 通知の表から入れる)。
-    /// 並びはカタログの順そのまま —— 用途(書籍・イベント…)でまとまって出る。
+    /// 並びはカタログの順そのまま —— 用途(書籍・イベント…)でまとまって出て、
+    /// 各用途の中では検索の行が面掃きより先に来る(= 入力欄は検索の行が持つ)。
     /// </summary>
-    IEnumerable<Integration> KeyRows()
+    IEnumerable<SettingRow> SettingRows()
     {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        // キー → その入力欄を持つ行の名前
+        var owner = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        return _all
-            .Where(i => i.Purpose != IntegrationCatalog.LlmPurpose
-                && i.Purpose != IntegrationCatalog.NotifyPurpose
-                && i.SecretNames is { Count: > 0 })
-            // 先に出てきた行(検索の経路)を残す —— 面掃きの行は同じキーなので落ちる
-            .Where(i => i.SecretNames!.Any(seen.Add));
+        foreach (var integration in _all.Where(i =>
+            i.Purpose != IntegrationCatalog.LlmPurpose
+            && i.Purpose != IntegrationCatalog.NotifyPurpose
+            && i.SecretNames is { Count: > 0 }))
+        {
+            var names = integration.SecretNames!;
+            // 1つでも自分が初出のキーがあれば、その行が入力欄を持つ
+            var ownsKey = names.Count(name => owner.TryAdd(name, integration.Name)) > 0;
+            var isSweep = integration.ToggleName is { Length: > 0 } toggle
+                && !SourceToggles.IsSourceKey(toggle);
+
+            yield return new SettingRow(
+                integration,
+                ownsKey,
+                ownsKey ? null : owner[names[0]],
+                isSweep);
+        }
     }
 
     string? _secretMessage;
@@ -521,7 +558,7 @@ else if (_secretMessage is { Length: > 0 })
                 {
                     _secretMessage = null;
                     _secretError = $"{integration.Name}: キーが未設定なので動かせません。"
-                        + "先に「キーの設定」でキーを入れてください。";
+                        + "先に同じ表のキーの行で入れてください。";
 
                     return;
                 }
@@ -565,8 +602,10 @@ else if (_secretMessage is { Length: > 0 })
         {
             // 値の束縛はせず HttpContext から読む —— [SupplyParameterFromForm] のプロパティを
             // キーごとに生やさないため。値をモデルに持たないので、再描画で画面に漏れることもない。
-            // 節の名前まで含めた name で引く(キーの設定 / 通知)。**キーは1か所に集めたので、
-            // 同じキーの入力欄が2つ出ることはもう無い**
+            // 節の名前まで含めた name で引く(`keys` = 設定 / `notify` = 通知。
+            // **画面の呼称を「設定」に変えても内部名は `keys` のまま** —— 保存済みの値の
+            // 参照名なので、表示名の変更でコードの識別子まで巻き込まない)。
+            // **キーは1か所に集めたので、同じキーの入力欄が2つ出ることはもう無い**
             var value = HttpContext?.Request.Form[$"value-{parts[1]}-{name}"].ToString();
             if (string.IsNullOrWhiteSpace(value))
             {

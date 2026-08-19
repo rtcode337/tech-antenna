@@ -27,24 +27,6 @@ h3.axis {
     font-size: 0.86rem;
 }
 
-/* 用途の見出し。軸の見出し(.axis)より一段下なので、字を小さくして間も詰める */
-/* 面掃きの切り替え(キーの設定の中)。キーの入力欄の下に一段置く */
-.sweep-toggle {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.4rem;
-    margin-top: 0.5rem;
-    padding-top: 0.5rem;
-    border-top: 1px dashed var(--border);
-    font-size: 0.82rem;
-}
-
-/* 面掃きの見出し。状態のバッジより先に名前が読めるように少し強く */
-.sweep-label {
-    font-weight: 650;
-}
-
 /* 必須の印(ntfy のトピック名)。ラベルの右に小さく添える */
 .required {
     color: var(--danger);
