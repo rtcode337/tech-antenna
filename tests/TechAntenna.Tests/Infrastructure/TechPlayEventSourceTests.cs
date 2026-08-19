@@ -99,7 +99,7 @@ public class TechPlayEventSourceTests
     [Fact]
     public async Task 主催者を取り込む()
     {
-        // TECH PLAY は参加者数を持たないので、**公式かどうかがこの収集元の唯一の重み** ——
+        // TECH PLAY は参加者数を持たないので、公式かどうかがこの収集元の唯一の重み ——
         // 主催者を落とすと、いちばん厚いベンダーのウェビナーが注目度で沈む
         var events = await Source().FetchAsync();
 

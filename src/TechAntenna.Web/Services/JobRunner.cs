@@ -5,10 +5,10 @@ namespace TechAntenna.Web.Services;
 /// <summary>
 /// 定期実行(<c>BackgroundService</c>)と画面の手動ボタンの両方から呼ばれるジョブ。
 ///
-/// **同時に走らないよう直列化する** —— 二重に走ると同じ収集先へ続けて叩きに行ったり、
+/// 同時に走らないよう直列化する —— 二重に走ると同じ収集先へ続けて叩きに行ったり、
 /// 同じ記事を二度要約して LLM の枠を無駄に使うことになる。
 ///
-/// **1つの Runner に入口が2つあることがある**(トピックの整備 = 話題度の取り直し /
+/// 1つの Runner に入口が2つあることがある(トピックの整備 = 話題度の取り直し /
 /// タグの仕分け)。実行中の印と結果の文言は<b>入口ごと</b>に持つ —— Runner に1つだけ
 /// 持たせていたときは、仕分けを走らせると話題度のボタンの横にも「実行中…」が出ていた。
 /// 直列化(<see cref="IsRunning"/>)は Runner 全体のままにする —— 中身は同じ DB を
@@ -67,7 +67,7 @@ public abstract class JobRunner
     /// ジョブをバックグラウンドで1回実行する(既に実行中なら何もしない)。
     /// 中身は <see cref="RunAndRecordAsync"/> と同じものを渡す(結果の文言もそちらが残す)。
     ///
-    /// **画面のボタンはこちらを使う。** 全ページ静的 SSR なので、応答を返し切るまで
+    /// 画面のボタンはこちらを使う。全ページ静的 SSR なので、応答を返し切るまで
     /// 画面は何も出ない —— 数分かかるジョブを await すると、押した人はただ白い画面を
     /// 待たされる。開始だけして応答を返し、進捗は自動リロード(JobButton の
     /// meta refresh)で見せる。
@@ -100,7 +100,7 @@ public abstract class JobRunner
     /// <summary>
     /// ジョブを1回実行して、結果の文言を <see cref="LastMessage"/> / <see cref="LastError"/> に残す。
     ///
-    /// **定期実行から使う**(<see cref="StartInBackground"/> の await する版)——
+    /// 定期実行から使う(<see cref="StartInBackground"/> の await する版)——
     /// 定期実行は決まった順で通しで走らせるので、次のジョブへ進む前に終わりを待つ必要がある。
     /// 失敗しても投げ返さず false を返す —— 1つのジョブの失敗で残りを止めないため。
     /// 画面には手動で押したときと同じ文言が残る。
@@ -162,7 +162,7 @@ public abstract class JobRunner
 /// <param name="FailedSources">失敗した収集元の数。</param>
 /// <param name="Note">
 /// 何も集まらなかった理由が分かっているときの文言(例: トピックが未選択)。
-/// **例外にはしない** —— 集まらないのは設定どおりの動作であって失敗ではないし、
+/// 例外にはしない —— 集まらないのは設定どおりの動作であって失敗ではないし、
 /// 「失敗:」と出ると同じ状況の他のジョブと文言が食い違う。
 /// </param>
 public record CollectionRunResult(int Fetched, int Added, int FailedSources, string? Note = null)
@@ -170,7 +170,7 @@ public record CollectionRunResult(int Fetched, int Added, int FailedSources, str
     public static readonly CollectionRunResult Nothing = new(0, 0, 0);
 
     /// <summary>
-    /// 収集元を全部止めているとき。**例外にしない** ——
+    /// 収集元を全部止めているとき。例外にしない ——
     /// 画面で止めたとおりに動いているだけで、失敗ではない
     /// (「何も集まらなかった理由は結果に載せる」と同じ扱い)。
     /// </summary>

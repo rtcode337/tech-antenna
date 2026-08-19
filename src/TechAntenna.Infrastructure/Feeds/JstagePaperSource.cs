@@ -5,13 +5,13 @@ using TechAntenna.Core.Topics;
 namespace TechAntenna.Infrastructure.Feeds;
 
 /// <summary>
-/// J-STAGE(科学技術情報発信・流通総合システム)で**日本語の論文**を集める。
+/// J-STAGE(科学技術情報発信・流通総合システム)で日本語の論文を集める。
 /// arXiv と同じく選択中のトピックを検索語にして1つずつ問い合わせ、検索語をタグにする。
 ///
-/// **arXiv と違って検索語は日本語のまま**投げる —— J-STAGE は和文の索引なので、
+/// arXiv と違って検索語は日本語のまま投げる —— J-STAGE は和文の索引なので、
 /// 英語別名に置き換える必要が無い。取れるタイトルも和文なので翻訳も要らない。
 ///
-/// 取り込むのは**タイトル・URL・公開日と掲載誌名だけ**。抄録は著者の文章なので取り込まない。
+/// 取り込むのはタイトル・URL・公開日と掲載誌名だけ。抄録は著者の文章なので取り込まない。
 /// </summary>
 public class JstagePaperSource(
     IHttpClientFactory httpClientFactory,
@@ -33,7 +33,7 @@ public class JstagePaperSource(
 
     public async Task<IReadOnlyList<Article>> FetchAsync(CancellationToken cancellationToken = default)
     {
-        // 検索語には**正式表記のほう**が要る(正規化で崩れたキー `生成ai` を投げても当たらない)
+        // 検索語には正式表記のほうが要る(正規化で崩れたキー `生成ai` を投げても当たらない)
         var keywords = (await topicStore.GetSelectedAsync(cancellationToken))
             .Select(topic => topic.Display)
             .ToList();

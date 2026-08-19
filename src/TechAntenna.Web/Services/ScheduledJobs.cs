@@ -1,7 +1,7 @@
 namespace TechAntenna.Web.Services;
 
 /// <summary>
-/// 設定画面のどの見出しの下に置くか。**実行順とは別**(画面はサイドバーと同じ並び、
+/// 設定画面のどの見出しの下に置くか。実行順とは別(画面はサイドバーと同じ並び、
 /// 実行はデータの依存順)なので、行には順番の番号も出す。
 /// </summary>
 public enum JobGroup
@@ -14,7 +14,7 @@ public enum JobGroup
 }
 
 /// <summary>定期実行に並ぶジョブ1つ。画面のチェックボックスとワーカーの両方がこれを見る。</summary>
-/// <param name="Key">設定キーの一部(<see cref="ScheduleSettings.EnabledName"/>)。**変えると設定が外れる**。</param>
+/// <param name="Key">設定キーの一部(<see cref="ScheduleSettings.EnabledName"/>)。変えると設定が外れる。</param>
 /// <param name="Name">画面とログに出す名前(ボタンの文字)。</param>
 /// <param name="Group">設定画面のどの見出しの下に出すか。</param>
 /// <param name="Runner">実行中・未設定の判定に使う Runner(手動ボタンと同じもの)。</param>
@@ -27,10 +27,10 @@ public record ScheduledJob(
     Func<CancellationToken, Task<bool>> RunAsync);
 
 /// <summary>
-/// 定期実行に並ぶジョブと**その順番**。順番はここ1か所だけが決める(画面もワーカーも
+/// 定期実行に並ぶジョブとその順番。順番はここ1か所だけが決める(画面もワーカーも
 /// この並びをそのまま使うので、チェックの並びと実際に走る順が食い違わない)。
 ///
-/// **順番には理由がある** —— 後ろのジョブは前のジョブが集めたものを材料にする:
+/// 順番には理由がある —— 後ろのジョブは前のジョブが集めたものを材料にする:
 ///
 /// <list type="number">
 ///   <item>収集(トレンド・書籍・イベント・論文・定番)—— 材料そのものを増やす。
@@ -56,10 +56,10 @@ public class ScheduledJobs(
     DigestRunner digest)
 {
     /// <summary>
-    /// 走る順に並んだジョブ。**キーは設定に保存されている**ので、増減はできても
+    /// 走る順に並んだジョブ。キーは設定に保存されているので、増減はできても
     /// 既存のキーは変えないこと(変えるとその行のチェックが外れる)。
     ///
-    /// **毎回組み直す**(フィールドに固定しない)—— LLM を使うジョブの名前には方式名が
+    /// 毎回組み直す(フィールドに固定しない)—— LLM を使うジョブの名前には方式名が
     /// 入っていて(「記事の要約(Claude Code / …)」)、キーを画面から設定した直後に変わる。
     /// </summary>
     public IReadOnlyList<ScheduledJob> InOrder =>
@@ -91,7 +91,7 @@ public class ScheduledJobs(
                 "classics-collection", classicsCollection.RunOnceAsync, JobMessage.Describe, ct)),
 
         // 話題度と仕分けは Runner が同じ1つ(「トピックの整備」)なので、名前はここで書き分ける。
-        // **仕分けだけ LLM を使う**ので、要約などと同じく方式とモデルを名前に出す
+        // 仕分けだけ LLM を使うので、要約などと同じく方式とモデルを名前に出す
         new("trend-scores", "話題度を取り直す", JobGroup.Topics, maintenance,
             ct => maintenance.RunAndRecordAsync(
                 "trend-scores", maintenance.RefreshTrendsAsync, JobMessage.Describe, ct)),
@@ -120,7 +120,7 @@ public class ScheduledJobs(
     public ScheduledJob? ByKey(string key) =>
         InOrder.FirstOrDefault(job => job.Key == key);
 
-    /// <summary>実行順(1 始まり)。**画面の並びは実行順と違う**ので、行に番号を出すために要る。</summary>
+    /// <summary>実行順(1 始まり)。画面の並びは実行順と違うので、行に番号を出すために要る。</summary>
     public int OrderOf(ScheduledJob job) =>
         InOrder.ToList().FindIndex(candidate => candidate.Key == job.Key) + 1;
 }

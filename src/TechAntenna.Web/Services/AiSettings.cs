@@ -4,10 +4,10 @@ using TechAntenna.Infrastructure.Chiezo;
 namespace TechAntenna.Web.Services;
 
 /// <summary>
-/// どの AI に書かせるかの選択。**Chiezo(LAN 内の知識サーバー)に登録してある相手**から選ぶ。
+/// どの AI に書かせるかの選択。Chiezo(LAN 内の知識サーバー)に登録してある相手から選ぶ。
 ///
 /// メインは LLM を使う全部のジョブ(要約・翻訳・タグの仕分け・今日のサマリー)で使う。
-/// **サブは今日のサマリーだけ** —— 比べて読みたいのは文章で、要約や翻訳は枚数が多く
+/// サブは今日のサマリーだけ —— 比べて読みたいのは文章で、要約や翻訳は枚数が多く
 /// 読み比べられないため(呼び出しも保存も相手の数だけ増える)。
 ///
 /// 値は API キーと同じく DB(<c>Secrets</c>)に持ち、実行のたびに読むので再起動なしで効く。
@@ -23,13 +23,13 @@ public static class AiSettings
     public const int MaxSubs = 4;
 
     /// <summary>
-    /// メインに選べる「Chiezo ではない相手」の識別子。**`local:` を冠する** ——
+    /// メインに選べる「Chiezo ではない相手」の識別子。`local:` を冠する ——
     /// Chiezo の相手 id(`gemini`・`claude` 等)と混ざらないようにするため
     /// (あちらの id にコロンは使われない)。
     ///
-    /// **この2つもメインに選べるようにしてある。** かつては Chiezo にメインを選んだかどうかで
+    /// この2つもメインに選べるようにしてある。かつては Chiezo にメインを選んだかどうかで
     /// 経路が決まり、選ばないときだけ「トークン > API キー」の優先順で自動的に決まっていた ——
-    /// **キーを両方入れてある環境で Anthropic API を選ぶ手段が無かった**(トークンを消すしかない)。
+    /// キーを両方入れてある環境で Anthropic API を選ぶ手段が無かった(トークンを消すしかない)。
     /// </summary>
     public const string ClaudeCodeBackend = "local:claude-code";
 
@@ -68,21 +68,21 @@ public static class AiSettings
 
 /// <summary>選んだ相手 1 つ。</summary>
 /// <param name="Backend">Chiezo 側の識別子(`gemini` など)。</param>
-/// <param name="Label">画面に出す名前。**選んだ時点の表記を持つ** —— 表示のたびに
+/// <param name="Label">画面に出す名前。選んだ時点の表記を持つ —— 表示のたびに
 /// Chiezo へ問い合わせると、繋がらない日にホームの但し書きが消える。</param>
 /// <param name="Model">モデル(空なら相手の既定)。</param>
 /// <param name="Effort">考える量(空なら相手の既定)。</param>
 public record AiChoice(string Backend, string Label, string? Model, string? Effort)
 {
     /// <summary>
-    /// Chiezo へ渡す形。**<see cref="AiSettings.IsLocal"/> の相手には使わない**
+    /// Chiezo へ渡す形。<see cref="AiSettings.IsLocal"/> の相手には使わない
     /// (Chiezo の相手ではないので、あちらへ渡す識別子を持たない)。
     /// </summary>
     public ChiezoAiSelection ToSelection() => new(Backend, Label, Model, Effort);
 
     /// <summary>
-    /// 生成者のキー(<c>Digest.GeneratorKey</c>)。**Chiezo ではない相手は従来と同じ
-    /// <c>default</c>** にする —— 既に保存したダイジェストがそのキーで並んでおり、
+    /// 生成者のキー(<c>Digest.GeneratorKey</c>)。Chiezo ではない相手は従来と同じ
+    /// <c>default</c> にする —— 既に保存したダイジェストがそのキーで並んでおり、
     /// 変えると同じ相手の記録が2つのキーに割れる。
     /// </summary>
     public string Key => AiSettings.IsLocal(Backend)
@@ -97,7 +97,7 @@ public record AiConfig(AiChoice? Main, IReadOnlyList<AiChoice> Subs)
 
     /// <summary>
     /// メインを先頭にした全部(重複する相手は落とす)。
-    /// **サブは Chiezo の相手だけ** —— 読み比べのための経路なので、
+    /// サブは Chiezo の相手だけ —— 読み比べのための経路なので、
     /// Chiezo ではない相手(<see cref="AiSettings.IsLocal"/>)はサブに入らない。
     /// </summary>
     public IReadOnlyList<AiChoice> All() => Main is null

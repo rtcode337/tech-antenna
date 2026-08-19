@@ -33,7 +33,7 @@ public class EfDigestStore(IDbContextFactory<TechAntennaDbContext> contextFactor
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // **最新の1件が属する回を丸ごと読む。** 時刻で寄せると、今日失敗した AI の
+        // 最新の1件が属する回を丸ごと読む。時刻で寄せると、今日失敗した AI の
         // 前日ぶんが今日のものと並ぶ
         var latest = await db.Digests
             .Where(d => d.Scope == scope)

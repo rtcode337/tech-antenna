@@ -156,7 +156,7 @@ public class InMemoryTopicStore : ITopicStore
         topic.BookCount = 0;
     }
 
-    /// <summary>更新内容を1行に写す(EF 版と同じ規則にするため共有する)。**選択は触らない**。</summary>
+    /// <summary>更新内容を1行に写す(EF 版と同じ規則にするため共有する)。選択は触らない。</summary>
     internal static void Apply(Topic stored, Topic topic, DateTimeOffset updatedAt)
     {
         stored.Display = topic.Display;

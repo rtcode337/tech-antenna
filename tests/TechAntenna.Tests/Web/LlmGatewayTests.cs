@@ -86,7 +86,7 @@ public class LlmGatewayTests : IDisposable
     [Fact]
     public async Task ChiezoでメインのAIを選んでいればそちらを使う()
     {
-        // **選んだ相手が最優先。** わざわざ選んだものより、同居のサイドカーを優先する理由が無い
+        // 選んだ相手が最優先。わざわざ選んだものより、同居のサイドカーを優先する理由が無い
         var (gateway, credentials) = Build(chiezoUrl: "http://chiezo:7010");
         await credentials.SetAsync(LlmGateway.ClaudeCodeTokenName, "token");
         await AiSettings.SaveAsync(
@@ -111,7 +111,7 @@ public class LlmGatewayTests : IDisposable
     [Fact]
     public async Task メインにAnthropicAPIを選べばトークンがあってもそちらを使う()
     {
-        // **これが選べるようになった理由。** かつては「トークン > API キー」の優先順しか無く、
+        // これが選べるようになった理由。かつては「トークン > API キー」の優先順しか無く、
         // 両方入れてある環境で Anthropic API を使うにはトークンを消すしかなかった
         var (gateway, credentials) = Build();
         await credentials.SetAsync(LlmGateway.ClaudeCodeTokenName, "token");
@@ -140,7 +140,7 @@ public class LlmGatewayTests : IDisposable
     [Fact]
     public async Task 選んだ相手のキーが消えていれば従来の優先順に落ちる()
     {
-        // 選択は残っているがキーが無い状態(画面で削除した)。**動かない相手のまま止まらない**
+        // 選択は残っているがキーが無い状態(画面で削除した)。動かない相手のまま止まらない
         var (gateway, credentials) = Build();
         await credentials.SetAsync(LlmGateway.AnthropicApiKeyName, "api-key");
         await AiSettings.SaveAsync(

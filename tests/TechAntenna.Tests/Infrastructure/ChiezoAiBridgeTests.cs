@@ -23,7 +23,7 @@ public class ChiezoAiBridgeTests
     [Fact]
     public async Task モデルを相手に任せたときは実際に使われたモデルで名乗る()
     {
-        // **どの AI のどのモデルが書いたか**を残すため。呼び出しの前は分からないので、
+        // どの AI のどのモデルが書いたかを残すため。呼び出しの前は分からないので、
         // 応答で名乗られたものを使う(生成者名を付けるのは応答を読んだ後)
         var bridge = Bridge(null, """{"content":"はい","model":"claude-sonnet-5"}""");
 

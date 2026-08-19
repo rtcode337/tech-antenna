@@ -39,7 +39,7 @@
             @if (Book.RecommendationCount > 0)
             {
                 @* レビュー(読まれた量)とは別軸なので、並べて別々に出す。
-                   **出典は「推薦 N 件」を押して開く折りたたみにする** —— 番号(1・2・3)を
+                   出典は「推薦 N 件」を押して開く折りたたみにする —— 番号(1・2・3)を
                    並べていた頃は、押す前にどこで薦められているのか分からなかった
                    (どこで薦められたかは本を選ぶ材料そのもの)。畳んでおくのは、1 冊に
                    何本も出典が付くと一覧が出典で埋まるため。JS は使わない *@
@@ -50,7 +50,7 @@
                         {
                             <li>
                                 <a href="@article.Url" target="_blank" rel="noopener">
-                                    @* 題名はこの列より前に集めた分には無い。**URL で代替する** ——
+                                    @* 題名はこの列より前に集めた分には無い。URL で代替する ——
                                        押せない行にはしない(次の収集で題名が入る) *@
                                     @(string.IsNullOrWhiteSpace(article.Title) ? article.Url : article.Title)
                                 </a>
@@ -72,14 +72,14 @@
             }
         </small>
     </div>
-    @* 「読んだ」の印。**行の右端に固定する**(タグの数で位置が動かないよう、
+    @* 「読んだ」の印。行の右端に固定する(タグの数で位置が動かないよう、
        メタ行の中ではなく flex の3つ目の子として置く)。
        押せるのは ShowReadToggle を立てたページだけ —— 出版トレンドの書籍
        (TrendBooks)は NewRelease を Book の形に写しただけで保存された本ではなく、
-       押しても記録する先が無い。**押せないページでも印は出す**(下に沈む理由が読める) *@
+       押しても記録する先が無い。押せないページでも印は出す(下に沈む理由が読める) *@
     @if (ShowReadToggle)
     {
-        @* **value は状態で変えない**(`toggle:<Id>` のまま)—— keep-focus.js は押した値で
+        @* value は状態で変えない(`toggle:<Id>` のまま)—— keep-focus.js は押した値で
            ボタンを探し直すので、`read:` ↔ `unread:` と入れ替わると POST 後に見つからず、
            数百行の一覧の先頭へ戻ってしまう。裏返す判断は保存先が持つ(IBookStore) *@
         <button type="submit" class="btn btn-sm read-toggle @(Book.IsRead ? "is-read" : "")"
@@ -111,14 +111,14 @@
     public bool EmphasizeRecommended { get; set; }
 
     /// <summary>
-    /// 「読んだ」を押せるようにするか。**押すのはページのフォームへの submit** なので、
+    /// 「読んだ」を押せるようにするか。押すのはページのフォームへの submit なので、
     /// 立てるページは <c>&lt;form method="post"&gt;</c> で囲み、<c>Action</c> を
     /// <c>read:&lt;Id&gt;</c> / <c>unread:&lt;Id&gt;</c> として受けること。
     /// </summary>
     [Parameter]
     public bool ShowReadToggle { get; set; }
 
-    /// <summary>印の吹き出し。**いつ読んだかは日本時間で出す**(JapanTime)。</summary>
+    /// <summary>印の吹き出し。いつ読んだかは日本時間で出す(JapanTime)。</summary>
     string ToggleHint() =>
         Book.ReadAt is { } readAt
             ? $"{JapanTime.FormatDate(readAt)} に読んだ" + (ShowReadToggle ? "(押すと戻す)" : "")

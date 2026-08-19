@@ -7,7 +7,7 @@ namespace TechAntenna.Infrastructure.Summarization;
 /// Claude Code(同梱の CLI をプロセス起動)でタイトルを訳す。
 /// 要約と同じくサブスクリプションの枠で動き、呼び出しの作法は <see cref="ClaudeCodeBatch"/> に集約。
 ///
-/// **タイトルは1件あたりの入力が極端に小さい**ので、要約以上にまとめて渡す価値がある
+/// タイトルは1件あたりの入力が極端に小さいので、要約以上にまとめて渡す価値がある
 /// (呼び出し1回の固定費が3万トークン規模なのに、タイトルは数十トークンしかない)。
 /// </summary>
 public class ClaudeCodeTitleTranslator(ICliBridge bridge) : ITitleTranslator

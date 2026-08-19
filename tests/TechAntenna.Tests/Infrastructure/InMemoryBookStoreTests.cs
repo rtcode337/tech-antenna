@@ -51,7 +51,7 @@ public class InMemoryBookStoreTests
     [Fact]
     public async Task 再収集しても読んだ印は消えない()
     {
-        // **読んだかどうかは外から取れる情報ではない。** 収集元の本は ReadAt が常に null なので、
+        // 読んだかどうかは外から取れる情報ではない。収集元の本は ReadAt が常に null なので、
         // 合流でそれを写すと再収集のたびに印が消える(BookMerge が触らないことの確認)
         var store = new InMemoryBookStore();
         var book = NewBook("読む本", "9784111111111");

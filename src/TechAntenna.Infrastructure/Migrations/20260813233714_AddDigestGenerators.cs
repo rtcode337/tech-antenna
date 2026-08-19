@@ -37,7 +37,7 @@ namespace TechAntenna.Infrastructure.Migrations
                 table: "Digests",
                 column: "RunId");
 
-            // **既存の行を「メインが 1 本だけの回」に見せる。** 既定値のままだと
+            // 既存の行を「メインが 1 本だけの回」に見せる。既定値のままだと
             // RunId が全行ゼロで 1 つの回に混ざり、IsPrimary も false なのでホームに出なくなる
             migrationBuilder.Sql("""
                 UPDATE "Digests"

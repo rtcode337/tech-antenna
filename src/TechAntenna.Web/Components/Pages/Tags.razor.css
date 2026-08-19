@@ -75,7 +75,7 @@
     font-size: 0.78rem;
 }
 
-/* 1 行 = 選択 / 名前 / 補足 / 操作。**列をそろえる**(操作の位置が行ごとに動くと押し間違える) */
+/* 1 行 = 選択 / 名前 / 補足 / 操作。列をそろえる(操作の位置が行ごとに動くと押し間違える) */
 .tag-row {
     display: grid;
     grid-template-columns: 1.4rem minmax(0, 1fr) 14rem auto;

@@ -6,34 +6,34 @@ using TechAntenna.Core.Trends;
 namespace TechAntenna.Web.Services;
 
 /// <summary>
-/// トピックの整備。**入口を2つ持つ**(どちらも語彙の組み立てまで面倒を見る)。
+/// トピックの整備。入口を2つ持つ(どちらも語彙の組み立てまで面倒を見る)。
 ///
 /// | 入口 | やること | LLM | 未知語が増えるか |
 /// |---|---|---|---|
-/// | <see cref="RefreshTrendsAsync"/> 話題度を取り直す | 外部トレンドを引いて鮮度を更新 | 使わない | **増える** |
-/// | <see cref="ReclassifyTagsAsync"/> タグを仕分けなおす | 溜まったタグを LLM で語彙へ入れる | 使う | **増えない** |
+/// | <see cref="RefreshTrendsAsync"/> 話題度を取り直す | 外部トレンドを引いて鮮度を更新 | 使わない | 増える |
+/// | <see cref="ReclassifyTagsAsync"/> タグを仕分けなおす | 溜まったタグを LLM で語彙へ入れる | 使う | 増えない |
 ///
-/// **分けてあるのは、1 本だと終わらないから。** 以前は 1 つのジョブで「トレンドを引く →
+/// 分けてあるのは、1 本だと終わらないから。以前は 1 つのジョブで「トレンドを引く →
 /// 溜まったタグを仕分ける」を通していたので、押すたびに<b>その回のトレンドが新しい未知語を
 /// 連れてきて</b>、仕分け待ちが尽きなかった。仕分け側がトレンドを引かないので、
-/// **押し続ければ仕分け待ちは空になる**(新しい語は収集と話題度の取り直しで増える)。
+/// 押し続ければ仕分け待ちは空になる(新しい語は収集と話題度の取り直しで増える)。
 ///
-/// **2 つは同じ <see cref="JobRunner"/> の上に置く**(メソッドを 2 つにしただけ)。
+/// 2 つは同じ <see cref="JobRunner"/> の上に置く(メソッドを 2 つにしただけ)。
 /// 別のクラスにすると直列化の関門も別々になり、同時に走って互いの結果を上書きする ——
 /// どちらも最後にタグの観測と語彙の組み立てをするため。
 ///
 /// 「収集」ではなく「整備」なのは、材料の性質が分かれているから ——
-/// **新しい語は記事などの収集で自然に溜まる**(語彙の問題。ここでは集めない)。
+/// 新しい語は記事などの収集で自然に溜まる(語彙の問題。ここでは集めない)。
 ///
 /// 手順(画面の説明とそろえること):
 ///
-/// **話題度を取り直す**
+/// 話題度を取り直す
 /// 1. 外部トレンドを取得(<see cref="ITrendTopicSource"/>。Qiita のいいね・はてブのブックマーク数)
-/// 2. タグを観測(件数 + 話題度を書き込む。**状態は触らない**)。
+/// 2. タグを観測(件数 + 話題度を書き込む。状態は触らない)。
 ///    ここで<b>次の仕分けの対象が確定する</b>(画面に出す一覧と同じ)
 /// 3. 語彙を組み立てて書き込む(件数と話題度の合算)
 ///
-/// **タグを仕分けなおす**
+/// タグを仕分けなおす
 /// 1. タグを作り直す(1 回目) —— 正規化の規則やカタログを変えたときに<b>そこで初めて現れる語</b>を
 ///    保存済みデータへ反映する
 /// 2. 残骸のタグ・トピックを掃除する(いまの正規化では作られないキー)
@@ -42,7 +42,7 @@ namespace TechAntenna.Web.Services;
 ///    分類はキーの重複しか見ないので、`AI` と `人工知能` が別々に作られうる
 /// 5. 説明の無いトピックに一言説明を付ける(<see cref="ITopicDescriber"/>)
 /// 6. タグを作り直す(2 回目) —— 今回増えた別名を過去データへ反映する
-/// 7. タグを観測。**外部へは出ず、いまある話題度をそのまま持ち回す** ——
+/// 7. タグを観測。外部へは出ず、いまある話題度をそのまま持ち回す ——
 ///    空の話題度で観測すると、取ってあった話題度を 0 で上書きしてしまう
 /// 8. 語彙を組み立てて書き込む
 /// </summary>
@@ -79,7 +79,7 @@ public class TopicMaintenanceRunner(
     public override string Name => "トピックの整備";
 
     /// <summary>
-    /// 仕分け(タグを仕分けなおす)のボタンに出す名前。**LLM を使う入口なので方式とモデルを出す**
+    /// 仕分け(タグを仕分けなおす)のボタンに出す名前。LLM を使う入口なので方式とモデルを出す
     /// —— 要約・翻訳・サマリーと同じ扱いで、いまどの枠を消費するのかがボタンから分かるように。
     /// 話題度の取り直しは LLM を使わないので、そちらは名前を足さない。
     /// </summary>
@@ -89,15 +89,15 @@ public class TopicMaintenanceRunner(
     public override bool IsConfigured => true;
 
     /// <summary>
-    /// **直前の実行で実際に LLM へ聞いたタグ。** 画面で「何が対象になったのか」を見せるために持つ
+    /// 直前の実行で実際に LLM へ聞いたタグ。画面で「何が対象になったのか」を見せるために持つ
     /// (アプリを再起動すると消えるので、画面は DB からの復元も併せて使う)。
     /// </summary>
     public IReadOnlyList<string> LastClassificationTargets { get; private set; } = [];
 
     /// <summary>
-    /// 話題度を取り直す(**LLM は使わない**)。外部トレンドを引いて鮮度を更新し、語彙へ反映する。
+    /// 話題度を取り直す(LLM は使わない)。外部トレンドを引いて鮮度を更新し、語彙へ反映する。
     ///
-    /// **ここで仕分け待ちの語が増える。** トレンドに現れた未知の語がタグとして入るため ——
+    /// ここで仕分け待ちの語が増える。トレンドに現れた未知の語がタグとして入るため ——
     /// 増えた語を語彙へ入れるのは <see cref="ReclassifyTagsAsync"/> の仕事。
     /// </summary>
     public Task<TrendRefreshResult> RefreshTrendsAsync(CancellationToken cancellationToken = default) =>
@@ -105,9 +105,9 @@ public class TopicMaintenanceRunner(
             () => RefreshAsync(cancellationToken), TrendRefreshResult.Nothing, cancellationToken);
 
     /// <summary>
-    /// 溜まったタグを LLM で仕分けて語彙へ入れる(**外部トレンドは引かない**)。
+    /// 溜まったタグを LLM で仕分けて語彙へ入れる(外部トレンドは引かない)。
     ///
-    /// **押しても新しい未知語は増えない**ので、仕分け待ちは押すぶんだけ減る ——
+    /// 押しても新しい未知語は増えないので、仕分け待ちは押すぶんだけ減る ——
     /// 以前はトレンドの取得と同じジョブだったので、押すたびに新しい語が入って終わらなかった。
     /// </summary>
     public Task<TagClassificationResult> ReclassifyTagsAsync(CancellationToken cancellationToken = default) =>
@@ -118,7 +118,7 @@ public class TopicMaintenanceRunner(
     {
         var now = clock.GetUtcNow();
 
-        // **最初に語彙のスナップショットを DB からそろえる。** 画面からの手直しや別プロセスの
+        // 最初に語彙のスナップショットを DB からそろえる。画面からの手直しや別プロセスの
         // 変更が入っていることがあり、古いままだと別名の解決が食い違う
         await catalogRefresher.RefreshAsync(cancellationToken);
 
@@ -126,7 +126,7 @@ public class TopicMaintenanceRunner(
         var trends = await FetchTrendsAsync(cancellationToken);
 
         // 3 種すべてを数え直すので、渡さなかったタグの件数は 0 に戻す(古い件数を残さない)。
-        // **次の仕分けの対象がこの時点で確定する**(画面に出す一覧と同じ)
+        // 次の仕分けの対象がこの時点で確定する(画面に出す一覧と同じ)
         Progress = "タグを観測中…";
         await tagObserver.ObserveAsync(trends, resetMissing: true, cancellationToken);
 
@@ -148,7 +148,7 @@ public class TopicMaintenanceRunner(
         Progress = "タグを作り直し中…";
         await renormalizationRunner.RunOnceAsync(cancellationToken);
 
-        // **残骸のタグを掃除する。** 正規化の規則を変えると、以前のキーのタグ
+        // 残骸のタグを掃除する。正規化の規則を変えると、以前のキーのタグ
         // (`#生成ai`・`生成ai,`)が残る。中身は正しいタグに合流済みなので消して構わない
         await RemoveStaleAsync(cancellationToken);
 
@@ -160,7 +160,7 @@ public class TopicMaintenanceRunner(
         Progress = "タグを再正規化中…";
         await renormalizationRunner.RunOnceAsync(cancellationToken);
 
-        // **いまある話題度をそのまま持ち回して観測する。** 空のまま観測すると、
+        // いまある話題度をそのまま持ち回して観測する。空のまま観測すると、
         // 取ってあった話題度を 0 で上書きしてしまう(観測は件数と話題度を同時に書く)
         Progress = "タグを観測中…";
         await tagObserver.ObserveAsync(
@@ -174,7 +174,7 @@ public class TopicMaintenanceRunner(
     }
 
     /// <summary>
-    /// DB にいま入っている話題度。**外部へは出ない** —— 仕分け側の観測で書き戻すために読む。
+    /// DB にいま入っている話題度。外部へは出ない —— 仕分け側の観測で書き戻すために読む。
     /// </summary>
     async Task<Dictionary<string, (double Score, int Sources)>> CurrentTrendsAsync(
         CancellationToken cancellationToken) =>
@@ -185,7 +185,7 @@ public class TopicMaintenanceRunner(
 
     /// <summary>
     /// いまの正規化では作られないキーの行(タグ・トピック)を消す。
-    /// **`Normalize` の往復で判定する** —— カンマは `Normalize` の側で語を分けているので、
+    /// `Normalize` の往復で判定する —— カンマは `Normalize` の側で語を分けているので、
     /// `ToKey` の比較では `生成ai,` を見逃す。選択済みのトピックは消さない。
     /// </summary>
     async Task RemoveStaleAsync(CancellationToken cancellationToken)
@@ -215,7 +215,7 @@ public class TopicMaintenanceRunner(
 
     /// <summary>
     /// 未仕分けのタグを LLM に渡し、仕分けが通った件数を返す。
-    /// **失敗しても後の手順は続ける**(仕分けは次の実行でやり直せるが、語彙が
+    /// 失敗しても後の手順は続ける(仕分けは次の実行でやり直せるが、語彙が
     /// 組み立てられないと選択まで狂う)。
     /// </summary>
     async Task<(int Asked, int Effective)> ClassifyPendingAsync(
@@ -294,11 +294,11 @@ public class TopicMaintenanceRunner(
     /// <summary>
     /// 語彙の中の同義トピックを LLM に見つけさせて寄せる。寄せた件数を返す。
     ///
-    /// **分類だけでは重複を防げない。** 検証はキーの重複しか見ないので、あるバッチが
+    /// 分類だけでは重複を防げない。検証はキーの重複しか見ないので、あるバッチが
     /// `AI` を、別のバッチが `人工知能` を新トピックとして作りうる。ここで後から寄せる
     /// 手当てがあるので、語彙を空から始められる(初期値の JSON を捨てられる)。
     ///
-    /// **LLM の応答はそのまま信じない** —— 寄せ先が実在するか、自分自身でないか、
+    /// LLM の応答はそのまま信じない —— 寄せ先が実在するか、自分自身でないか、
     /// 寄せ先が寄せ元を指していないか(相互参照)を確かめてから適用する。
     /// </summary>
     async Task<int> MergeDuplicatesAsync(CancellationToken cancellationToken)
@@ -322,7 +322,7 @@ public class TopicMaintenanceRunner(
                 step => Progress = $"同義のトピックを探索中: {step}…",
                 cancellationToken);
 
-            // 番号 → 寄せ元、表記 → 寄せ先。**相互参照は両方捨てる**
+            // 番号 → 寄せ元、表記 → 寄せ先。相互参照は両方捨てる
             // (A→B と B→A が来たとき、順に適用すると語彙が 1 つに潰れる)
             var pairs = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var verdict in verdicts)
@@ -383,7 +383,7 @@ public class TopicMaintenanceRunner(
     }
 
     /// <summary>
-    /// 説明がまだ無いトピックに一言説明を付ける。**1 語につき 1 回だけ聞く**
+    /// 説明がまだ無いトピックに一言説明を付ける。1 語につき 1 回だけ聞く
     /// (結果は列に残るので、次の仕分けでは聞かない)。上限で切れる分は、
     /// 収集対象に選んだトピック → 話題度の高い順で先に埋める。
     /// </summary>
@@ -462,9 +462,9 @@ public class TopicMaintenanceRunner(
     /// <summary>
     /// タグの観測結果を語彙へ集約して書き込み、書いたトピック数を返す。
     ///
-    /// - **件数と話題度は「自分自身 + 別名」のタグから合算する**。別名の件数が寄せ先に
+    /// - 件数と話題度は「自分自身 + 別名」のタグから合算する。別名の件数が寄せ先に
     ///   合算されるのが構造で保証されるのは、この形にしたから
-    /// - **配下込みの話題度も持つ**。「プログラミング言語」のような構造の語は単体の話題度が
+    /// - 配下込みの話題度も持つ。「プログラミング言語」のような構造の語は単体の話題度が
     ///   ほぼ付かず、単体だけで並べるとツリーが読みにくい
     /// </summary>
     async Task<int> BuildTopicsAsync(DateTimeOffset now, CancellationToken cancellationToken)
@@ -544,7 +544,7 @@ public class TopicMaintenanceRunner(
     }
 
     /// <summary>
-    /// 収集元ごとの話題度を、**そのソース内でのシェア**(合計に対する割合 × 100)に直してから合算する。
+    /// 収集元ごとの話題度を、そのソース内でのシェア(合計に対する割合 × 100)に直してから合算する。
     /// 生の値のまま足すと、桁の大きい収集元が常に勝つ —— 全期間の質問数(10^6)と
     /// 直近のいいね数(10^1)を同じ列に入れると、後者は事実上無視される。
     /// </summary>
@@ -554,7 +554,7 @@ public class TopicMaintenanceRunner(
         var merged = new Dictionary<string, (double Score, int Sources)>(StringComparer.Ordinal);
         _failedSources = 0;
 
-        // **止めたトレンドの収集元は叩きに行かない**(実行のたびに読む)
+        // 止めたトレンドの収集元は叩きに行かない(実行のたびに読む)
         foreach (var source in toggles.Enabled(_sources, SourceToggles.Trend, source => source.Name))
         {
             IReadOnlyList<TrendTopicCandidate> candidates;

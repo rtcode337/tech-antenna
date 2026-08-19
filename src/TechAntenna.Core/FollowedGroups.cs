@@ -109,7 +109,7 @@ public sealed class FollowedGroups
             return false;
         }
 
-        // 識別子のあとは表示名。**空白より後ろは全部が表示名**(「Google Cloud Japan」のように
+        // 識別子のあとは表示名。空白より後ろは全部が表示名(「Google Cloud Japan」のように
         // 空白を含む名前をそのまま書けるようにするため)
         var rest = line[(colon + 1)..].Trim();
         if (rest.Length == 0)

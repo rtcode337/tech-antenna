@@ -5,7 +5,7 @@ using TechAntenna.Core.Abstractions;
 namespace TechAntenna.Web.Services;
 
 /// <summary>
-/// 外部 API のキー・トークンを実行時に解決する。**設定の入口は画面(外部連携)だけ**で、
+/// 外部 API のキー・トークンを実行時に解決する。設定の入口は画面(外部連携)だけで、
 /// 環境変数や .env では渡せない —— かつてはフォールバックとして読んでいたが、入口が
 /// 2 つあると「どちらの値が効いているのか」を画面で説明し続けることになるためやめた。
 ///
@@ -21,7 +21,7 @@ public class ApiCredentials(
     IDataProtectionProvider dataProtection,
     ILogger<ApiCredentials> logger)
 {
-    /// <summary>暗号化の purpose。**変えると保存済みの値が全部復号できなくなる。**</summary>
+    /// <summary>暗号化の purpose。変えると保存済みの値が全部復号できなくなる。</summary>
     const string ProtectorPurpose = "TechAntenna.ApiCredentials";
 
     readonly IDataProtector _protector = dataProtection.CreateProtector(ProtectorPurpose);

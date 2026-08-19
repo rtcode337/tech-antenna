@@ -18,7 +18,7 @@ public class EfTopicStore(IDbContextFactory<TechAntennaDbContext> contextFactory
 
         var stored = await db.Topics.ToDictionaryAsync(topic => topic.Key, cancellationToken);
 
-        // 今回現れなかったトピックは件数と話題度だけ 0 にする。**行は消さない** ——
+        // 今回現れなかったトピックは件数と話題度だけ 0 にする。行は消さない ——
         // 消すと選択(IsSelected)ごと失われ、収集キーワードが空になって収集が止まる
         var seen = topics.Select(topic => topic.Key).ToHashSet(StringComparer.Ordinal);
         foreach (var missing in stored.Values.Where(topic => !seen.Contains(topic.Key)))
@@ -123,7 +123,7 @@ public class EfTopicStore(IDbContextFactory<TechAntennaDbContext> contextFactory
         var target = normalized[0];
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        // **その 1 行だけを更新する。** 一覧を丸ごと置き換える UpdateSelectionAsync と違い、
+        // その 1 行だけを更新する。一覧を丸ごと置き換える UpdateSelectionAsync と違い、
         // 画面に出ていない行の選択には触らない
         var updated = await db.Topics
             .Where(topic => topic.Key == target)

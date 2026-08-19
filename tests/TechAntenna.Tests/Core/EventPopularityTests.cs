@@ -101,7 +101,7 @@ public class EventPopularityTests
     [Fact]
     public void 言及数が未取得のイベントは0本として扱う()
     {
-        // 参加者数と同じ規則。**null を後ろへ回さない** ——
+        // 参加者数と同じ規則。null を後ろへ回さない ——
         // 回すと、照合語を作れないイベント(短い名前・一般名)が公式判定ごと沈む
         Assert.Equal(
             EventPopularity.Score(Event("a", mentions: 0), Official),

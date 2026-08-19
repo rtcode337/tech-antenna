@@ -2,7 +2,7 @@ namespace TechAntenna.Core.Topics;
 
 /// <summary>
 /// DB の語彙(<see cref="Topic"/>)と別名タグ(<see cref="Tag"/>)から、読み取り用の
-/// カタログを組む。**別名は「その語彙へ寄せると決めたタグ」そのもの** ——
+/// カタログを組む。別名は「その語彙へ寄せると決めたタグ」そのもの ——
 /// 別名の一覧をどこかに二重で持たず、タグの状態から導出する。
 /// </summary>
 public static class TopicCatalogBuilder

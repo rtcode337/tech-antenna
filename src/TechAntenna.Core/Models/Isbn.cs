@@ -6,9 +6,9 @@ public static class Isbn
     /// <summary>
     /// Amazon の ASIN を ISBN-13 に直す。書籍でなければ(= ISBN-10 として成り立たなければ)null。
     ///
-    /// **書籍の ASIN は ISBN-10 そのもの**なので、記事に貼られた Amazon のリンクから
+    /// 書籍の ASIN は ISBN-10 そのものなので、記事に貼られた Amazon のリンクから
     /// 書誌を引き当てられる。ただし ASIN には `B0…` で始まる非書籍(Kindle 専売や電子機器)も
-    /// あるため、**チェックディジットまで検算して書籍だけを通す**。
+    /// あるため、チェックディジットまで検算して書籍だけを通す。
     /// </summary>
     public static string? FromAsin(string? asin)
     {

@@ -6,7 +6,7 @@ namespace TechAntenna.Tests.Infrastructure;
 
 /// <summary>
 /// 購読しているシリーズを ID で直接引く経路(<see cref="FollowedGroups"/>)。
-/// **キーワード検索では構造的に落ちる**固有名詞のカンファレンスを取りこぼさないための道なので、
+/// キーワード検索では構造的に落ちる固有名詞のカンファレンスを取りこぼさないための道なので、
 /// 「検索語に当たらなくても入ること」がここでの主眼。
 /// </summary>
 public class ConnpassFollowedGroupTests
@@ -26,7 +26,7 @@ public class ConnpassFollowedGroupTests
         }
         """;
 
-    /// <summary>シリーズ指定(series_id=…)で返る中身。**収集語をどこにも含まない**。</summary>
+    /// <summary>シリーズ指定(series_id=…)で返る中身。収集語をどこにも含まない。</summary>
     const string SeriesResponse = """
         {
           "events": [
@@ -77,7 +77,7 @@ public class ConnpassFollowedGroupTests
 
         var events = await source.FetchAsync();
 
-        // **グループの表示名はタグにしない** —— イベント名が語彙に流れ込むと、
+        // グループの表示名はタグにしない —— イベント名が語彙に流れ込むと、
         // タグの一覧と LLM の仕分けがその回限りの固有名詞で埋まる
         Assert.Equal(["rubykaigi"], events.Single(e => e.Title == "RubyKaigi 2026").Tags);
     }
@@ -133,7 +133,7 @@ public class ConnpassFollowedGroupTests
     [Fact]
     public async Task 名簿の打ち間違いは飛ばして残りを集める()
     {
-        // 存在しないサブドメイン(404)。**1行の誤りで収集全体を止めない**
+        // 存在しないサブドメイン(404)。1行の誤りで収集全体を止めない
         var factory = RoutedHttpClientFactory.Matching(
             ("subdomain=rubykaigi", GroupResponse),
             ("series_id=", SeriesResponse),

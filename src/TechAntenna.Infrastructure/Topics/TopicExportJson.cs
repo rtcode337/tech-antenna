@@ -6,7 +6,7 @@ using TechAntenna.Core.Topics;
 namespace TechAntenna.Infrastructure.Topics;
 
 /// <summary>
-/// 持ち出し・取り込みファイル1つ分。**語彙(トピック)とタグの仕分けだけを運ぶ。**
+/// 持ち出し・取り込みファイル1つ分。語彙(トピック)とタグの仕分けだけを運ぶ。
 ///
 /// 件数・話題度・最初に見た時刻といった<b>観測は入れない</b> —— あれは
 /// 「その環境が集めたデータ」の話で、持ち込むと取り込み先の実データと食い違う
@@ -33,7 +33,7 @@ public record TopicExportFile
 /// <param name="Description">用語の一言説明。</param>
 /// <param name="DecidedBy">この語彙の出どころ(シード / LLM / 人の手直し)。</param>
 /// <param name="Selected">
-/// 持ち出した環境で収集対象に選ばれていたか。**取り込みでは既定で使わない**
+/// 持ち出した環境で収集対象に選ばれていたか。取り込みでは既定で使わない
 /// (収集キーワードが黙って変わるのを避けるため。取り込む側の画面で明示的に指定したときだけ効く)。
 /// </param>
 public record TopicExportEntry(
@@ -45,12 +45,12 @@ public record TopicExportEntry(
     DecidedBy DecidedBy = DecidedBy.None,
     bool Selected = false);
 
-/// <summary>タグ1語の仕分け。**未仕分け(Pending)は持ち出さない**(何も決まっていないため)。</summary>
+/// <summary>タグ1語の仕分け。未仕分け(Pending)は持ち出さない(何も決まっていないため)。</summary>
 /// <param name="Key">正規化済みタグ。</param>
 /// <param name="Status">仕分けた状態。</param>
 /// <param name="TopicKey">Promoted なら自分自身、Alias なら寄せ先。</param>
 /// <param name="DecidedBy">誰が決めたか。</param>
-/// <param name="DecidedAt">決めた時刻。**持ち出し元の時刻をそのまま運ぶ** ——
+/// <param name="DecidedAt">決めた時刻。持ち出し元の時刻をそのまま運ぶ ——
 /// 「同じ実行で付けた分類は時刻が揃う」という手がかりを壊さないため。</param>
 /// <param name="RetryAfter">Unresolved をもう一度聞いてよくなる時刻。</param>
 public record TagExportEntry(
@@ -64,7 +64,7 @@ public record TagExportEntry(
 /// <summary>
 /// 持ち出しファイルの JSON 変換。
 ///
-/// **人が読んで差分が取れる形にする**(整形あり・列挙は名前・日本語はエスケープしない)——
+/// 人が読んで差分が取れる形にする(整形あり・列挙は名前・日本語はエスケープしない)——
 /// 環境間で運ぶだけでなく、git に置いて中身を見比べたり手で直したりできるようにするため。
 /// </summary>
 public static class TopicExportJson
@@ -91,7 +91,7 @@ public static class TopicExportJson
         JsonSerializer.Serialize(file, WriteOptions);
 
     /// <summary>
-    /// 読み込む。**壊れたファイルは例外を投げる**(取り込み側が画面に理由を出す)——
+    /// 読み込む。壊れたファイルは例外を投げる(取り込み側が画面に理由を出す)——
     /// 黙って空として扱うと、「取り込んだのに何も増えない」で原因が分からなくなる。
     /// </summary>
     public static TopicExportFile Deserialize(string json) =>

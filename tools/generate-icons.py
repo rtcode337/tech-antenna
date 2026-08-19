@@ -2,7 +2,7 @@
 """favicon.png / favicon.ico / apple-touch-icon.png / PWA のアイコンを生成する。
 
 絵柄は wwwroot/favicon.svg と同じアンテナ（左上のロゴ = NavMenu.razor の .brand-mark）。
-**形の定義がこのファイルと favicon.svg の 2 か所にある**ので、片方だけ直すと
+形の定義がこのファイルと favicon.svg の 2 か所にあるので、片方だけ直すと
 SVG と PNG で絵が食い違う。必ず両方そろえること。
 
 ImageMagick も PIL も要らないよう、距離関数でアンチエイリアスをかけて自前で
@@ -202,7 +202,7 @@ def main() -> None:
         (out / name).write_bytes(png(size, render(size)))
         print(f"{out / name} ({size}x{size})")
 
-    # maskable は **OS が好きな形（円・角丸・雫）に切り抜く**ので、絵は中央 80% の
+    # maskable は OS が好きな形（円・角丸・雫）に切り抜くので、絵は中央 80% の
     # 安全域に収め、背景は隅まで塗る。切り抜かれる前提の絵柄なので角丸は付けない
     (out / "icon-maskable-512.png").write_bytes(
         png(512, render(512, plate_radius=0.0, mark_scale=MARK_SCALE * 0.72))

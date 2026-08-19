@@ -71,7 +71,7 @@ public class DoorkeeperSweepEventSource(
             return [];
         }
 
-        // **前回から間もないなら掃かない**(connpass の面掃きと同じ)。期間の全件を
+        // 前回から間もないなら掃かない(connpass の面掃きと同じ)。期間の全件を
         // 数え上げる経路なので 1 回が高く、中身は 1 日でほとんど変わらない
         if (dueProvider is not null && !dueProvider())
         {
@@ -81,7 +81,7 @@ public class DoorkeeperSweepEventSource(
         using var client = httpClientFactory.CreateClient(DoorkeeperEventSource.HttpClientName);
 
         var collectedAt = timeProvider.GetUtcNow();
-        // **境界は日本時間で数える。** UTC の日付だと、日本の朝 9 時までは前日から引くことになる
+        // 境界は日本時間で数える。UTC の日付だと、日本の朝 9 時までは前日から引くことになる
         var start = JapanTime.To(collectedAt);
         var since = JapanTime.FormatDate(collectedAt);
         var until = start.AddMonths(months).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
@@ -89,7 +89,7 @@ public class DoorkeeperSweepEventSource(
         var byUrl = new Dictionary<Uri, TechEvent>();
         Truncated = false;
 
-        // **ページは 1 始まり。** 空のページが返ったらそこで終わり —— 総件数を返さない API なので、
+        // ページは 1 始まり。空のページが返ったらそこで終わり —— 総件数を返さない API なので、
         // connpass のように「読み切ったか」を件数から判定できない
         for (var page = 1; page <= MaxPages; page++)
         {
@@ -101,7 +101,7 @@ public class DoorkeeperSweepEventSource(
             var entries = DoorkeeperResponseParser.Parse(json);
             if (entries.Count == 0)
             {
-                // **掃けたときだけ記録する**(途中で例外なら記録せず、次の収集で掃き直す)
+                // 掃けたときだけ記録する(途中で例外なら記録せず、次の収集で掃き直す)
                 if (onSwept is not null)
                 {
                     await onSwept();
@@ -138,7 +138,7 @@ public class DoorkeeperSweepEventSource(
             return;
         }
 
-        // **null(参加者数が取れていない)は残さない。** この経路は「人が集まっている」ことだけを
+        // null(参加者数が取れていない)は残さない。この経路は「人が集まっている」ことだけを
         // 根拠に拾っているので、根拠が無いものを通すと単なる全件取り込みになる
         if (entry.ParticipantCount is not { } participants || participants < minParticipants)
         {
@@ -149,7 +149,7 @@ public class DoorkeeperSweepEventSource(
         {
             Title = entry.Title,
             Url = entry.Url,
-            // **収集元の名前は Doorkeeper と分けてある** —— どの経路で入ったのかが読めないと、
+            // 収集元の名前は Doorkeeper と分けてある —— どの経路で入ったのかが読めないと、
             // しきい値を動かしたときの効き目を確かめられない
             SourceName = Name,
             StartsAt = startsAt,
@@ -160,7 +160,7 @@ public class DoorkeeperSweepEventSource(
             ParticipantCount = participants,
             CollectedAt = collectedAt,
             PickedBy = PickedByLabel,
-            // **検索語が無いのでタグは付かない。** 主催者名をタグにはしない ——
+            // 検索語が無いのでタグは付かない。主催者名をタグにはしない ——
             // 固有名詞が語彙へ流れ込むと、タグの一覧と LLM の仕分けがそれで埋まる
             Tags = [],
             RawTags = [],

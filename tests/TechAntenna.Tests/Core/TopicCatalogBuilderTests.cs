@@ -14,7 +14,7 @@ public class TopicCatalogBuilderTests
     [Fact]
     public void 別名タグから同義語を組む()
     {
-        // **別名の一覧をどこかに二重で持たない** —— 「その語彙へ寄せると決めたタグ」が別名
+        // 別名の一覧をどこかに二重で持たない —— 「その語彙へ寄せると決めたタグ」が別名
         var entries = TopicCatalogBuilder.Build(
             [NewTopic("ai", "AI")],
             [Alias("人工知能", "ai"), Alias("ai技術", "ai")]);

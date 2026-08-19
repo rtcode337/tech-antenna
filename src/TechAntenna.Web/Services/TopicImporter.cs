@@ -27,10 +27,10 @@ public record TopicImportResult(
 /// <summary>
 /// 持ち出しファイルから語彙とタグの仕分けを取り込む。
 ///
-/// **足し込みで、消さない。** この環境にしか無い語彙・仕分けはそのまま残す ——
+/// 足し込みで、消さない。この環境にしか無い語彙・仕分けはそのまま残す ——
 /// 取り込みは「別の環境で仕分けた結果を合わせる」操作で、置き換えではない。
 ///
-/// **観測(件数・話題度)は触らない。** ファイルにも入っていないし、あるのは取り込む側の
+/// 観測(件数・話題度)は触らない。ファイルにも入っていないし、あるのは取り込む側の
 /// 実データの話なので、上書きすると一覧の件数が嘘になる(次の整備が集め直す)。
 /// </summary>
 public class TopicImporter(
@@ -41,7 +41,7 @@ public class TopicImporter(
     TimeProvider clock)
 {
     /// <param name="importSelection">
-    /// 収集対象の選択(`selected`)も反映するか。**既定で反映しない** ——
+    /// 収集対象の選択(`selected`)も反映するか。既定で反映しない ——
     /// 収集キーワードが黙って変わると、イベント・書籍の問い合わせ先が勝手に増減する。
     /// </param>
     public async Task<TopicImportResult> ImportAsync(
@@ -56,10 +56,10 @@ public class TopicImporter(
         var existingTags = (await tagStore.GetAllAsync(cancellationToken))
             .ToDictionary(tag => tag.Key, StringComparer.Ordinal);
 
-        // **既存の行も全部渡す**。UpsertAsync は渡されなかった行の件数と話題度を 0 にするので、
+        // 既存の行も全部渡す。UpsertAsync は渡されなかった行の件数と話題度を 0 にするので、
         // 取り込む語だけを渡すと、この環境が集めた件数が消える
         var merged = new List<Topic>(stored.Values);
-        // 取り込みで触った語。**親の検算はこの分だけに掛ける** —— この環境にもとからあった
+        // 取り込みで触った語。親の検算はこの分だけに掛ける —— この環境にもとからあった
         // 行まで直すと、取り込みが関係ない場所を書き換えることになる
         var touched = new HashSet<string>(StringComparer.Ordinal);
         var applied = 0;
@@ -84,7 +84,7 @@ public class TopicImporter(
             }
             else if (topic.DecidedBy == DecidedBy.Human && entry.DecidedBy != DecidedBy.Human)
             {
-                // **人が直した語彙は守る。** LLM より人の判断を優先するのは画面の手直しと同じ規則
+                // 人が直した語彙は守る。LLM より人の判断を優先するのは画面の手直しと同じ規則
                 keptHuman++;
                 continue;
             }
@@ -95,12 +95,12 @@ public class TopicImporter(
             topic.Parent = entry.Parent is { Length: > 0 } parent ? TagNormalizer.ToKey(parent) : null;
             topic.English = entry.English;
             topic.Description = entry.Description;
-            // 出どころはファイルの値をそのまま入れる。**書かれていなければ「誰も決めていない」のまま** ——
+            // 出どころはファイルの値をそのまま入れる。書かれていなければ「誰も決めていない」のまま ——
             // 勝手に Llm や Human を補うと、次の取り込みで守る/上書きするの判断が嘘の根拠で決まる
             topic.DecidedBy = entry.DecidedBy;
         }
 
-        // 2周目: 実在しない親と自分自身への親は落として最上位にする。**ファイルを信じない** ——
+        // 2周目: 実在しない親と自分自身への親は落として最上位にする。ファイルを信じない ——
         // 手で編集されることもあるし、循環したままだとツリーを描く側が延々とたどる
         var droppedParents = 0;
         foreach (var topic in merged.Where(topic =>
@@ -115,7 +115,7 @@ public class TopicImporter(
         await topicStore.UpsertAsync(merged, now, cancellationToken);
 
         // タグ: 仕分けを書く前に行が要る(DecideAsync は無いタグを作らない)。
-        // **観測するのは「この環境で見かけていない語」だけ** —— 既存の語を観測し直すと
+        // 観測するのは「この環境で見かけていない語」だけ —— 既存の語を観測し直すと
         // 件数 0 で上書きしてしまう
         var decisions = new List<(TagDecision Decision, DateTimeOffset DecidedAt)>();
         var newKeys = new List<TagObservation>();
@@ -167,7 +167,7 @@ public class TopicImporter(
             await tagStore.ObserveAsync(newKeys, now, cancellationToken: cancellationToken);
         }
 
-        // **判定日時は持ち出し元のものを保つ**ので、時刻ごとにまとめて書く ——
+        // 判定日時は持ち出し元のものを保つので、時刻ごとにまとめて書く ——
         // 全部を「取り込んだ時刻」にすると、「同じ実行で付けた分類は時刻が揃う」を頼りに
         // 「前回聞いた語」を復元している画面が、取り込み全体を1回の分類として出してしまう
         foreach (var group in decisions.GroupBy(decision => decision.DecidedAt))

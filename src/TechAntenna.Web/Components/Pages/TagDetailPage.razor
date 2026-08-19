@@ -7,7 +7,7 @@
 @inject TopicCatalog Catalog
 @inject TopicService TopicService
 
-@* タグ1語の詳細。**トピックの詳細(/topics/<タグ>)と同じ作りで、ツリー構造だけ無い** ——
+@* タグ1語の詳細。トピックの詳細(/topics/<タグ>)と同じ作りで、ツリー構造だけ無い ——
    タグは語彙になる前の語なので、同義語も親子もまだ持たない。代わりに上段は
    「この語はどう仕分けられているか」(状態・出どころ・件数)に答える。下段の
    記事・イベント・書籍はトピックの詳細と同じ。 *@
@@ -26,7 +26,7 @@
 }
 else if (_tag is { } tag)
 {
-    @* 仕分けの状態。**なぜこの状態なのかが読めるように**、出どころと件数も並べる *@
+    @* 仕分けの状態。なぜこの状態なのかが読めるように、出どころと件数も並べる *@
     <div class="tag-state">
         <dl>
             <dt>状態</dt>
@@ -142,7 +142,7 @@ else
             @foreach (var book in _detail.Books)
             {
                 @* 記事で薦められている本は強調する(/books のトピック一覧と同じ見せ方)。
-                   **読んだ本は薄くして末尾へ回す**(並べ替えは TopicService)——
+                   読んだ本は薄くして末尾へ回す(並べ替えは TopicService)——
                    印を付け直すのは書籍の一覧(/interests/books・/classics/books)の仕事で、
                    ここは「なぜ下にいるのか」が読めればよい *@
                 <li class="mb-2 @(book.RecommendationCount > 0 ? "recommended-book" : "") @(book.IsRead ? "read-book" : "")">

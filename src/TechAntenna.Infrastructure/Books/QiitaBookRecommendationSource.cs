@@ -10,20 +10,20 @@ namespace TechAntenna.Infrastructure.Books;
 /// <summary>
 /// Qiita の「おすすめ技術書まとめ」系の記事から、薦められている本を拾う。
 ///
-/// **公式 API(v2)を使う。** レンダリング済み HTML を掻き集めるより壊れにくく、
+/// 公式 API(v2)を使う。レンダリング済み HTML を掻き集めるより壊れにくく、
 /// 検索が本文まで返すので記事ごとに引き直さなくてよい。
 /// 未認証は 60 リクエスト/時、アクセストークンを設定すると 1000 リクエスト/時。
 ///
-/// **クエリは複数指定でき、1クエリずつページングで読む**。検索は新着順に返るため、
+/// クエリは複数指定でき、1クエリずつページングで読む。検索は新着順に返るため、
 /// 1ページで打ち切ると古い定番記事(「読むべき本」まとめの多くはこちら)が読めない。
 /// 同じ記事が複数のクエリに当たっても、URL で重複を落として1票に数える。
 ///
-/// 本の特定は**記事に貼られた Amazon リンクの ASIN**から。書籍の ASIN は ISBN-10 そのものなので
+/// 本の特定は記事に貼られた Amazon リンクの ASINから。書籍の ASIN は ISBN-10 そのものなので
 /// ISBN-13 に直して書誌を引ける(<see cref="Isbn.FromAsin"/> がチェックディジットまで
 /// 検算するので、`B0…` で始まる Kindle 専売などは落ちる)。この検算がノイズを絞るので、
 /// タグの付いていない記事まで当たる本文検索のクエリを混ぜても、関係ない記事は自然に落ちる。
 ///
-/// **保存するのは ISBN と出典記事の URL だけ**で、記事本文は保存しない。
+/// 保存するのは ISBN と出典記事の URL だけで、記事本文は保存しない。
 /// </summary>
 public partial class QiitaBookRecommendationSource(
     IHttpClientFactory httpClientFactory,
@@ -69,7 +69,7 @@ public partial class QiitaBookRecommendationSource(
         }
 
         // 記事の URL → (本文, 題名)。クエリをまたいで同じ記事を1度だけ数えるための入れ物。
-        // **題名は応答に既に入っている**ので、持ち回るのに追加のリクエストは要らない
+        // 題名は応答に既に入っているので、持ち回るのに追加のリクエストは要らない
         var articles = new Dictionary<string, (string Body, string? Title)>(StringComparer.Ordinal);
         var firstRequest = true;
 

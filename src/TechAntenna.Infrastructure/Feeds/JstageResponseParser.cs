@@ -10,11 +10,11 @@ public record JstageArticle(string Title, Uri Url, DateTimeOffset? PublishedAt, 
 /// <summary>
 /// J-STAGE 検索 API(service=3)の応答を解析する。
 ///
-/// **Atom だが記事用の <see cref="FeedParser"/> では読めない。** entry の中身が独自要素
+/// Atom だが記事用の <see cref="FeedParser"/> では読めない。entry の中身が独自要素
 /// (`article_title` / `article_link` / `pubyear`)で、標準の `title`・`link` を持たないため
 /// (TECH PLAY を別実装にしているのと同じ事情)。
 ///
-/// 和文と英文の両方が入っているので**和題を優先**する(無ければ英題)。
+/// 和文と英文の両方が入っているので和題を優先する(無ければ英題)。
 /// </summary>
 public static class JstageResponseParser
 {

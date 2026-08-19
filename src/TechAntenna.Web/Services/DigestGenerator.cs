@@ -3,7 +3,7 @@ using TechAntenna.Core.Abstractions;
 namespace TechAntenna.Web.Services;
 
 /// <summary>
-/// 今日のサマリーを書かせる相手 1 つ。**複数の AI で同じ材料から書かせて読み比べる**ため、
+/// 今日のサマリーを書かせる相手 1 つ。複数の AI で同じ材料から書かせて読み比べるため、
 /// 誰が書いたか(<paramref name="Key"/>)と、メインかどうかを一緒に持つ。
 /// </summary>
 /// <param name="Key">突き合わせのキー(`chiezo:gemini` / `default`)。表示名と別に持つのは、

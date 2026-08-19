@@ -38,14 +38,14 @@ public class HuggingFacePapersSourceTests
         Assert.Equal(2, articles.Count);
         var first = articles[0];
         Assert.Equal("Retrieval Augmented Generation for Long Documents", first.Title);
-        // **リンク先は arXiv の abs ページ** —— 読みに行く先はそちらで、重複判定もそろう
+        // リンク先は arXiv の abs ページ —— 読みに行く先はそちらで、重複判定もそろう
         Assert.Equal("https://arxiv.org/abs/2608.01492", first.Url.ToString());
         Assert.Equal(ArticleKind.TrendingPaper, first.Kind);
         Assert.Equal("Hugging Face Daily Papers", first.SourceName);
         Assert.Equal(new DateTimeOffset(2026, 8, 2, 0, 0, 0, TimeSpan.Zero), first.PublishedAt);
-        // **話題の度合いは upvote。** はてブ数とは別の列(母集団が違う)
+        // 話題の度合いは upvote。はてブ数とは別の列(母集団が違う)
         Assert.Equal(42, first.UpvoteCount);
-        // **要旨は取り込む** —— arXiv のメタデータは CC0(API Terms of Use に明記)。
+        // 要旨は取り込む —— arXiv のメタデータは CC0(API Terms of Use に明記)。
         // これがあると論文も要約の対象にできる
         Assert.Equal("要旨。CC0 なので取り込む", first.ContentSnippet);
         // 要約そのものは LLM が後で作る(収集時点では空)

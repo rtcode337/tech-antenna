@@ -41,7 +41,7 @@ public class EventMentionsTests
     [InlineData("AI")]                   // 短すぎて必ず誤爆する
     public void 一般名や短すぎる語は照合語にしない(string title)
     {
-        // **測れないなら測らない。** 誤った言及数は、注目度の並びを静かに壊す
+        // 測れないなら測らない。誤った言及数は、注目度の並びを静かに壊す
         Assert.Null(EventMentions.KeyFor(Event(title)));
     }
 

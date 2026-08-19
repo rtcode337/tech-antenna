@@ -30,7 +30,7 @@ public class FeedArticleSource(
         return FeedParser.Parse(xml)
             .Select(entry =>
             {
-                // 収集元のタグに、**タイトルから見つけたトピック**を足す。
+                // 収集元のタグに、タイトルから見つけたトピックを足す。
                 // Zenn の RSS も Qiita の Atom も category を持たず、ニュースサイトも同様なので、
                 // 収集元のタグだけに頼るとタグ無しで保存され、トピック横断にも強調にも乗らない
                 var rawTags = entry.Tags.Concat(topics.FindIn(entry.Title))

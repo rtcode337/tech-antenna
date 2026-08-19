@@ -11,7 +11,7 @@ namespace TechAntenna.Tests.Web;
 
 /// <summary>
 /// 語彙と仕分けの持ち出し(<see cref="TopicExporter"/>)と取り込み(<see cref="TopicImporter"/>)。
-/// 本番で LLM に仕分けさせた結果を開発サーバーへ運ぶ経路なので、**運ぶもの・運ばないもの**の
+/// 本番で LLM に仕分けさせた結果を開発サーバーへ運ぶ経路なので、運ぶもの・運ばないものの
 /// 線引きをここで固定する。
 /// </summary>
 public class TopicTransferTests
@@ -139,7 +139,7 @@ public class TopicTransferTests
         Assert.Equal(TagStatus.Alias, stored["人工知能"].Status);
         Assert.Equal("ai", stored["人工知能"].TopicKey);
         Assert.Equal(TagStatus.NotTopic, stored["ニュース"].Status);
-        // **判定日時は持ち出し元のものを保つ**(「同じ実行で付けた分類は時刻が揃う」を壊さない)
+        // 判定日時は持ち出し元のものを保つ(「同じ実行で付けた分類は時刻が揃う」を壊さない)
         Assert.Equal(Now, stored["ニュース"].DecidedAt);
     }
 
@@ -221,7 +221,7 @@ public class TopicTransferTests
     [Fact]
     public async Task 実在しない親と寄せ先は落とす()
     {
-        // **ファイルを信じない。** 手で編集もできるし、循環したままだとツリーを描く側が延々とたどる
+        // ファイルを信じない。手で編集もできるし、循環したままだとツリーを描く側が延々とたどる
         var file = new TopicExportFile
         {
             Topics =

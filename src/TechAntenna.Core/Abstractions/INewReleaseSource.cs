@@ -5,7 +5,7 @@ namespace TechAntenna.Core.Abstractions;
 /// <summary>
 /// 最近出た本(新刊・ムック)を拾う収集元。
 ///
-/// **検索語を取らない**のが要点 —— これはトレンドの軸(外で何が起きているか)なので、
+/// 検索語を取らないのが要点 —— これはトレンドの軸(外で何が起きているか)なので、
 /// 収集対象に選んだトピックに依存させない。ジャンルと日付で引く。
 /// </summary>
 public interface INewReleaseSource

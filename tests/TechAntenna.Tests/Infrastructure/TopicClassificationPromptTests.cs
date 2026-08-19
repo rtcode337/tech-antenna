@@ -44,7 +44,7 @@ public class TopicClassificationPromptTests
     [Fact]
     public void 新トピックの一言説明も読む()
     {
-        // 説明は**分類の応答に相乗り**させている(説明のために呼び出しを増やさないため)
+        // 説明は分類の応答に相乗りさせている(説明のために呼び出しを増やさないため)
         using var doc = JsonDocument.Parse(
             """
             {"classifications": [

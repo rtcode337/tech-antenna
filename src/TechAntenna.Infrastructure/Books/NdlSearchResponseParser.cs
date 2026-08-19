@@ -10,7 +10,7 @@ public record NdlSearchEntry(string Title, Uri Url, string? Publisher, DateOnly?
 /// <summary>
 /// 国立国会図書館サーチ(NDL サーチ)の OpenSearch レスポンスを解析する。
 ///
-/// 形は RSS 2.0 に Dublin Core と `dcndl:` を足したもの。**標準の要素だけでは足りない**ので
+/// 形は RSS 2.0 に Dublin Core と `dcndl:` を足したもの。標準の要素だけでは足りないので
 /// (刊行年月は `dcterms:issued`、出版者は `dc:publisher`)、記事用の `FeedParser` とは別実装。
 /// 取り込むのは<b>書誌事実だけ</b>(タイトル・リンク・出版者・刊行年月)——
 /// `description` には読み仮名や責任表示が HTML で入っているが、使わない。
@@ -58,7 +58,7 @@ public static class NdlSearchResponseParser
     }
 
     /// <summary>
-    /// 刊行年月を日付にする。**日が分からなければその月の 1 日**にする ——
+    /// 刊行年月を日付にする。日が分からなければその月の 1 日にする ——
     /// 集計の窓(直近 N か月)を切れれば十分で、日の精度は要らない。
     /// 年しか分からないものは null(窓に入れると 1 月 1 日の本が大量に並ぶ)。
     /// </summary>

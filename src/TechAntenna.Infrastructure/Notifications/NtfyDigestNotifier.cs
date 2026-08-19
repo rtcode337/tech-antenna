@@ -16,14 +16,14 @@ namespace TechAntenna.Infrastructure.Notifications;
 public record NtfyTarget(string BaseUrl, string Topic, string? AccessToken, string? ClickUrl);
 
 /// <summary>
-/// ダイジェストを ntfy へ送る。**JSON publish**(ベース URL への POST に topic を含める)を
+/// ダイジェストを ntfy へ送る。JSON publish(ベース URL への POST に topic を含める)を
 /// 使うのは、タイトルをヘッダ(X-Title)で渡すと非 ASCII に RFC 2047 エンコードが要るため ——
 /// JSON ボディなら日本語のタイトルをそのまま書ける。
 ///
 /// 認証はアクセストークンがあるときだけ Bearer で送る(セルフホストの ntfy は
 /// 認証なしのことも多い)。
 ///
-/// **通知先は送信のたびに <paramref name="targetProvider"/> から解決する** —— 接続先は
+/// 通知先は送信のたびに <paramref name="targetProvider"/> から解決する —— 接続先は
 /// 画面から設定でき、通知のオン/オフも独立に切り替えられるため、起動時の値を固定しない。
 /// null が返ったら(未設定・無効)送らずに false を返す。
 /// </summary>
@@ -56,7 +56,7 @@ public class NtfyDigestNotifier(
             Content = JsonContent.Create(new
             {
                 topic = target.Topic,
-                // **守備範囲をタイトルに入れる。** 1回の生成で2通届くので、
+                // 守備範囲をタイトルに入れる。1回の生成で2通届くので、
                 // 通知面(本文が畳まれた状態)でどちらのサマリーか見分けられないと読み分けられない
                 title = $"今日のサマリー・{digest.Scope.Label()}"
                     + $"({JapanTime.FormatShort(digest.GeneratedAt)} 生成)",
@@ -83,7 +83,7 @@ public class NtfyDigestNotifier(
     }
 
     /// <summary>
-    /// 通知の本文を組む。導入 → 項目(見出し+本文+出典)→ **署名**の順で、スマホの通知でも
+    /// 通知の本文を組む。導入 → 項目(見出し+本文+出典)→ 署名の順で、スマホの通知でも
     /// 読める素のテキストにする(ntfy に Markdown 表示はあるが、既定の Android/iOS の
     /// 通知面ではただの文字列なので装飾に頼らない)。
     /// </summary>
@@ -112,7 +112,7 @@ public class NtfyDigestNotifier(
             message = message[..MaxMessageChars] + "…";
         }
 
-        // **署名は切り詰めの後に足す。** 複数の AI に書かせていると「どれが書いたものか」が
+        // 署名は切り詰めの後に足す。複数の AI に書かせていると「どれが書いたものか」が
         // 分からないと読み比べられず、長い日にだけ署名が消えるのでは意味が無い
         return $"{message}\n\n— {digest.GeneratorName}";
     }

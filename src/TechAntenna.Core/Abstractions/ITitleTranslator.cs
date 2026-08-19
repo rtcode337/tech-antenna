@@ -10,9 +10,9 @@ public record TitleTranslation(Guid ArticleId, string? TitleJa);
 /// <summary>
 /// 英語のタイトルを日本語に訳す(LLM 等)。
 ///
-/// **原題は消さない。** 訳題は別に持って併記する —— 原題が無いと、検索やほかの文献との
+/// 原題は消さない。訳題は別に持って併記する —— 原題が無いと、検索やほかの文献との
 /// 突き合わせができなくなる。要約と同じく、呼び出し1回の固定費が大きい実装があるので
-/// **バッチで渡す**。
+/// バッチで渡す。
 /// </summary>
 public interface ITitleTranslator
 {

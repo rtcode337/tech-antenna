@@ -12,7 +12,7 @@ public interface IArticleStore
 
     /// <summary>
     /// 公開日時(無ければ収集日時)の新しい順に最大 <paramref name="count"/> 件返す。
-    /// <paramref name="kind"/> を渡すとその種別だけ。**種別ごとに引くのは件数を分けて確保するため**
+    /// <paramref name="kind"/> を渡すとその種別だけ。種別ごとに引くのは件数を分けて確保するため
     /// —— 混ぜて上位 N 件を取ると、更新の速いニュースが記事を押し出してしまう。
     /// </summary>
     Task<IReadOnlyList<Article>> GetRecentAsync(
@@ -20,7 +20,7 @@ public interface IArticleStore
 
     /// <summary>
     /// 要約が未生成の記事を、新しい順に最大 <paramref name="count"/> 件返す。
-    /// **論文は要旨(<see cref="Article.ContentSnippet"/>)がある分だけ返す** ——
+    /// 論文は要旨(<see cref="Article.ContentSnippet"/>)がある分だけ返す ——
     /// 材料が無い行にタイトルだけ渡しても LLM の枠を使うだけになる
     /// (arXiv のメタデータは CC0 なので要旨を取り込める。J-STAGE は取り込んでいない)。
     /// </summary>
@@ -31,7 +31,7 @@ public interface IArticleStore
 
     /// <summary>
     /// 訳題が未処理の論文を、新しい順に最大 <paramref name="count"/> 件返す。
-    /// **対象は論文だけ** —— 記事やニュースは日本語の収集元が中心で、訳す必要が薄い。
+    /// 対象は論文だけ —— 記事やニュースは日本語の収集元が中心で、訳す必要が薄い。
     /// </summary>
     Task<IReadOnlyList<Article>> GetUntranslatedPapersAsync(
         int count, CancellationToken cancellationToken = default);

@@ -10,17 +10,17 @@
 @* 「未設定のとき何が起きるか」の文を外部連携の一覧から借りる(同じ文を2か所に書かない) *@
 @inject IntegrationCatalog Catalog
 
-@* どの AI に書かせるかを選ぶ部品。**置き場は外部連携の画面の一番上**(かつては
+@* どの AI に書かせるかを選ぶ部品。置き場は外部連携の画面の一番上(かつては
    `/settings/ai` という別ページだった)—— キーの設定と同じ「外の相手をどう使うか」の話で、
    別ページに分けると、要約が動かないときに見る場所が2つに割れる。
    `/settings/ai` は外部連携へリダイレクトする(ブックマークを切らさないため)。
 
-   **相手は Chiezo(LAN 内の知識サーバー)に登録してあるものから選ぶ** —— 鍵はあちらが
+   相手は Chiezo(LAN 内の知識サーバー)に登録してあるものから選ぶ —— 鍵はあちらが
    持っているので、こちらは相手を選ぶだけでよい。Chiezo の URL が未設定なら、
    Chiezo の相手は並ばない(同梱の Claude Code CLI / Anthropic API は選べる) *@
 
 @* 見出しの右の `?` を押すと決めごとがチップで出る(HTML 標準の popover。
-   ジョブの説明チップと同じ流儀)。**表の前に残すのは「何を選ぶ画面か」の1行だけ** ——
+   ジョブの説明チップと同じ流儀)。表の前に残すのは「何を選ぶ画面か」の1行だけ ——
    選べる相手・キー未設定のときの扱い・メイン未選択の既定・サブの決まりを地の文で並べると、
    肝心の表に辿り着く前に読むものが増える(読むのは迷ったときだけでよい) *@
 <h2 class="axis">
@@ -61,7 +61,7 @@ else if (_message is { Length: > 0 })
     <p class="text-body-secondary">@_message</p>
 }
 
-@* **Chiezo が未設定でも表は出す。** Claude Code と Anthropic API はこの画面のキーだけで
+@* Chiezo が未設定でも表は出す。Claude Code と Anthropic API はこの画面のキーだけで
    選べるので、Chiezo の URL が無い環境でも「どちらで動かすか」を決められる
    (かつてはこの節ごと出さず、URL の入れ方の案内だけを出していた) *@
 @if (!Chiezo.IsConfigured)
@@ -90,7 +90,7 @@ else if (_backends.Count == 0)
 }
 @if (rows.Count > 0)
 {
-        @* **1 つのフォームにまとめる。** メインとサブは同時に決まっていないと、
+        @* 1 つのフォームにまとめる。メインとサブは同時に決まっていないと、
            「サブに選んだ相手がメインでもある」状態を作れてしまう *@
         <form method="post" @formname="ai" @onsubmit="SaveAsync" class="ai-form">
             <AntiforgeryToken />
@@ -127,10 +127,10 @@ else if (_backends.Count == 0)
                                            checked="@(role == "main")" disabled="@(!row.Selectable)" />
                                     メイン
                                 </label>
-                                @* **キーはこの場で設定する。** メインのすぐ右にボタンを置き、
+                                @* キーはこの場で設定する。メインのすぐ右にボタンを置き、
                                    押すとモーダル(HTML 標準の `popover`。説明チップと同じ流儀)が
                                    開く —— 「選べない理由がキー未設定」と分かった直後に、
-                                   同じ行で入れられるようにするため。**開閉に JS は使わない**。
+                                   同じ行で入れられるようにするため。開閉に JS は使わない。
                                    `type="button"` を明示するのは、フォームの中のボタンが
                                    既定で submit になるため(押すと選択が保存されてしまう) *@
                                 @if (row.Secret is { } secret)
@@ -140,7 +140,7 @@ else if (_backends.Count == 0)
                                         @(row.Selectable ? "キーを変える" : "キーを入れる")
                                     </button>
                                 }
-                                @* **サブに選べるのは Chiezo の相手だけ。** 読み比べのための枠で、
+                                @* サブに選べるのは Chiezo の相手だけ。読み比べのための枠で、
                                    Chiezo でなければ相手を名指しできない(同じ経路が1本あるだけ) *@
                                 @if (row.CanBeSub)
                                 {
@@ -210,7 +210,7 @@ else if (_backends.Count == 0)
             <button type="submit" class="btn btn-primary">保存</button>
         </form>
 
-    @* **モーダルはフォームの外に置く。** 中に自前のフォームを持つので、選択のフォームの
+    @* モーダルはフォームの外に置く。中に自前のフォームを持つので、選択のフォームの
        入れ子にはできない(HTML として不正)。`popovertarget` は id で結ぶので、
        ボタンが別のフォームの中にあっても開ける *@
     @foreach (var row in rows.Where(row => row.Secret is not null))
@@ -220,7 +220,7 @@ else if (_backends.Count == 0)
             <h4>@secret.Label</h4>
             @if (row.Description is { Length: > 0 } description)
             {
-                @* 説明文の `**強調**` は HTML に直して出す(そのままだと記号が見える) *@
+                @* 説明文の `強調` は HTML に直して出す(そのままだと記号が見える) *@
                 <p class="text-muted effect">@InlineMarkup.ToHtml(description)</p>
             }
             @* 保存の form は相手ごとに1つ(@@formname は画面の中で重複できない)。
@@ -285,8 +285,8 @@ else if (_backends.Count == 0)
     }
 
     /// <summary>
-    /// 表の1行。**Chiezo の相手と、このアプリが直に話す相手(Claude Code / Anthropic API)を
-    /// 同じ表に並べる** —— どちらで動かすかは1つの選択なので、2つの表に分けると
+    /// 表の1行。Chiezo の相手と、このアプリが直に話す相手(Claude Code / Anthropic API)を
+    /// 同じ表に並べる —— どちらで動かすかは1つの選択なので、2つの表に分けると
     /// 「両方選んだらどうなるのか」が読めない。
     /// </summary>
     /// <param name="Selectable">メインに選べるか(キーが設定されているか)。</param>
@@ -294,7 +294,7 @@ else if (_backends.Count == 0)
     /// <param name="CanBeSub">サブに選べるか(Chiezo の相手だけ)。</param>
     /// <param name="Backend">Chiezo の相手。ローカルの相手では null(モデル・考える量を選ばせない)。</param>
     /// <param name="ModelText">ローカルの相手で使われるモデル(設定で決まっている)。</param>
-    /// <param name="Secret">この相手を使うために要るキー。**その場で設定できる相手だけ持つ**
+    /// <param name="Secret">この相手を使うために要るキー。その場で設定できる相手だけ持つ
     /// (Chiezo の相手は鍵をあちらが持っているので null)。</param>
     /// <param name="Description">この相手が何のためにあるか(外部連携の一覧と同じ文)。</param>
     record Row(
@@ -303,7 +303,7 @@ else if (_backends.Count == 0)
         IntegrationCatalog.EditableSecret? Secret = null, string? Description = null);
 
     /// <summary>
-    /// Chiezo ではない相手。**キーが無ければ選べない**(押せてしまうと、保存しても
+    /// Chiezo ではない相手。キーが無ければ選べない(押せてしまうと、保存しても
     /// 動かない相手を選べることになる)。
     /// </summary>
     IEnumerable<Row> LocalRows()
@@ -322,7 +322,7 @@ else if (_backends.Count == 0)
             SecretOf(LlmGateway.AnthropicApiKeyName), DescriptionOf("Anthropic API(従量課金)"));
     }
 
-    /// <summary>モーダルの id。**`local:` のコロンを落とす** —— `popovertarget` は
+    /// <summary>モーダルの id。`local:` のコロンを落とす —— `popovertarget` は
     /// id をそのまま参照するので、CSS セレクタで扱いにくい文字を残さない。</summary>
     static string KeyModalId(Row row) => "key-" + row.Id.Replace(':', '-');
 
@@ -330,7 +330,7 @@ else if (_backends.Count == 0)
         IntegrationCatalog.EditableSecrets.FirstOrDefault(s => s.SecretName == secretName);
 
     /// <summary>
-    /// この相手が何のためにあるかの説明。**外部連携の一覧と同じ文を使う**
+    /// この相手が何のためにあるかの説明。外部連携の一覧と同じ文を使う
     /// (`IntegrationCatalog`)—— 同じことを2か所に書くと、片方だけ古くなる。
     /// </summary>
     string? DescriptionOf(string integrationName) => Catalog.GetAll()
@@ -366,7 +366,7 @@ else if (_backends.Count == 0)
 
         await Credentials.RemoveAsync(row.Secret.SecretName);
         _error = null;
-        // **選択は消さない。** キーを入れ直せば元の相手に戻る(消すと選び直しが要る)——
+        // 選択は消さない。キーを入れ直せば元の相手に戻る(消すと選び直しが要る)——
         // キーが無いあいだは LlmGateway が従来の優先順に落ちる
         _message = $"{row.Secret.Label} を削除しました。この相手は選べなくなります。";
     }
@@ -401,7 +401,7 @@ else if (_backends.Count == 0)
         var mainId = form["main"].ToString();
         var subIds = form["sub"].ToArray();
 
-        // **選べない相手はここでも弾く。** 画面の disabled はブラウザ側の話なので、
+        // 選べない相手はここでも弾く。画面の disabled はブラウザ側の話なので、
         // 直に POST された値を信じない(キーが無い相手を保存すると、動かない設定が残る)
         var mainRow = LocalRows().Concat(ChiezoRows())
             .FirstOrDefault(row => row.Id == mainId && row.Selectable);
@@ -411,7 +411,7 @@ else if (_backends.Count == 0)
             return;
         }
 
-        // **メインをサブから外す。** 同じ相手に2回書かせても比べる意味が無い。
+        // メインをサブから外す。同じ相手に2回書かせても比べる意味が無い。
         // サブは Chiezo の相手だけ(読み比べのための枠)
         var subs = (_backends ?? [])
             .Where(b => subIds.Contains(b.Id) && b.Id != mainRow.Id)

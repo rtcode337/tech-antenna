@@ -6,7 +6,7 @@ namespace TechAntenna.Web.Services;
 /// <summary>
 /// 論文の収集元(arXiv・J-STAGE)を1巡し、ストアへ保存する。
 ///
-/// **トレンドの収集と分けてある。** 記事の RSS は巡回だが、論文は<b>検索</b>なので
+/// トレンドの収集と分けてある。記事の RSS は巡回だが、論文は<b>検索</b>なので
 /// 収集対象に選んだトピックが検索語として要る —— 同じボタンにまとめていたときは
 /// 「記事は集まったのに論文だけ 0 件」の理由が画面から分からなかった
 /// (選択が空だと 1 件も取りに行かない。イベント・書籍と同じ性質)。
@@ -32,7 +32,7 @@ public class PaperCollectionRunner(
 
     async Task<CollectionRunResult> CollectAsync(CancellationToken cancellationToken)
     {
-        // **止めた収集元は叩きに行かない。** 実行のたびに読むので、画面の切り替えは
+        // 止めた収集元は叩きに行かない。実行のたびに読むので、画面の切り替えは
         // 再起動なしで効く(起動時に絞ると、切り替えても次の再起動まで変わらない)
         var enabled = toggles.Enabled(_sources, SourceToggles.Paper, source => source.Name);
         if (enabled.Count == 0)
@@ -40,7 +40,7 @@ public class PaperCollectionRunner(
             return CollectionRunResult.AllDisabled("論文");
         }
 
-        // 収集対象が空なら何も取りに行かない。**理由を結果に載せる** ——
+        // 収集対象が空なら何も取りに行かない。理由を結果に載せる ——
         // 0 件の結果だけ返すと、設定の問題なのか本当に無いのか分からない。
         // 例外にはしない(集まらないのは設定どおりの動作で、失敗ではない)
         if ((await topicStore.GetSelectedAsync(cancellationToken)).Count == 0)

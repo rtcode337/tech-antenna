@@ -3,26 +3,26 @@ using TechAntenna.Core.Abstractions;
 namespace TechAntenna.Infrastructure.Bridge;
 
 /// <summary>
-/// Claude Code の CLI(`claude -p`)を**このプロセスから直に起動する**実装。
+/// Claude Code の CLI(`claude -p`)をこのプロセスから直に起動する実装。
 ///
-/// **サイドカー(chiezo-bridge)をやめて同梱に戻した。** 分けていたのは CLI の実体が
+/// サイドカー(chiezo-bridge)をやめて同梱に戻した。分けていたのは CLI の実体が
 /// 100MB 超あってイメージが倍近くなるためだったが、公開リポジトリになって
 /// イメージの容量を気にする理由が薄れた。同梱に戻すと得るものが2つある ——
-/// **別コンテナを立てなくても要約が動く**(公開したものを試す人の手数が減る)、
-/// **認証情報を共有ディレクトリの設定 DB 経由で渡す仕掛けが要らなくなる**
+/// 別コンテナを立てなくても要約が動く(公開したものを試す人の手数が減る)、
+/// 認証情報を共有ディレクトリの設定 DB 経由で渡す仕掛けが要らなくなる
 /// (画面で入れたトークンは子プロセスの環境変数として渡す)。
 ///
-/// **ここに集めてあるのは、踏まないと分からない作法**:
-/// - プロンプトは引数ではなく**標準入力**で渡す。Linux の単一引数の長さ上限
+/// ここに集めてあるのは、踏まないと分からない作法:
+/// - プロンプトは引数ではなく標準入力で渡す。Linux の単一引数の長さ上限
 ///   (MAX_ARG_STRLEN = 128KiB)を、記事をまとめると容易に超えて E2BIG で落ちる
 /// - `--bare` は使えない。keychain と OAuth の読み取りを飛ばすため
 ///   `CLAUDE_CODE_OAUTH_TOKEN` が効かなくなる
-/// - **道具は全部禁じる。** 許すと1ターンを道具の呼び出しに使い、結果が返らないことがある
-/// - **失敗の詳細は stderr に出ないことがある**(CLI が stdout に書く)ので、両方を見る
+/// - 道具は全部禁じる。許すと1ターンを道具の呼び出しに使い、結果が返らないことがある
+/// - 失敗の詳細は stderr に出ないことがある(CLI が stdout に書く)ので、両方を見る
 ///
-/// **応答はテキストで受ける**(`--output-format text`)。CLI には構造化出力
+/// 応答はテキストで受ける(`--output-format text`)。CLI には構造化出力
 /// (`--json-schema`)もあるが、Chiezo 越しの相手(<c>ChiezoAiBridge</c>)には無い ——
-/// **JSON の受け取り方を1本に保つ**ため、どちらもプロンプトで指示して読み取る
+/// JSON の受け取り方を1本に保つため、どちらもプロンプトで指示して読み取る
 /// (<c>ClaudeCodeBatch</c>。読めなければ言い直させる経路もそこにある)。
 /// </summary>
 /// <param name="model">
@@ -36,7 +36,7 @@ public class ClaudeCodeCliBridge(
     TimeSpan timeout) : ICliBridge
 {
     /// <summary>
-    /// 道具の禁止一覧。**名前で並べる** —— CLI に「全部禁止」の指定が無いため
+    /// 道具の禁止一覧。名前で並べる —— CLI に「全部禁止」の指定が無いため
     /// (増えた道具は次に踏んだときここへ足す)。
     /// </summary>
     const string DisallowedTools =
@@ -81,7 +81,7 @@ public class ClaudeCodeCliBridge(
 
         if (result.ExitCode != 0)
         {
-            // **理由をそのまま載せる。** 認証切れ・モデル名の間違いはここに出る
+            // 理由をそのまま載せる。認証切れ・モデル名の間違いはここに出る
             var detail = string.IsNullOrWhiteSpace(result.StandardError)
                 ? result.StandardOutput
                 : result.StandardError;

@@ -15,7 +15,7 @@ public class DigestRunnerTests
     static readonly DateTimeOffset Now = new(2026, 8, 9, 12, 0, 0, TimeSpan.Zero);
 
     /// <summary>受け取った材料を記録し、固定のダイジェストを返す IDigestComposer。
-    /// **1回の実行で2本呼ばれる**ことがあるので、材料は範囲ごとに残す。</summary>
+    /// 1回の実行で2本呼ばれることがあるので、材料は範囲ごとに残す。</summary>
     class StubComposer(string name = "スタブ", Exception? failure = null) : IDigestComposer
     {
         public List<DigestMaterials> Received { get; } = [];
@@ -187,7 +187,7 @@ public class DigestRunnerTests
             [DigestScope.Overall, DigestScope.Interests],
             result.Parts.Select(part => part.Scope));
         Assert.Equal(2, result.Notified);
-        // **通知は生成と逆順。** ntfy のアプリは新着が上に並ぶので、最後に送った
+        // 通知は生成と逆順。ntfy のアプリは新着が上に並ぶので、最後に送った
         // 「技術界隈全体」が一番上に出る(画面の文言は生成順のまま)
         Assert.Equal([DigestScope.Interests, DigestScope.Overall], notifier.Notified);
         Assert.NotNull(await digests.GetLatestAsync(DigestScope.Overall));
@@ -279,7 +279,7 @@ public class DigestRunnerTests
     [Fact]
     public async Task 複数のAIに同じ材料で書かせて全部保存する()
     {
-        // ホームで読み比べるので、**同じ回・同じ材料**でそろっていることが要点
+        // ホームで読み比べるので、同じ回・同じ材料でそろっていることが要点
         var articles = new InMemoryArticleStore();
         await articles.AddRangeAsync([Article("話題の記事", ArticleKind.News)]);
         var digests = new InMemoryDigestStore();
@@ -349,7 +349,7 @@ public class DigestRunnerTests
     [Fact]
     public async Task メインが失敗しても同じ回のサブは保存する()
     {
-        // **以前はここで捨てていた。** Task.WhenAll がメインの例外で待ち合わせごと
+        // 以前はここで捨てていた。Task.WhenAll がメインの例外で待ち合わせごと
         // 投げるので、同じ回に書けていたサブまで受け取れなかった ——
         // 読み比べ用の相手がいちばん要る日に、記録が何も残らなかった
         var articles = new InMemoryArticleStore();
@@ -378,7 +378,7 @@ public class DigestRunnerTests
         Assert.True(saved.IsPrimary);
         Assert.Equal([DigestScope.Overall], notifier.Notified);
         // 何が落ちて何が残ったかを1文で言い切る(画面には「失敗: 」を付けて出る)。
-        // **全文を固定する** —— ここは運用中に読む唯一の手掛かりなので、
+        // 全文を固定する —— ここは運用中に読む唯一の手掛かりなので、
         // 直すときは「読んで打つ手が分かるか」を見てから直す
         Assert.Equal(
             "メインの AI が書けませんでした(技術界隈全体: メインAI — "
@@ -391,7 +391,7 @@ public class DigestRunnerTests
     [Fact]
     public async Task 全体が失敗しても興味トピックは作る()
     {
-        // **以前は道連れになっていた。** 先に作る「全体」で例外が上がると、
+        // 以前は道連れになっていた。先に作る「全体」で例外が上がると、
         // 2本目の「興味トピック」は試すことすらできなかった
         var articles = new InMemoryArticleStore();
         await articles.AddRangeAsync([Article("LLMの記事", ArticleKind.Article, "llm")]);

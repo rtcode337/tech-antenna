@@ -3,13 +3,13 @@ namespace TechAntenna.Core.Models;
 /// <summary>
 /// 楽天ウェブサービスのクレジット表記が要るかの判定。
 ///
-/// **楽天から取ったデータを画面に出すときは表記が要る**(利用規約 Article 13)。
-/// かつては「レビューを出しているか」だけで判定していたが、**書影も楽天由来のことがある**
+/// 楽天から取ったデータを画面に出すときは表記が要る(利用規約 Article 13)。
+/// かつては「レビューを出しているか」だけで判定していたが、書影も楽天由来のことがある
 /// (openBD が技術書の書影をほとんど持たないので、楽天の応答から埋めている)ので両方を見る。
 /// </summary>
 public static class RakutenCredit
 {
-    /// <summary>楽天の画像 URL のホスト。**増えたらここに足す** —— 判定を外すと表記が消える。</summary>
+    /// <summary>楽天の画像 URL のホスト。増えたらここに足す —— 判定を外すと表記が消える。</summary>
     static readonly string[] ImageHosts = ["rakuten.co.jp", "rakuten.com"];
 
     /// <summary>その一覧に楽天由来のデータ(レビューか書影)が含まれているか。</summary>

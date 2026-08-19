@@ -10,7 +10,7 @@ namespace TechAntenna.Infrastructure.Chiezo;
 /// <param name="Id">相手の識別子(`gemini`・`claude` など)。</param>
 /// <param name="Label">画面に出す名前。</param>
 /// <param name="Models">選べるモデル(相手に聞けたときはその答え)。</param>
-/// <param name="Efforts">選べる考える量。**空なら画面に出さない**(その相手には無い)。</param>
+/// <param name="Efforts">選べる考える量。空なら画面に出さない(その相手には無い)。</param>
 /// <param name="ModelRequired">モデルの指定が必須か。false なら「既定に任せる」を選べる。</param>
 public record ChiezoBackend(
     string Id,
@@ -21,19 +21,19 @@ public record ChiezoBackend(
 
 /// <summary>Chiezo が1回の問い合わせで返したもの。</summary>
 /// <param name="Content">応答の本文。</param>
-/// <param name="Model">**実際に使われたモデル**。「相手の既定に任せる」で頼んだときに、
+/// <param name="Model">実際に使われたモデル。「相手の既定に任せる」で頼んだときに、
 /// 何が書いたのかを知る唯一の手がかり(こちらは名前を指定していないため)。</param>
 public record ChiezoCompletion(string Content, string? Model);
 
 /// <summary>
 /// Chiezo(LAN 内の知識サーバー)の「素の問い合わせ」の口を叩く。
 ///
-/// **鍵を持たずに複数の AI を使えるようにするための経路。** Gemini・Claude Code・
+/// 鍵を持たずに複数の AI を使えるようにするための経路。Gemini・Claude Code・
 /// 推論サーバ…といった相手の認証情報は Chiezo が握っていて、こちらは
 /// 「どの相手に投げるか」を指定するだけでよい(同梱の CLI は
 /// Claude Code 1 つしか包めない)。
 ///
-/// **`/v1/chat` ではなく `/v1/ai/complete` を使う。** あちらは知識ベースを引いて答える口で、
+/// `/v1/chat` ではなく `/v1/ai/complete` を使う。あちらは知識ベースを引いて答える口で、
 /// 必ず抽出が混ざる —— こちらは材料もプロンプトも自前で持っているので邪魔になる。
 /// </summary>
 public class ChiezoAiClient(IHttpClientFactory httpClientFactory, string baseUrl, TimeSpan timeout)
@@ -120,7 +120,7 @@ public class ChiezoAiClient(IHttpClientFactory httpClientFactory, string baseUrl
     HttpClient CreateClient(TimeSpan wait)
     {
         var client = httpClientFactory.CreateClient(HttpClientName);
-        // **こちらの待ちは相手より長くする。** Chiezo の向こうにいるのは AI なので、
+        // こちらの待ちは相手より長くする。Chiezo の向こうにいるのは AI なので、
         // 生成そのものが数分かかることがある
         client.Timeout = wait + TimeSpan.FromSeconds(30);
         return client;

@@ -15,7 +15,7 @@ public record TitleTranslationResult(int Requested, int Translated, int Skipped)
 /// <summary>
 /// 訳題が未処理の論文を1バッチ分だけ訳す。
 ///
-/// **日本語のタイトル(J-STAGE の論文)も対象に含めて、空文字で確定させる。**
+/// 日本語のタイトル(J-STAGE の論文)も対象に含めて、空文字で確定させる。
 /// 除外して残しておくと、毎回「未処理」として取り出され続けてしまう。
 /// </summary>
 public class TitleTranslationRunner(

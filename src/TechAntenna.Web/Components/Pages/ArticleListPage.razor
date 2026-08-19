@@ -13,9 +13,9 @@
 
 @* 記事・ニュース・論文の一覧ページ。種別ごとの違いは「どの Kind を出すか」と
    論文だけにある翻訳ボタンだけなので、3ルートを1コンポーネントにまとめている。
-   同じグループの「まとめ」(/recent/general)が一望のハブで、こちらは**全量**を受け持つ。
+   同じグループの「まとめ」(/recent/general)が一望のハブで、こちらは全量を受け持つ。
 
-   **並びは新着順(既定)と話題度順をタブで切り替える**(`?sort=popular`。リンクなので
+   並びは新着順(既定)と話題度順をタブで切り替える(`?sort=popular`。リンクなので
    静的 SSR のまま動く)。かつては新着順だけにしていたが、いま見ているのがどちらの並びか
    タブが示すので、2つ持っても迷わない —— 「読み逃したものを追う(新着)」と
    「反応の大きかったものを拾う(話題度)」はどちらも要る *@
@@ -30,7 +30,7 @@
 }
 @if (_kind == ArticleKind.Paper)
 {
-    @* 興味トピック側の論文。**収集を記事と分けてある**のは検索だから ——
+    @* 興味トピック側の論文。収集を記事と分けてあるのは検索だから ——
        収集対象のトピックが無いと 1 件も集まらない(イベント・書籍と同じ性質) *@
     <CollectionHint Job="論文の収集" />
     <p class="page-note text-muted">
@@ -43,7 +43,7 @@
 }
 else if (_kind == ArticleKind.TrendingPaper)
 {
-    @* トレンド側の論文(HF Daily Papers)。**収集は「トレンドの収集」、翻訳は「論文タイトルの翻訳」でどちらも設定にある**
+    @* トレンド側の論文(HF Daily Papers)。収集は「トレンドの収集」、翻訳は「論文タイトルの翻訳」でどちらも設定にある
        (トピックの選択に依存しない巡回なので、ニュース・記事と同じ扱い) *@
     <CollectionHint />
     <p class="page-note text-muted">
@@ -56,7 +56,7 @@ else if (_kind == ArticleKind.TrendingPaper)
     </p>
 }
 
-@* トレンド側の3ページだけ並びを切り替えられる。**/papers には出さない** ——
+@* トレンド側の3ページだけ並びを切り替えられる。/papers には出さない ——
    arXiv / J-STAGE の論文にはブックマークも upvote も付かないので、
    話題度順にしても新着順とほぼ同じ並びになり、選択肢が嘘になる *@
 @if (CanSort)
@@ -131,7 +131,7 @@ else
     ArticleKind _kind = ArticleKind.Article;
 
     /// <summary>
-    /// 見出し(と `<PageTitle>`)。**メニューの親の名前を「/」で頭に付ける** ——
+    /// 見出し(と `<PageTitle>`)。メニューの親の名前を「/」で頭に付ける ——
     /// 「論文」は軸で2つある(トレンド / 論文 と 興味トピック / 論文)ので、
     /// 名前だけだと開いているのがどちらか読めない。
     /// </summary>
@@ -162,7 +162,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         // どの Kind を出すかはルートで決まる(4ルートを1コンポーネントで受けている)。
-        // **「論文」は軸で2つある** —— トレンド側(/recent/papers)が HF Daily Papers、
+        // 「論文」は軸で2つある —— トレンド側(/recent/papers)が HF Daily Papers、
         // 興味トピック側(/interests/papers)がトピック検索の論文。
         // 末尾だけを見ると両方 "papers" で見分けられないので、パス全体で分ける
         (_kind, _title, _path) = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/') switch
@@ -186,10 +186,10 @@ else
             .ExpandWithDescendants(selected.Select(topic => topic.Key))
             .ToHashSet(StringComparer.Ordinal);
 
-        // ストアが返すのは新着順。話題度順は**その直近 Limit 件の中で**並べ替える ——
+        // ストアが返すのは新着順。話題度順はその直近 Limit 件の中で並べ替える ——
         // 窓を切らずに全期間から話題度で拾うと、昔の当たり記事が居座って動かなくなる
         // (トレンドが直近 7 日で切っているのと同じ理由)。
-        // 話題度は**はてブ数と upvote の大きいほう**(カードの強調と同じ規則)。
+        // 話題度ははてブ数と upvote の大きいほう(カードの強調と同じ規則)。
         // 同点(未取得の 0 同士など)は新着順に落ちる
         var articles = await ArticleStore.GetRecentAsync(Limit, _kind);
         if (IsPopular && CanSort)

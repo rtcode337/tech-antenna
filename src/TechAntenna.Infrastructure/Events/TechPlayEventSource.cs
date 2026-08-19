@@ -9,7 +9,7 @@ namespace TechAntenna.Infrastructure.Events;
 /// <summary>
 /// TECH PLAY のイベント RSS を読むイベントソース。
 ///
-/// connpass / Doorkeeper と違い**キーワード検索を持たず、最新のイベントが流れてくるだけ**なので、
+/// connpass / Doorkeeper と違いキーワード検索を持たず、最新のイベントが流れてくるだけなので、
 /// 巡回して差分を溜めることで広く拾う。企業主催のウェビナーが多く、ベンダー系のイベントは
 /// connpass / Doorkeeper より厚い。
 ///
@@ -57,7 +57,7 @@ public class TechPlayEventSource(
                 EndsAt = entry.EndsAt,
                 Venue = entry.Place,
                 IsOnline = VenueClassifier.IsOnline(entry.Place, entry.Address),
-                // **主催者は dc:creator。** 参加者数は RSS に無いので null のまま ——
+                // 主催者は dc:creator。参加者数は RSS に無いので null のまま ——
                 // そのぶん注目度は「公式かどうか」と記事の言及数で測ることになる
                 Organizer = entry.Organizer,
                 CollectedAt = collectedAt,

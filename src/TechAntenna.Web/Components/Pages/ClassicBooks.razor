@@ -10,7 +10,7 @@
 
 @* 定番(第三の軸)の子ページ。中身は「読むべき技術書」を挙げた Qiita 記事から
    名指しされた本を拾ったもの —— 親(定番)はメニューの見出しで、軸の説明は /classics/general が受け持つ。
-   興味トピック側の /books と違い、**トピックの選択には依存しない** *@
+   興味トピック側の /books と違い、トピックの選択には依存しない *@
 
 <PageTitle>Tech Antenna — 定番 / 書籍</PageTitle>
 
@@ -52,15 +52,15 @@ else
     }
 
     @* 「読んだ」の切り替えは1ページ1フォーム(/interests/books と同じ流儀)。
-       押された本は submit の value で見分ける。**data-keep-focus** は、POST で
+       押された本は submit の value で見分ける。data-keep-focus は、POST で
        画面が作り直されたときに押した行へ戻すため(keep-focus.js) *@
     <form method="post" @formname="classic-books-read" @onsubmit="ToggleReadAsync" data-keep-focus>
         <AntiforgeryToken />
         <ul class="list-unstyled">
             @foreach (var book in _books)
             {
-                @* **一覧は絞らない**(定番は選択に依らない軸)が、**タグの色は選んだトピック
-                   +配下で強調する** —— トレンドの★と同じ考え方で、絞らずに「自分の関心に
+                @* 一覧は絞らない(定番は選択に依らない軸)が、タグの色は選んだトピック
+                   +配下で強調する —— トレンドの★と同じ考え方で、絞らずに「自分の関心に
                    当たるもの」を見つけられるようにするため *@
                 <BookItem Book="book" HighlightTags="_interests" ShowReadToggle="true" />
             }
@@ -93,7 +93,7 @@ else
     [SupplyParameterFromForm(FormName = "classic-books-read")]
     string? Action { get; set; }
 
-    /// <summary>選んだトピック+その配下のキー。**一覧の絞り込みではなく強調にだけ使う**。</summary>
+    /// <summary>選んだトピック+その配下のキー。一覧の絞り込みではなく強調にだけ使う。</summary>
     HashSet<string> _interests = new(StringComparer.Ordinal);
 
     protected override async Task OnInitializedAsync() => await LoadAsync();

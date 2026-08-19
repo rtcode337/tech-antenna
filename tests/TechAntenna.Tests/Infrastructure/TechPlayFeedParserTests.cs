@@ -99,7 +99,7 @@ public class TechPlayFeedParserTests
     [Fact]
     public void 主催者は_dc_creator_から取る()
     {
-        // **RSS の標準要素でも tp: の独自要素でもない**ので、見落としていた ——
+        // RSS の標準要素でも tp: の独自要素でもないので、見落としていた ——
         // ここが空だとベンダーのウェビナーが「公式」と判定されない
         Assert.Equal("日本マイクロソフト株式会社", TechPlayFeedParser.Parse(Feed).First().Organizer);
     }

@@ -13,7 +13,7 @@
 
 <p><a href="/settings/topics">← トピック一覧</a></p>
 
-@* 語彙としての姿(同義語・ツリー上の位置)を先に出す。**このページは2つの問いに答える**:
+@* 語彙としての姿(同義語・ツリー上の位置)を先に出す。このページは2つの問いに答える:
    「この語はどう整理されているか」と「この語に何が紐づいているか」。前者が上、後者が下 *@
 @if (_structure is { } structure)
 {
@@ -89,7 +89,7 @@
         </p>
         <div class="topic-path">
             @* 祖先(根 → 直近の親)→ このトピック → 直下の子。
-               **孫より下は畳んでおく** —— 「プログラミング」のような大きな語では配下が
+               孫より下は畳んでおく —— 「プログラミング」のような大きな語では配下が
                70 語を超え、開いたまま出すと下の記事・イベント・書籍が画面外へ押し出される *@
             @for (var depth = 0; depth < structure.Ancestors.Count; depth++)
             {
@@ -203,7 +203,7 @@ else
             @foreach (var book in _detail.Books)
             {
                 @* 記事で薦められている本は強調する(/books のトピック一覧と同じ見せ方)。
-                   **読んだ本は薄くして末尾へ回す**(並べ替えは TopicService)——
+                   読んだ本は薄くして末尾へ回す(並べ替えは TopicService)——
                    印を付け直すのは書籍の一覧(/interests/books・/classics/books)の仕事で、
                    ここは「なぜ下にいるのか」が読めればよい *@
                 <li class="mb-2 @(book.RecommendationCount > 0 ? "recommended-book" : "") @(book.IsRead ? "read-book" : "")">

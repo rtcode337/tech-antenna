@@ -43,7 +43,7 @@ public class JstageOptions
 }
 
 /// <summary>
-/// Hugging Face Daily Papers の設定。**トピックの選択に依存しない**収集元なので、
+/// Hugging Face Daily Papers の設定。トピックの選択に依存しない収集元なので、
 /// キーワードの設定も間隔の設定も持たない(1 回の実行で 1 リクエストだけ)。
 /// </summary>
 public class HuggingFacePapersOptions
@@ -66,7 +66,7 @@ public class ArxivOptions
     public int MaxResults { get; set; } = 20;
 
     /// <summary>キーワードを1つ引くごとに空ける間隔(秒)。
-    /// **arXiv の API 利用条件が 3 秒以上を求めている**ので、これより短くしない。</summary>
+    /// arXiv の API 利用条件が 3 秒以上を求めているので、これより短くしない。</summary>
     public double DelaySeconds { get; set; } = 3;
 }
 
@@ -97,7 +97,7 @@ public class BooksOptions
     public const string SectionName = "Books";
 
     /// <summary>1キーワードを検索してから次に移るまでの待ち時間(秒)。
-    /// **検索語は設定ではなく選択中のトピック**(<c>ITopicStore.GetSelectedAsync</c>)から取る。</summary>
+    /// 検索語は設定ではなく選択中のトピック(<c>ITopicStore.GetSelectedAsync</c>)から取る。</summary>
     public int DelayBetweenKeywordsSeconds { get; set; } = 2;
 
     /// <summary>openBD で日本の書誌情報を補うか。</summary>
@@ -105,13 +105,13 @@ public class BooksOptions
 
     /// <summary>
     /// 書影が欠けている本を Google Books へ ISBN で引きに行くときの間隔(秒)。
-    /// **1 冊 1 リクエスト**(ISBN の一括指定ができない)なので、間隔を空けて 1 冊ずつ引く。
+    /// 1 冊 1 リクエスト(ISBN の一括指定ができない)なので、間隔を空けて 1 冊ずつ引く。
     /// openBD は技術書の書影をほとんど持たないので、定番の書籍にはこの補完が要る。
     /// </summary>
     public int CoverLookupDelaySeconds { get; set; } = 1;
 
     /// <summary>
-    /// 保存するのに必要なレビュー件数の下限。**レビューが取れた本だけが対象**で、
+    /// 保存するのに必要なレビュー件数の下限。レビューが取れた本だけが対象で、
     /// 取れていない本(null)は通す —— 楽天のアプリ ID を設定していない状態で
     /// 足切りが効くと、1冊も保存されなくなるため。既定 0 は足切り無し。
     /// </summary>
@@ -131,7 +131,7 @@ public class QiitaOptions
 
     /// <summary>
     /// 検索クエリ(Qiita の検索構文)。複数指定でき、同じ記事が複数のクエリに当たっても
-    /// 1票に数える。**ストック数の下限で絞る**のが肝 —— 誰も読んでいない記事の推薦まで
+    /// 1票に数える。ストック数の下限で絞るのが肝 —— 誰も読んでいない記事の推薦まで
     /// 数えると、指標が薄まる。タグ検索だけだと「読むべき本」系の記事の多く(タグ無し)を
     /// 取りこぼすので、本文検索のクエリも混ぜる —— ノイズは Amazon リンクの ISBN 検算が
     /// 落とすので、当たりの広さは害にならない。
@@ -190,16 +190,16 @@ public class ClaudeCodeOptions
     public const string SectionName = "ClaudeCode";
 
     /// <summary>
-    /// CLI の実行ファイル。**イメージに同梱してある**(`claude`)ので、既定は名前だけで
+    /// CLI の実行ファイル。イメージに同梱してある(`claude`)ので、既定は名前だけで
     /// PATH から引く。手元で別の場所へ入れているときだけ絶対パスを渡す。
     ///
     /// かつては別コンテナのブリッジ(chiezo-bridge)へ HTTP で頼んでいたが、
     /// 公開リポジトリになってイメージの容量を気にする理由が薄れたので同梱に戻した ——
-    /// **別コンテナを立てなくても要約が動く**ほうが、公開したものを試す人の手数が少ない。
+    /// 別コンテナを立てなくても要約が動くほうが、公開したものを試す人の手数が少ない。
     /// </summary>
     public string ExecutablePath { get; set; } = "claude";
 
-    /// <summary>使うモデル。**空にすると CLI の既定に任せる**が、その既定は重いモデル
+    /// <summary>使うモデル。空にすると CLI の既定に任せるが、その既定は重いモデル
     /// (実測 claude-fable-5)でサブスクの週間枠を消費しすぎるため、
     /// appsettings.json では claude-sonnet-5 を明示している。</summary>
     public string Model { get; set; } = "";
@@ -266,7 +266,7 @@ public class ConnpassOptions
 /// <b>同じ形を使う</b> —— 相手が違うだけで、決めることは同じだから。
 ///
 /// <b>ここにあるのは数の設定だけ</b>(参加者数のしきい値・何か月ぶん・待ち時間)——
-/// **走らせるかどうかは画面(設定 → 外部連携)が決める**(<c>SweepSettings</c>)。
+/// 走らせるかどうかは画面(設定 → 外部連携)が決める(<c>SweepSettings</c>)。
 /// 1 回の収集で数十リクエストかかり、相手のレート制限(どちらも実質 1 秒 1 リクエスト)と
 /// 相談することになるので既定は無効で、キーワードで拾えない大型イベントを
 /// 名前を知らないまま拾える唯一の経路でもある。
@@ -291,7 +291,7 @@ public class EventSweepOptions
 
 /// <summary>
 /// 出版トレンド(最近出た本からテーマを数える)の設定。appsettings の NewReleases セクション。
-/// **キーは要らない**(NDL サーチは申請もキーも不要)ので、ここにあるのは範囲と量だけ。
+/// キーは要らない(NDL サーチは申請もキーも不要)ので、ここにあるのは範囲と量だけ。
 /// </summary>
 public class NewReleaseOptions
 {
@@ -302,7 +302,7 @@ public class NewReleaseOptions
 
     /// <summary>
     /// 何か月ぶんを「最近」とみなすか。収集の窓であり、画面の集計の窓でもある。
-    /// **短すぎると冊数が出ない** —— 本は企画から刊行まで数か月かかるので、
+    /// 短すぎると冊数が出ない —— 本は企画から刊行まで数か月かかるので、
     /// 記事の「直近 7 日」より長い窓で見る。
     /// </summary>
     public int WindowMonths { get; set; } = 6;
@@ -323,7 +323,7 @@ public class NewReleaseOptions
 /// <summary>
 /// Chiezo(LAN 内の知識サーバー)の設定。appsettings の Chiezo セクションから読む。
 ///
-/// **URL を入れると LLM の相手を Chiezo から選べるようになる。** Chiezo は Gemini・
+/// URL を入れると LLM の相手を Chiezo から選べるようになる。Chiezo は Gemini・
 /// Claude Code・推論サーバ…の認証情報を持っているので、こちらは鍵を持たずに
 /// 相手を選ぶだけでよい(同梱の CLI は Claude Code 1 つだけ)。
 /// 未設定でも、同梱の Claude Code CLI と Anthropic API は画面から選べる。
@@ -333,8 +333,8 @@ public class ChiezoOptions
     public const string SectionName = "Chiezo";
 
     /// <summary>
-    /// Chiezo の**ルート URL**(例 `http://192.168.1.10:7010`、同居なら `http://chiezo-api:7010`)。
-    /// **`/v1` は付けない** —— 呼ぶ側が `/v1/ai/...` を足す。空なら使わない。
+    /// Chiezo のルート URL(例 `http://192.168.1.10:7010`、同居なら `http://chiezo-api:7010`)。
+    /// `/v1` は付けない —— 呼ぶ側が `/v1/ai/...` を足す。空なら使わない。
     /// </summary>
     public string BaseUrl { get; set; } = "";
 

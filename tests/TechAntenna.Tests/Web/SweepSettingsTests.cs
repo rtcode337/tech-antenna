@@ -7,7 +7,7 @@ using TechAntenna.Web.Services;
 namespace TechAntenna.Tests.Web;
 
 /// <summary>
-/// 面掃きのオン/オフ。**既定は無効**で、画面で入れたときだけ走る ——
+/// 面掃きのオン/オフ。既定は無効で、画面で入れたときだけ走る ——
 /// 1 回の収集で数十リクエストかかるので、消し忘れたサーバーが叩き続けないため。
 /// </summary>
 public class SweepSettingsTests
@@ -55,7 +55,7 @@ public class SweepSettingsTests
     [Fact]
     public void 掃いた記録が無ければ回る()
     {
-        // **初回は必ず回る。** 入れた直後に何も起きないと、動かしたつもりが効いていないのか、
+        // 初回は必ず回る。入れた直後に何も起きないと、動かしたつもりが効いていないのか、
         // まだ時間ではないのかが画面から見分けられない
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 8, 19, 0, 0, 0, TimeSpan.Zero));
 
@@ -65,7 +65,7 @@ public class SweepSettingsTests
     [Fact]
     public async Task 掃いた直後は回らず一日たつと回る()
     {
-        // 面掃きは1回で最大20リクエスト。**中身は1日でほとんど変わらない**ので、
+        // 面掃きは1回で最大20リクエスト。中身は1日でほとんど変わらないので、
         // 同じ日に何度収集しても掃き直さない
         var credentials = Credentials();
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 8, 19, 9, 0, 0, TimeSpan.Zero));
@@ -106,7 +106,7 @@ public class SweepSettingsTests
     [Fact]
     public async Task 二回目からは差分で引き一週間たつと全掃きへ戻る()
     {
-        // **差分では拾えないものがある** —— 参加者数が伸びてしきい値を越えたイベントは
+        // 差分では拾えないものがある —— 参加者数が伸びてしきい値を越えたイベントは
         // 公開日が変わらないので、公開日での差分に出てこない。だから週に一度は数え直す
         var credentials = Credentials();
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 8, 19, 9, 0, 0, TimeSpan.Zero));

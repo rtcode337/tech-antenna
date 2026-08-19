@@ -138,7 +138,7 @@ public class TopicMaintenanceRunnerTests
     [Fact]
     public async Task 話題度の取り直しで見つかった語は仕分けで聞く()
     {
-        // 話題度の側は外部トレンドを引くので**新しい語が入る**。それを語彙へ入れるのが仕分けの側
+        // 話題度の側は外部トレンドを引くので新しい語が入る。それを語彙へ入れるのが仕分けの側
         var tags = new InMemoryTagStore();
         var topics = new InMemoryTopicStore();
         var classifier = new RecordingClassifier();
@@ -160,7 +160,7 @@ public class TopicMaintenanceRunnerTests
     [Fact]
     public async Task 仕分けを繰り返しても聞く語は増えない()
     {
-        // **これが分けた理由。** 1 本のジョブだった頃は、押すたびにその回のトレンドが
+        // これが分けた理由。1 本のジョブだった頃は、押すたびにその回のトレンドが
         // 新しい未知語を連れてきて、仕分け待ちが尽きなかった
         var tags = new InMemoryTagStore();
         var topics = new InMemoryTopicStore();

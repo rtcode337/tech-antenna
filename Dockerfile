@@ -28,12 +28,12 @@ RUN dotnet publish src/TechAntenna.Web/TechAntenna.Web.csproj \
 # 作って COPY する
 RUN mkdir -p /app/keys /home/app
 
-# Claude Code の CLI を取り出すステージ。npm の配布物には**プラットフォームごとの
-# ネイティブな単一実行ファイル**が入っており、それ単体で動く(node は要らない)ので
+# Claude Code の CLI を取り出すステージ。npm の配布物にはプラットフォームごとの
+# ネイティブな単一実行ファイルが入っており、それ単体で動く(node は要らない)ので
 # 1 ファイルだけ抜き出す —— 配布物ぜんぶ(600MB 超。glibc/musl 両方 + ラッパー)を
 # 積むと最終イメージが倍近くなる。
 #
-# **ビルドホストのアーキで走らせる**(`--platform=$BUILDPLATFORM`)。対象アーキの版は
+# ビルドホストのアーキで走らせる(`--platform=$BUILDPLATFORM`)。対象アーキの版は
 # パッケージ名で選べる(`claude-code-linux-x64` / `-arm64`)ので、arm64 向けを作るときも
 # エミュレーションは要らない —— やっているのは取得と展開だけ。
 #
@@ -55,15 +55,15 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 ENV ASPNETCORE_ENVIRONMENT=Production
 
-# **Claude Code の CLI を同梱する。** 要約・翻訳・タグの仕分け・今日のサマリーを
+# Claude Code の CLI を同梱する。要約・翻訳・タグの仕分け・今日のサマリーを
 # サブスクリプションの枠で回す経路で、アプリがプロセスとして起動する
 # (`ClaudeCodeCliBridge`。トークンは画面から設定し、子プロセスの環境変数で渡す)。
 #
 # かつては別コンテナの CLI ブリッジ(chiezo-bridge)へ HTTP で頼み、CLI をこのイメージから
 # 外していた —— 実体が大きくイメージが倍近くなるためだったが、公開リポジトリに
-# なって容量を気にする理由が薄れた。**同梱のほうが、試す人が別コンテナを立てずに済む。**
+# なって容量を気にする理由が薄れた。同梱のほうが、試す人が別コンテナを立てずに済む。
 #
-# 入れるのは**ネイティブの単一実行ファイル1つだけ**(node も npm も要らない)。
+# 入れるのはネイティブの単一実行ファイル1つだけ(node も npm も要らない)。
 # 実行ステージに RUN を置かずに済むので、arm64 向けビルドのエミュレーションも増えない
 COPY --from=claude-cli /out/claude /usr/local/bin/claude
 

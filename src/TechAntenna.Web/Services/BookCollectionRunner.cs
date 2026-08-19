@@ -28,7 +28,7 @@ public class BookCollectionRunner(
     async Task<CollectionRunResult> CollectAsync(
         IBookCatalog catalog, CancellationToken cancellationToken)
     {
-        // **止めていたら叩きに行かない**(実行のたびに読むので再起動なしで効く)
+        // 止めていたら叩きに行かない(実行のたびに読むので再起動なしで効く)
         if (!toggles.IsEnabled(SourceToggles.Book, catalog.Name))
         {
             return CollectionRunResult.AllDisabled("書籍");
@@ -36,7 +36,7 @@ public class BookCollectionRunner(
 
         // 検索先へ同時アクセスしないよう、キーワードを1つずつ間隔を空けて処理する
         var delay = TimeSpan.FromSeconds(options.Value.DelayBetweenKeywordsSeconds);
-        // Google Books へ投げる検索語。**正式表記のほう**(`生成ai` ではなく `生成AI`)
+        // Google Books へ投げる検索語。正式表記のほう(`生成ai` ではなく `生成AI`)
         var keywords = (await topicStore.GetSelectedAsync(cancellationToken))
             .Select(topic => topic.Display).ToList();
         if (keywords.Count == 0)
@@ -89,12 +89,12 @@ public class BookCollectionRunner(
     }
 
     /// <summary>
-    /// 雑誌・ムック・増刊を落とす(<see cref="Periodical"/>)。**補完より前に落とす** ——
+    /// 雑誌・ムック・増刊を落とす(<see cref="Periodical"/>)。補完より前に落とす ——
     /// 落とすと決めた本に openBD や楽天へ問い合わせても、外部を余計に叩くだけ。
     ///
     /// 集めたいのは「その分野で読んでおくべき本」なのに、号を重ねるぶん数の多い雑誌が
     /// 検索結果を占めていた(実際に週刊アスキーの号が並んだ)。
-    /// **落とした数はログに出す** —— 黙って減らすと「検索したのに増えない」になる。
+    /// 落とした数はログに出す —— 黙って減らすと「検索したのに増えない」になる。
     /// </summary>
     IReadOnlyList<Book> ExcludePeriodicals(IReadOnlyList<Book> books, string keyword)
     {
@@ -111,7 +111,7 @@ public class BookCollectionRunner(
 
     /// <summary>
     /// レビューが少なすぎる本を落とす(`Books:MinReviewCount`、既定 0 = 落とさない)。
-    /// **レビューが取れた本だけが対象** —— 取れていない本(null)まで落とすと、
+    /// レビューが取れた本だけが対象 —— 取れていない本(null)まで落とすと、
     /// 楽天のアプリ ID を設定していない環境で 1 冊も保存されなくなる。
     /// </summary>
     IReadOnlyList<Book> ApplyReviewFloor(IReadOnlyList<Book> books)

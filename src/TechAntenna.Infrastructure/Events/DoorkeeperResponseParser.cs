@@ -72,7 +72,7 @@ public static class DoorkeeperResponseParser
 
     /// <summary>
     /// 主催グループ名。<c>expand[]=group</c> を付けるとオブジェクトで返るので <c>name</c> を読み、
-    /// 付いていない(数値の ID が返る)ときは null にする —— **ID から名前を引き直しはしない**。
+    /// 付いていない(数値の ID が返る)ときは null にする —— ID から名前を引き直しはしない。
     /// グループ 1 件につき 1 リクエスト増えるうえ、API は alpha 扱いで形が変わりうるため、
     /// 名前が取れなければ「公式かどうか分からない」で済ませる。
     /// </summary>
@@ -89,7 +89,7 @@ public static class DoorkeeperResponseParser
     static DateTimeOffset? GetDate(JsonElement e, string name) =>
         DateTimeOffset.TryParse(GetString(e, name), out var parsed) ? parsed : null;
 
-    /// <summary>数値。**欠けている項目は null のまま返す**(0 と混ぜない)。</summary>
+    /// <summary>数値。欠けている項目は null のまま返す(0 と混ぜない)。</summary>
     static int? GetInt(JsonElement e, string name) =>
         e.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
             && value.TryGetInt32(out var parsed)

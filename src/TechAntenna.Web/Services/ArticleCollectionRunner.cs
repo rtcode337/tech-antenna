@@ -8,7 +8,7 @@ namespace TechAntenna.Web.Services;
 /// <summary>
 /// 登録された記事ソースを1巡し、ストアへ保存する。
 ///
-/// **選択トピックで絞らず、流れてきた記事はすべて保存する。** 以前は選択したタグを含むものだけ
+/// 選択トピックで絞らず、流れてきた記事はすべて保存する。以前は選択したタグを含むものだけ
 /// 残していたが、それだと「選んだトピックの外で何が起きているか」が画面に一切出てこない。
 /// イベントや書籍と違って RSS は検索ではなく巡回なので、絞っても収集先への負荷は変わらない
 /// —— 捨てる意味がほとんど無い。選択トピックは<b>表示側での強調</b>にだけ使う(`/articles`)。
@@ -36,7 +36,7 @@ public class ArticleCollectionRunner(
 
     async Task<CollectionRunResult> CollectAsync(CancellationToken cancellationToken)
     {
-        // **止めた収集元は叩きに行かない。** 実行のたびに読むので、画面の切り替えは
+        // 止めた収集元は叩きに行かない。実行のたびに読むので、画面の切り替えは
         // 再起動なしで効く(起動時に絞ると、切り替えても次の再起動まで変わらない)
         var enabled = toggles.Enabled(_sources, SourceToggles.Article, source => source.Name);
         if (enabled.Count == 0)
@@ -81,7 +81,7 @@ public class ArticleCollectionRunner(
 
         await RefreshBookmarkCountsAsync(cancellationToken);
 
-        // **見つけたタグをタグの一覧へ反映する。** これが無いと、集めたのにタグの画面が
+        // 見つけたタグをタグの一覧へ反映する。これが無いと、集めたのにタグの画面が
         // 変わらない(仕分け待ちの語が増えず、次の整備まで何も起きないように見える)。
         // 状態は触らないので、仕分け済みの語が巻き戻ることはない
         Progress = "タグを反映中…";

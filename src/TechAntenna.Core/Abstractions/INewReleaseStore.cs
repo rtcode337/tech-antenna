@@ -6,7 +6,7 @@ namespace TechAntenna.Core.Abstractions;
 public interface INewReleaseStore
 {
     /// <summary>
-    /// 追加し、**実際に追加した件数**を返す。重複判定は <see cref="NewRelease.Url"/>。
+    /// 追加し、実際に追加した件数を返す。重複判定は <see cref="NewRelease.Url"/>。
     /// 既にある行は<b>タグと書誌を上書きする</b> —— 同じ窓を毎回引き直す表なので、
     /// 正規化の規則やカタログを変えたら次の収集で揃ってほしい(記事・イベント・書籍の
     /// 「既存は上書きしない」とは方針が逆。読ませるための行ではなく観測だから)。

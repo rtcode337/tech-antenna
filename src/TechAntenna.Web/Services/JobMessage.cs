@@ -29,7 +29,7 @@ public static class JobMessage
         + (result.FailedSources > 0 ? $" {result.FailedSources} 件の収集元が失敗しています。" : "");
 
     /// <summary>
-    /// タグを仕分けなおした結果。**トピックとタグの両方の画面から押せる**ので、
+    /// タグを仕分けなおした結果。トピックとタグの両方の画面から押せるので、
     /// 文言はここに1つ置く(画面ごとに書くとずれる)。
     /// </summary>
     public static string Describe(TagClassificationResult result)
@@ -48,7 +48,7 @@ public static class JobMessage
     }
 
     /// <summary>
-    /// ファイル取り込みの結果。**ジョブではない**(その場で終わる)が、文言の作り方は
+    /// ファイル取り込みの結果。ジョブではない(その場で終わる)が、文言の作り方は
     /// ほかの結果とそろえたいのでここに置く。
     /// </summary>
     public static string Describe(TopicImportResult result)
@@ -79,7 +79,7 @@ public static class JobMessage
         return message + " 件数と話題度は「話題度を取り直す」「タグを仕分けなおす」で集め直されます。";
     }
 
-    /// <summary>定期実行を1回通した結果。**個々のジョブの文言は各行に出る**ので、ここは要約だけ。</summary>
+    /// <summary>定期実行を1回通した結果。個々のジョブの文言は各行に出るので、ここは要約だけ。</summary>
     public static string Describe(ScheduleRunResult result)
     {
         if (result == ScheduleRunResult.Nothing)

@@ -4,7 +4,7 @@ using TechAntenna.Infrastructure.Http;
 namespace TechAntenna.Tests.Infrastructure;
 
 /// <summary>
-/// 相手が示した呼び出し頻度を**設計として**守るための層。
+/// 相手が示した呼び出し頻度を設計として守るための層。
 /// connpass は API の利用申請のページで「5 秒に 1 リクエストを超えないよう」としている ——
 /// 収集元ごとに `Task.Delay` を書く形だと、経路が増えたときに守られなくなる
 /// (検索・購読・サブドメインの引き直し・面掃きが同じ相手を叩いている)。
@@ -47,7 +47,7 @@ public class RequestPacingHandlerTests
         await first;
 
         var second = client.GetStringAsync("https://connpass.com/api/v2/events/?ym=202609");
-        // **待っている間は送らない。** 時計を進めるまで2本目は出ない
+        // 待っている間は送らない。時計を進めるまで2本目は出ない
         Assert.False(second.IsCompleted);
         Assert.Single(sentAt);
 
@@ -61,7 +61,7 @@ public class RequestPacingHandlerTests
     [Fact]
     public async Task 同時に投げても間隔が守られる()
     {
-        // **並列に呼ばれても破れない**のがこの層を置く理由 ——
+        // 並列に呼ばれても破れないのがこの層を置く理由 ——
         // 収集元の側の `Task.Delay` は、別の経路が同時に叩くことを知らない
         var (client, sentAt, clock) = Build(TimeSpan.FromSeconds(5));
 

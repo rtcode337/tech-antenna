@@ -6,14 +6,14 @@
 @inject IEventStore EventStore
 @inject ApiCredentials Credentials
 
-@* イベントの集め方と重みづけの設定。**購読と主催者を1ページにまとめてある** ——
+@* イベントの集め方と重みづけの設定。購読と主催者を1ページにまとめてある ——
    かつては `/settings/follows` と `/settings/organizers` の2ページだったが、
-   **互いを行き来しないと決められない**: 購読の候補は「公式と判定された主催者」から
+   互いを行き来しないと決められない: 購読の候補は「公式と判定された主催者」から
    起こすし、公式かどうかは購読で集めたイベントにも効く。名簿を見比べながら直せるよう、
    同じページの2つの節にした(旧 URL はリダイレクトを置いてある)。
 
    2つとも作りは同じ —— 1行1件のテキストを DB に持ち、再起動なしで効く。
-   違うのは**購読が初期値を持たないこと**(実在の ID は憶測で書けない)。 *@
+   違うのは購読が初期値を持たないこと(実在の ID は憶測で書けない)。*@
 
 <PageTitle>Tech Antenna — 設定 / イベント</PageTitle>
 
@@ -89,10 +89,10 @@
     </p>
 }
 
-@* **公式の名簿から購読の候補を出す。** 「公式」は集めたイベントに付く印でしかなく、
+@* 公式の名簿から購読の候補を出す。「公式」は集めたイベントに付く印でしかなく、
    提供元のイベントを狙って取りに行く経路は無い —— 一方でグループを購読すれば
-   トピックに関係なく全部入るので、**すでに集まっているイベントのうち公式と判定された
-   主催者のグループ**を候補にすれば、名簿を人が調べて書き写さずに済む。
+   トピックに関係なく全部入るので、すでに集まっているイベントのうち公式と判定された
+   主催者のグループを候補にすれば、名簿を人が調べて書き写さずに済む。
    識別子は保存済みイベントの URL から起こす(外部へは問い合わせない) *@
 <h3>公式の主催者から足す</h3>
 
@@ -116,7 +116,7 @@ else if (_suggestions.Count == 0)
 }
 else
 {
-    @* **名簿のフォームとは別の form**(並べるのは正しく、入れ子にするのが不正)。
+    @* 名簿のフォームとは別の form(並べるのは正しく、入れ子にするのが不正)。
        名簿は「書いたとおりに保存する」もの、こちらは「選んだ行を足す」ものなので、
        送る中身が別 —— 1 つにまとめると、候補を足すだけのつもりで打ちかけの名簿まで保存される *@
     <form method="post" @formname="follow-suggestions" @onsubmit="AddSuggestedAsync">
@@ -220,7 +220,7 @@ else
     <textarea id="organizer-names" name="Names" rows="12" spellcheck="false">@Names</textarea>
     <div class="actions">
         <button type="submit" class="btn btn-primary" name="Action" value="save">名簿を保存</button>
-        @* **空にして保存すると初期値に戻る**ので、消す操作も同じボタンで足りる。
+        @* 空にして保存すると初期値に戻るので、消す操作も同じボタンで足りる。
            それでも明示のボタンを置くのは、初期値がどれか分からなくなったときの戻り道として *@
         <button type="submit" class="btn btn-outline-primary" name="Action" value="reset">初期値に戻す</button>
         <span class="text-muted">
@@ -282,14 +282,14 @@ else
 }
 
 @code {
-    /// <summary>入力欄に出す例。**実在の ID は書かない**(憶測の値をそのまま保存されると分かりにくい)。</summary>
+    /// <summary>入力欄に出す例。実在の ID は書かない(憶測の値をそのまま保存されると分かりにくい)。</summary>
     const string Placeholder = """
         # 例（グループのページの URL を見て書き換えてください）
         connpass:example-group  例のコミュニティ
         doorkeeper:example      例のコミュニティ
         """;
 
-    /// <summary>保存の結果。**節ごとに持つ** —— 片方を保存したときに、
+    /// <summary>保存の結果。節ごとに持つ —— 片方を保存したときに、
     /// もう片方の節へ結果が出ると何を保存したのか読めない。</summary>
     string? _followMessage;
 
@@ -299,7 +299,7 @@ else
     IReadOnlyList<string> _rejected = [];
 
     /// <summary>
-    /// 公式の主催者から起こした購読の候補。**読み込みが終わるまで null**
+    /// 公式の主催者から起こした購読の候補。読み込みが終わるまで null
     /// (`default!` にすると、DB につないだ本番でだけ現れる初回の描画で落ちる)。
     /// </summary>
     IReadOnlyList<FollowSuggestion>? _suggestions;
@@ -307,10 +307,10 @@ else
     IReadOnlyList<OrganizerCount>? _organizers;
     OfficialOrganizers _official = OfficialOrganizers.Default;
 
-    @* **フォームが3つあるので、どちらの値かを名前で明示する。** 省略すると
+    @* フォームが3つあるので、どちらの値かを名前で明示する。省略すると
        「いま送られてきたフォーム」から拾おうとするので、候補を足す POST でも
        名簿の値を拾いに行くことになる(そちらには textarea が無いので空になる) *@
-    /// <summary>編集中の購読の名簿。**保存してある生のテキストをそのまま出す**(コメント行も残す)。</summary>
+    /// <summary>編集中の購読の名簿。保存してある生のテキストをそのまま出す(コメント行も残す)。</summary>
     [SupplyParameterFromForm(FormName = "followed-groups", Name = "Groups")]
     string? Groups { get; set; }
 
@@ -322,7 +322,7 @@ else
     [SupplyParameterFromForm(FormName = "follow-suggestions", Name = "Selected")]
     string[]? Selected { get; set; }
 
-    /// <summary>編集中の主催者の名簿。**画面には効いている名簿をそのまま出す**(初期値のときは初期値)。</summary>
+    /// <summary>編集中の主催者の名簿。画面には効いている名簿をそのまま出す(初期値のときは初期値)。</summary>
     [SupplyParameterFromForm(FormName = "official-organizers", Name = "Names")]
     string? Names { get; set; }
 
@@ -353,7 +353,7 @@ else
     async Task LoadOrganizersAsync() => _organizers = await EventStore.GetOrganizerCountsAsync();
 
     /// <summary>
-    /// 候補を作り直す。**外部へは問い合わせない** —— 集めたイベントを主催者でまとめ、
+    /// 候補を作り直す。外部へは問い合わせない —— 集めたイベントを主催者でまとめ、
     /// 公式の名簿と突き合わせ、URL からグループの識別子を起こすだけ。
     /// </summary>
     async Task LoadSuggestionsAsync() =>
@@ -363,7 +363,7 @@ else
             _followed);
 
     /// <summary>
-    /// チェックした候補を名簿へ足す。**書いてある行は消さず、末尾に足すだけ** ——
+    /// チェックした候補を名簿へ足す。書いてある行は消さず、末尾に足すだけ ——
     /// 名簿はメモを添えて育てるもので、画面が整形して書き戻すと書き置きが消える。
     /// </summary>
     async Task AddSuggestedAsync()
@@ -404,7 +404,7 @@ else
         }
         else
         {
-            // **書いたとおりに保存する**(コメント行も残す)。名簿はメモを添えて育てるものなので、
+            // 書いたとおりに保存する(コメント行も残す)。名簿はメモを添えて育てるものなので、
             // 保存のたびに整形して書き戻すと「なぜ入れたか」の書き置きが消える
             await Credentials.SetAsync(FollowSettings.GroupsName, Groups);
             _followMessage = $"名簿を保存しました（{FollowedGroups.Parse(Groups).All.Count} 件）。";

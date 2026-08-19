@@ -61,7 +61,7 @@ public class EventMentionRefresher(
         var updates = new List<(Guid, int)>();
         foreach (var techEvent in events)
         {
-            // **照合語を作れないイベントは触らない**(null のまま = 「測っていない」)。
+            // 照合語を作れないイベントは触らない(null のまま = 「測っていない」)。
             // 0 で埋めると「誰も書いていない」に見えるが、実際には測っていないだけ
             if (EventMentions.KeyFor(techEvent, catalog) is not { } key)
             {

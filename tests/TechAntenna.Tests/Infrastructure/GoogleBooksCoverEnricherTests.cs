@@ -94,7 +94,7 @@ public class GoogleBooksCoverEnricherTests
     [Fact]
     public async Task 枠を使い切っても取れたぶんの書影は返す()
     {
-        // **ここが埋まらない原因だった。** 投げて抜けると呼び出し側は補完前の本を保存するので、
+        // ここが埋まらない原因だった。投げて抜けると呼び出し側は補完前の本を保存するので、
         // 数百リクエストぶんの書影が毎回消えていた(冊数 > 1 日の枠なので枠切れは必ず起きる)
         var factory = new SequenceHttpClientFactory(
             (HttpStatusCode.OK, Response),

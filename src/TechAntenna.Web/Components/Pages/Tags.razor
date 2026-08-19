@@ -41,7 +41,7 @@
     落とせるので、枠を使いません。
 </p>
 
-@* 仕分けのボタンは**設定にある**(ジョブのボタンは1か所に集めてある)。
+@* 仕分けのボタンは設定にある(ジョブのボタンは1か所に集めてある)。
    この画面は仕分け待ちを見てゴミを除外する場所で、押すのは設定 —— 行き先を書いておく *@
 <p class="page-note text-muted">
     仕分けを走らせるのは<a href="/settings/jobs">ジョブ</a>の「タグを仕分けなおす」です
@@ -88,7 +88,7 @@
     </form>
 }
 
-@* トピックへの昇格。**親は選ばなくてもよい**(空なら最上位)。LLM の分類は親付きで
+@* トピックへの昇格。親は選ばなくてもよい(空なら最上位)。LLM の分類は親付きで
    語彙に入れるので、手の昇格だけ親を選べないと平置きの語が増える一方だった *@
 @if (PromoteKey is { Length: > 0 } promoteKey)
 {
@@ -103,7 +103,7 @@
     </form>
 }
 
-@* トピックの候補。**2つのフォームで共有する**(datalist は document のどこからでも参照できる) *@
+@* トピックの候補。2つのフォームで共有する(datalist は document のどこからでも参照できる) *@
 @if (AliasKey is { Length: > 0 } || PromoteKey is { Length: > 0 })
 {
     <datalist id="topic-keys">
@@ -123,9 +123,9 @@ else
     <form method="post" @formname="tag-decide" @onsubmit="DecideAsync">
         <AntiforgeryToken />
         @TagGroup("仕分け待ち", TagStatus.Pending)
-        @* **保留は2つに分ける。** 紐づくデータが1件も無い語は自動で聞き直さない
+        @* 保留は2つに分ける。紐づくデータが1件も無い語は自動で聞き直さない
            (ITagStore.GetPendingAsync)ので、同じ見出しに混ぜると「期限が来れば直る」と
-           読めてしまう。**判定はストアと同じ「件数が 0 か」** *@
+           読めてしまう。判定はストアと同じ「件数が 0 か」 *@
         @TagGroup("保留・期限が来たら聞き直す", TagStatus.Unresolved, tag => tag.TotalCount > 0)
         @TagGroup("保留・自動では聞き直さない(紐づくデータなし)", TagStatus.Unresolved,
             tag => tag.TotalCount == 0, defaultOpen: false)
@@ -135,7 +135,7 @@ else
     </form>
 }
 
-@* 状態ごとの一覧。行に操作を並べる。**押した行は button の value で分かる**ので、
+@* 状態ごとの一覧。行に操作を並べる。押した行は button の value で分かるので、
    フォームは 1 つで足りる(行ごとにフォームを作ると @formname が数百個になる) *@
 @{
     RenderFragment TagGroup(
@@ -155,8 +155,8 @@ else
                 <summary>@title<text>(</text>@tags.Count<text> 語)</text></summary>
                 @if (status != TagStatus.NotTopic)
                 {
-                    @* **一括の除外。** 明らかなゴミ(誤記・一過性のタグ)が並ぶので、
-                       1 語ずつ押させない。**チェックはページ全体で 1 つのフォーム**なので、
+                    @* 一括の除外。明らかなゴミ(誤記・一過性のタグ)が並ぶので、
+                       1 語ずつ押させない。チェックはページ全体で 1 つのフォームなので、
                        どのボタンを押しても「チェックしてある語」すべてが対象になる *@
                     <div class="bulk-bar">
                         <label class="bulk-all">
@@ -264,7 +264,7 @@ else
     string? Action { get; set; }
 
     /// <summary>
-    /// チェックしたタグ。**同名の checkbox を並べる形**で受ける
+    /// チェックしたタグ。同名の checkbox を並べる形で受ける
     /// (トピックの選択と同じ流儀。静的 SSR のフォーム束縛がそのまま配列にしてくれる)。
     /// </summary>
     [SupplyParameterFromForm(FormName = "tag-decide", Name = "Selected")]
@@ -306,7 +306,7 @@ else
 
         if (tag.Status == TagStatus.Unresolved)
         {
-            // **紐づくデータが無い語には日時を出さない。** 期限を出すと「その時刻に
+            // 紐づくデータが無い語には日時を出さない。期限を出すと「その時刻に
             // 聞き直される」と読めるが、実際には自動の対象から外れている
             // (ITagStore.GetPendingAsync)
             if (tag.TotalCount == 0)
@@ -323,7 +323,7 @@ else
     }
 
     /// <summary>
-    /// 行の操作を処理する。**手直しは `DecidedBy.Human`** で記録し、LLM の判定より優先させる
+    /// 行の操作を処理する。手直しは `DecidedBy.Human` で記録し、LLM の判定より優先させる
     /// (誤判定を直したのに次の仕分けで戻される、が起きないようにするため)。
     /// </summary>
     async Task DecideAsync()
@@ -366,7 +366,7 @@ else
     }
 
     /// <summary>
-    /// チェックした語をまとめて除外する。**LLM に聞かせる前にゴミを落とす経路**で、
+    /// チェックした語をまとめて除外する。LLM に聞かせる前にゴミを落とす経路で、
     /// 仕分け待ちの語が全部 LLM に流れるようになったぶん、ここで間引けるようにしてある。
     ///
     /// 手直しなので <see cref="DecidedBy.Human"/>(次の仕分けで上書きされない)。
@@ -442,7 +442,7 @@ else
         await LoadAsync();
     }
 
-    /// <summary>寄せ先を選んで別名にする。**寄せ先が語彙に無ければ何もしない**(LLM の応答と同じ検証)。</summary>
+    /// <summary>寄せ先を選んで別名にする。寄せ先が語彙に無ければ何もしない(LLM の応答と同じ検証)。</summary>
     async Task SaveAliasAsync()
     {
         var key = AliasFormKey;
@@ -454,7 +454,7 @@ else
         }
         else if (Catalog.IsTopic(key))
         {
-            // 寄せ元もトピックなら**統合**。子の付け替えと行の削除まで面倒を見る
+            // 寄せ元もトピックなら統合。子の付け替えと行の削除まで面倒を見る
             _message = await Merger.MergeAsync(key, target, DecidedBy.Human)
                 ? $"トピック「{key}」を「{Catalog.DisplayOf(target)}」へ寄せました（配下も付け替えました）。"
                 : $"「{key}」は寄せられませんでした（収集対象に選ばれているトピックは、先に選択を外してください）。";

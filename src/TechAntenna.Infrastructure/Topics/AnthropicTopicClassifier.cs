@@ -8,7 +8,7 @@ namespace TechAntenna.Infrastructure.Topics;
 
 /// <summary>
 /// Anthropic API(Messages API)で未知タグを分類する。従量課金だが呼び出しの固定費が
-/// 小さい。とはいえ既存ツリーを毎回渡すので、こちらも**1回にまとめて**呼ぶ。
+/// 小さい。とはいえ既存ツリーを毎回渡すので、こちらも1回にまとめて呼ぶ。
 /// </summary>
 public class AnthropicTopicClassifier(string apiKey, string model) : ITopicClassifier, ITopicDescriber, ITopicMergeAdvisor
 {

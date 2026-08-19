@@ -23,10 +23,10 @@ public class EfEventStore(IDbContextFactory<TechAntennaDbContext> contextFactory
         var newEvents = incoming.Where(e => !existingUrls.Contains(e.Url)).ToList();
         db.Events.AddRange(newEvents);
 
-        // **既存のイベントは主催者と参加者数だけ取り込む。** 参加者数は開催が近づくほど
+        // 既存のイベントは主催者と参加者数だけ取り込む。参加者数は開催が近づくほど
         // 増えるので、初回に集めた数のまま置くと注目度が古いままになる。書誌にあたる情報
         // (タイトル・日時・会場)を上書きしないのは書籍の BookMerge と同じ方針で、
-        // **取れなかった回に null で上書きもしない**(TECH PLAY 経由で同じ URL を
+        // 取れなかった回に null で上書きもしない(TECH PLAY 経由で同じ URL を
         // 見かけたときに、connpass から取れていた数を消さないため)
         if (existingUrls.Count > 0)
         {
@@ -38,7 +38,7 @@ public class EfEventStore(IDbContextFactory<TechAntennaDbContext> contextFactory
                 var fresh = byUrl[existing.Url];
                 existing.Organizer = fresh.Organizer ?? existing.Organizer;
                 existing.ParticipantCount = fresh.ParticipantCount ?? existing.ParticipantCount;
-                // **後から購読・面掃きで見つかったら、その理由を書き足す。** 先に検索で拾えていた
+                // 後から購読・面掃きで見つかったら、その理由を書き足す。先に検索で拾えていた
                 // イベントでも、名簿にグループを足した後は「購読しているから載っている」が正しい説明になる
                 existing.PickedBy = fresh.PickedBy ?? existing.PickedBy;
             }
@@ -116,10 +116,10 @@ public class EfEventStore(IDbContextFactory<TechAntennaDbContext> contextFactory
 
     /// <summary>
     /// 主催者ごとの件数。Organizer は普通の text 列(値変換の掛かった <c>Tags</c> と違う)なので
-    /// 集計も LINQ で書けるが、**並べ替えるまでは匿名型で持つこと** —— record のコンストラクタで
+    /// 集計も LINQ で書けるが、並べ替えるまでは匿名型で持つこと —— record のコンストラクタで
     /// 射影してから <c>OrderByDescending(o =&gt; o.Count)</c> と書くと、EF は <c>Count</c> を集計に
     /// 対応づけられず「The LINQ expression could not be translated」で落ちる(実際に画面が
-    /// エラーになった)。**匿名型ならメンバーを辿れる**ので、record にするのは並べ替えの後。
+    /// エラーになった)。匿名型ならメンバーを辿れるので、record にするのは並べ替えの後。
     ///
     /// <b>問い合わせを切り出してあるのはテストのため。</b> InMemory のストアでは翻訳の失敗が
     /// 起きないので、<c>EfEventStoreTranslationTests</c> がここを <c>ToQueryString</c> に掛けて
@@ -156,7 +156,7 @@ public class EfEventStore(IDbContextFactory<TechAntennaDbContext> contextFactory
                  """)
             .ToListAsync(cancellationToken);
 
-        // **読めない URL の行は落とす**(http/https 以外は WebUrl が弾く)。
+        // 読めない URL の行は落とす(http/https 以外は WebUrl が弾く)。
         // 画面はこの URL からグループの識別子を起こすので、読めない行を通すと候補が壊れる
         return
         [

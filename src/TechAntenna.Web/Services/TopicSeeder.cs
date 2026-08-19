@@ -5,13 +5,13 @@ using TechAntenna.Core.Topics;
 namespace TechAntenna.Web.Services;
 
 /// <summary>
-/// 語彙の初期投入。**`topic-seed.json` は「人が確定させた語彙」ではなく初期データ**なので、
+/// 語彙の初期投入。`topic-seed.json` は「人が確定させた語彙」ではなく初期データなので、
 /// <b>DB が空のときに一度だけ流し込む</b>(`DecidedBy = Seed`)。以後の権威は DB にあり、
 /// JSON との衝突ルールは持たない —— 手直しは画面から状態を書き換える。
 ///
-/// **初期データを残しているのは 2 つの理由から。** ひとつは、まったく語彙が無いと LLM が
+/// 初期データを残しているのは 2 つの理由から。ひとつは、まったく語彙が無いと LLM が
 /// 寄せ先も親も選べず、同義の親が二重にできること(統合パスで後から寄せられるが、
-/// 最初から避けられるほうがよい)。もうひとつは、**新着記事だけから育てるとカテゴリが偏る**こと
+/// 最初から避けられるほうがよい)。もうひとつは、新着記事だけから育てるとカテゴリが偏ること
 /// —— その時期に流れてきた話題に語彙が寄ってしまうので、広めの土台を先に与える。
 /// </summary>
 public class TopicSeeder(
@@ -47,7 +47,7 @@ public class TopicSeeder(
 
         await topicStore.UpsertAsync(topics, now, cancellationToken);
 
-        // 正式表記のタグは Promoted、別名のタグは Alias。**観測してから仕分ける** ——
+        // 正式表記のタグは Promoted、別名のタグは Alias。観測してから仕分ける ——
         // タグの行が無いと仕分けの書き込み先が無い(件数はこの時点では 0 のまま)
         var observations = new List<TagObservation>();
         var decisions = new List<TagDecision>();

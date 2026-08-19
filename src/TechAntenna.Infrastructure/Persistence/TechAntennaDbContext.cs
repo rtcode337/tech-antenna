@@ -56,7 +56,7 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
             ConfigureTags(article.Property(a => a.RawTags));
         });
 
-        // 最近出た本の観測。**書籍(Book)とは別の表**にしてある —— あちらは「読んでおくべき本」で
+        // 最近出た本の観測。書籍(Book)とは別の表にしてある —— あちらは「読んでおくべき本」で
         // レビュー・推薦・書影を伴って一覧に並ぶもの、こちらは数えるためだけに集める観測。
         // 混ぜると書籍の一覧が新刊で埋まる(読み込みの窓を新刊が食う)
         modelBuilder.Entity<NewRelease>(release =>
@@ -134,7 +134,7 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
             ConfigureTags(book.Property(b => b.Tags));
             ConfigureTags(book.Property(b => b.RawTags));
             // 出典記事は URL と題名の組なので JSON 1 列で持つ(ダイジェストの項目と同じ流儀)。
-            // **かつては URL だけの text[]** だったが、画面が番号ではなく題名を出すようになり、
+            // かつては URL だけの text[] だったが、画面が番号ではなく題名を出すようになり、
             // 2 つの値を1件として持つ必要が出た。出典単体で検索・集計する予定は無く、
             // 常に本を丸ごと読み書きするので、行に正規化してもテーブルが増えるだけ
             book.Property(b => b.RecommendedBy)
@@ -215,12 +215,12 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
             secret.Property(s => s.Value).IsRequired();
         });
 
-        // **日時は DB に渡す直前に UTC へそろえる。** Npgsql は `timestamp with time zone` に
+        // 日時は DB に渡す直前に UTC へそろえる。Npgsql は `timestamp with time zone` に
         // 時差 0 以外の DateTimeOffset を書けず、そのまま渡すと実行時に落ちる:
         //   Cannot write DateTimeOffset with Offset=09:00:00 to PostgreSQL type
         //   'timestamp with time zone', only offset 0 (UTC) is supported.
         // 収集元は時差を付けたまま返してくる(connpass の `started_at` は `+09:00`)ので、
-        // **保存も問い合わせのパラメータもここを通す** —— 収集元ごとに `ToUniversalTime()` を
+        // 保存も問い合わせのパラメータもここを通す —— 収集元ごとに `ToUniversalTime()` を
         // 書いて回ると、書き忘れた1つが「その収集元だけ 1 件も保存されない」になる
         // (実際、記事のパーサだけが直していて connpass / Doorkeeper のイベントは
         // 保存できていなかった。カレンダーの月の範囲を JST のまま渡して画面も落ちた)。

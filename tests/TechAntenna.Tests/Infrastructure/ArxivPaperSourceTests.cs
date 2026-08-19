@@ -84,7 +84,7 @@ public class ArxivPaperSourceTests
     [Fact]
     public async Task abstractを要旨として取り込む()
     {
-        // **arXiv のメタデータは CC0**(API Terms of Use に明記)なので取り込める。
+        // arXiv のメタデータは CC0(API Terms of Use に明記)なので取り込める。
         // 取り込んだ要旨は要約の材料になる —— 以前は材料が無いので要約の対象外だった
         var source = NewSource(new StubHttpClientFactory(Response), await StoreWith("生成AI"));
 

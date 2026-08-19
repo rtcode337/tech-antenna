@@ -1,7 +1,7 @@
 namespace TechAntenna.Core.Topics;
 
 /// <summary>
-/// タグの仕分け状態。**「見かけた語」から「語彙」への一方向の流れ**を表す。
+/// タグの仕分け状態。「見かけた語」から「語彙」への一方向の流れを表す。
 /// </summary>
 public enum TagStatus
 {
@@ -16,12 +16,12 @@ public enum TagStatus
 
     /// <summary>
     /// トピックとして扱わないと判定した(メディア名・一般語など)。語彙には入らず、
-    /// LLM にも聞き直さない。**画面の見出しは「除外」**(「トピック外」だと無視する語だと読めない)。
+    /// LLM にも聞き直さない。画面の見出しは「除外」(「トピック外」だと無視する語だと読めない)。
     /// </summary>
     NotTopic = 3,
 
     /// <summary>
-    /// LLM が判断できなかった。**期限付き** —— <see cref="Tag.RetryAfter"/> を過ぎたら
+    /// LLM が判断できなかった。期限付き —— <see cref="Tag.RetryAfter"/> を過ぎたら
     /// もう一度聞く(新語は時間が経てば分類できるようになる)。
     /// </summary>
     Unresolved = 4,
@@ -42,14 +42,14 @@ public enum DecidedBy
     /// <summary>LLM の分類。</summary>
     Llm = 3,
 
-    /// <summary>画面から人が直した。**LLM より優先する** —— 誤判定を直せる経路として残す。</summary>
+    /// <summary>画面から人が直した。LLM より優先する —— 誤判定を直せる経路として残す。</summary>
     Human = 4,
 }
 
 /// <summary>
 /// 収集データで見かけたタグ1語と、その仕分け状態。
 ///
-/// **記事・イベント・書籍のタグは、まずここに全部入る。** 語彙(<see cref="Topic"/>)は
+/// 記事・イベント・書籍のタグは、まずここに全部入る。語彙(<see cref="Topic"/>)は
 /// ここから精査で昇格したものだけで、両者を分けているのは<b>別物だから</b> ——
 /// 以前は同じテーブルに同居していて、状態を列にできず「行の有無 × カタログに載っているか ×
 /// 分類記録の種別」から導出していた。
@@ -74,7 +74,7 @@ public class Tag
 
     /// <summary>
     /// <see cref="TagStatus.Unresolved"/> をもう一度聞いてよくなる時刻。
-    /// **期限を列に持つ**ことで、「7 日」の計算が読む側から消える。
+    /// 期限を列に持つことで、「7 日」の計算が読む側から消える。
     /// </summary>
     public DateTimeOffset? RetryAfter { get; set; }
 

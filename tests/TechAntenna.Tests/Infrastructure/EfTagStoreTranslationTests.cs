@@ -4,10 +4,10 @@ using TechAntenna.Infrastructure.Persistence;
 namespace TechAntenna.Tests.Infrastructure;
 
 /// <summary>
-/// タグの仕分け対象を選ぶ問い合わせが SQL に翻訳できるかを、**DB につながずに**確かめる
+/// タグの仕分け対象を選ぶ問い合わせが SQL に翻訳できるかを、DB につながずに確かめる
 /// (<c>ToQueryString</c> は接続を開かない。<see cref="EfEventStoreTranslationTests"/> と同じ流儀)。
 ///
-/// **件数の条件は計算プロパティ(<c>Tag.TotalCount</c>)では書けない。** 書くと
+/// 件数の条件は計算プロパティ(<c>Tag.TotalCount</c>)では書けない。書くと
 /// 「The LINQ expression could not be translated」で仕分けのボタンが落ちる —— InMemory の
 /// ストアでは通るので、実 DB につなぐまで気づけない型の失敗。ここで見張っておく。
 /// </summary>

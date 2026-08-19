@@ -10,7 +10,7 @@
 @inject ApiCredentials Credentials
 @inject TimeProvider Clock
 
-@* 興味トピックのイベント。**上がカレンダー(いつ何があるか)、下が一覧(何があるか)**。
+@* 興味トピックのイベント。上がカレンダー(いつ何があるか)、下が一覧(何があるか)。
    予定を入れるには日付の並びが要り、拾い読みには一覧が要るので両方置いてある。
 
    月の移動(?month=2026-09)と並び順(?sort=popular)はどちらもリンクなので、
@@ -22,8 +22,8 @@
 
 <CollectionHint Job="イベントの収集" />
 
-@* **読み込みが終わるまでは何も組み立てない。** ComponentBase は
-   `OnInitializedAsync` が同期で終わらないと、待っているあいだに**一度描画する** ——
+@* 読み込みが終わるまでは何も組み立てない。ComponentBase は
+   `OnInitializedAsync` が同期で終わらないと、待っているあいだに一度描画する ——
    DB につないだ本番ではここでカレンダーがまだ null で、素通しにすると
    NullReferenceException で画面ごと落ちる(InMemory のストアは同期に完了するので
    手元では出ない)。他の一覧ページと同じ「読み込み中…」の作りにそろえてある *@
@@ -61,7 +61,7 @@ else
                 <div class="calendar-cell @(day.InMonth ? "" : "outside") @(day.IsToday ? "today" : "")"
                      role="gridcell">
                     <div class="calendar-date">@day.Date.Day</div>
-                    @* **1マスに出すのは数件まで。** 多い日をそのまま積むと、その週の行だけが
+                    @* 1マスに出すのは数件まで。多い日をそのまま積むと、その週の行だけが
                        縦に伸びてカレンダーの形が崩れる(残りは件数で示して一覧に任せる) *@
                     @foreach (var techEvent in day.Events.Take(MaxPerCell))
                     {
@@ -85,7 +85,7 @@ else
 </section>
 
 @* --- 一覧 --- *@
-@* **並びは開催日順が既定。** イベントは日付が主軸で、注目度順にすると来月の大きな
+@* 並びは開催日順が既定。イベントは日付が主軸で、注目度順にすると来月の大きな
    イベントが先頭に来て明日の予定を見落とすため。それでも「規模の大きいものから拾う」
    見方は要るのでタブで切り替える(記事一覧の新着順/話題度順と同じ流儀) *@
 <nav class="view-switch" aria-label="並び順の切り替え">
@@ -155,7 +155,7 @@ else
     IReadOnlyList<TechEvent>? _events;
 
     /// <summary>
-    /// 読み込みが終わるまで null。**null 許容のまま持つ**のが要点 ——
+    /// 読み込みが終わるまで null。null 許容のまま持つのが要点 ——
     /// `default!` で「必ずある」ことにすると、読み込み中の描画で落ちても
     /// コンパイラが教えてくれない(実際にそれで本番だけ 500 になった)。
     /// </summary>
@@ -185,18 +185,18 @@ else
             .ToHashSet(StringComparer.Ordinal);
 
         var now = Clock.GetUtcNow();
-        // 月の既定は**日本時間の今月**(UTC で数えると月初の朝 9 時までは前の月になる)
+        // 月の既定は日本時間の今月(UTC で数えると月初の朝 9 時までは前の月になる)
         var (year, month) = EventCalendar.TryParseKey(Month, out var y, out var m)
             ? (y, m)
             : (JapanTime.To(now).Year, JapanTime.To(now).Month);
 
-        // カレンダーは**はみ出したマスの分まで**読む(前後の月の頭・末が空に見えないように)
+        // カレンダーははみ出したマスの分まで読む(前後の月の頭・末が空に見えないように)
         var (gridFrom, gridTo) = EventCalendar.GridRange(year, month);
         var inGrid = Selected(await EventStore.GetInRangeAsync(gridFrom, gridTo, CalendarLimit));
         _calendar = EventCalendar.Build(year, month, inGrid, now);
 
         // 一覧は「月を指定していればその月、していなければこれから開催されるもの」。
-        // **月を指定したときだけ過去も出す** —— カレンダーで前の月を開いたのに
+        // 月を指定したときだけ過去も出す —— カレンダーで前の月を開いたのに
         // 一覧が未来のままだと、上下で別のものを見ていることになる
         var events = Month is null
             ? Selected(await EventStore.GetUpcomingAsync(now, Limit))
@@ -207,7 +207,7 @@ else
 
     /// <summary>
     /// 選んだトピック(配下込み)のイベントだけにする。
-    /// **購読・面掃きで入ったものは通す**(<c>PickedBy</c>)—— 検索語で見つけたのではないので
+    /// 購読・面掃きで入ったものは通す(<c>PickedBy</c>)—— 検索語で見つけたのではないので
     /// 選んだトピックのタグを持っておらず、ここで落とすと経路ごと無効になる
     /// (収集側の <c>EventCollectionRunner</c> と同じ規則)。
     /// </summary>
@@ -226,13 +226,13 @@ else
 
     bool IsOfficial(TechEvent techEvent) => _official.IsOfficial(techEvent.Organizer);
 
-    /// <summary>月を移すリンク。**並び順は保つ**(月を送るたびに並びが戻ると読みにくい)。</summary>
+    /// <summary>月を移すリンク。並び順は保つ(月を送るたびに並びが戻ると読みにくい)。</summary>
     string MonthHref(string monthKey) =>
         IsPopular
             ? $"/interests/events?month={monthKey}&sort=popular"
             : $"/interests/events?month={monthKey}";
 
-    /// <summary>並びを切り替えるリンク。**見ている月は保つ**(同じ理由)。</summary>
+    /// <summary>並びを切り替えるリンク。見ている月は保つ(同じ理由)。</summary>
     string SortHref(string? sort)
     {
         var query = new List<string>();

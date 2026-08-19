@@ -6,7 +6,7 @@ using TechAntenna.Web.Services;
 namespace TechAntenna.Tests.Web;
 
 /// <summary>
-/// 収集元1つ1つのオン/オフ。**既定は有効**で、止めたものだけを保存する ——
+/// 収集元1つ1つのオン/オフ。既定は有効で、止めたものだけを保存する ——
 /// 面掃き(<see cref="SweepSettings"/>)とは既定が逆。収集元は普通に使うものなので、
 /// 既定を無効にすると新しい収集元を足すたびに「入れたのに集まらない」が起きる。
 /// </summary>
@@ -48,7 +48,7 @@ public class SourceTogglesTests
     public async Task 同じ名前でも役割が違えば別の収集元()
     {
         // `Qiita` は推薦本(定番の書籍)と話題度(トピック)の両方にある。
-        // **名前だけを鍵にすると、片方を止めたときにもう片方まで止まる**
+        // 名前だけを鍵にすると、片方を止めたときにもう片方まで止まる
         var toggles = new SourceToggles(Credentials());
 
         await toggles.SetAsync(SourceToggles.KeyOf(SourceToggles.Trend, "Qiita"), enabled: false);

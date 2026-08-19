@@ -4,12 +4,12 @@ using TechAntenna.Core.Models;
 namespace TechAntenna.Tests.Core;
 
 /// <summary>
-/// 公式の名簿 → 購読の名簿の橋渡し。**外部へ問い合わせずに識別子を起こす**のが要点なので、
+/// 公式の名簿 → 購読の名簿の橋渡し。外部へ問い合わせずに識別子を起こすのが要点なので、
 /// 「URL から正しく起こせるか」「起こせないものを候補にしないか」を見張る。
 /// </summary>
 public class FollowSuggestionsTests
 {
-    // **名簿は英語表記と日本語表記を別の行で持つ**(初期値と同じ流儀)——
+    // 名簿は英語表記と日本語表記を別の行で持つ(初期値と同じ流儀)——
     // 「Microsoft」の部分一致では「日本マイクロソフト株式会社」に当たらない
     static readonly OfficialOrganizers Official =
         OfficialOrganizers.Parse("Microsoft\nマイクロソフト\nGoogle");
@@ -74,7 +74,7 @@ public class FollowSuggestionsTests
     [Fact]
     public void 同じグループに複数の主催者名があれば件数を足す()
     {
-        // 表記ゆれ・部署違いで主催者名が割れることがある。**表示名は件数の多かったほう**
+        // 表記ゆれ・部署違いで主催者名が割れることがある。表示名は件数の多かったほう
         var suggestions = FollowSuggestions.From(
             [
                 Group("Microsoft", "https://msdevjp.connpass.com/event/1/", count: 2),

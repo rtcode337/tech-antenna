@@ -11,7 +11,7 @@ public record TopicClassification(
 /// LLM が返した分類(<see cref="TopicClassifierVerdict"/>)を検証して、
 /// タグの仕分け(<see cref="TagDecision"/>)と新トピックに直す。
 ///
-/// **LLM の応答は信じすぎない**のがここの仕事:
+/// LLM の応答は信じすぎないのがここの仕事:
 /// 存在しないトピックへの寄せ・自分自身への寄せ・実在しない親は捨てる。
 /// 捨てた語は <see cref="TagStatus.Unresolved"/> として期限付きで保留する ——
 /// 捨てて何も残さないと毎回同じ語を聞き直して LLM の枠を無駄にする。
@@ -139,7 +139,7 @@ public static class TopicClassificationValidator
 
             default:
                 // unknown(語を知らない・新しすぎる)・未知の kind・必須値の欠けは、
-                // **期限付きの保留にする**。保存しないと毎回同じ語を聞き直して枠を無駄にし、
+                // 期限付きの保留にする。保存しないと毎回同じ語を聞き直して枠を無駄にし、
                 // 無期限に確定させると、まさにツリーに入れたい新語を取り逃す
                 return Unresolved(tag, decidedAt, retryDays);
         }

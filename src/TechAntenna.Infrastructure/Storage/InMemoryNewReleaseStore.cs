@@ -19,7 +19,7 @@ public class InMemoryNewReleaseStore : INewReleaseStore
             var added = 0;
             foreach (var release in releases)
             {
-                // **既にある行は上書きする**(同じ窓を毎回引き直す観測の表なので、
+                // 既にある行は上書きする(同じ窓を毎回引き直す観測の表なので、
                 // 正規化の規則を変えたら次の収集で揃ってほしい)
                 if (!_byUrl.ContainsKey(release.Url))
                 {

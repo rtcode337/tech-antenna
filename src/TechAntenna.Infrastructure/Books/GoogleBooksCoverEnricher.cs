@@ -8,18 +8,18 @@ namespace TechAntenna.Infrastructure.Books;
 /// <summary>
 /// 書影が欠けている本を、Google Books に ISBN で引いて埋める。
 ///
-/// **openBD は技術書の書影をほとんど持っていない**(実測: リーダブルコード・達人プログラマー・
+/// openBD は技術書の書影をほとんど持っていない(実測: リーダブルコード・達人プログラマー・
 /// リファクタリング・SQL アンチパターン等 10 冊すべて `cover` が空)。記事から ISBN だけを拾う
 /// 定番の書籍はそこが唯一の補完先だったので、表紙の出ない一覧になっていた。
 /// 興味トピックの書籍に表紙が出るのは、あちらが Google Books の検索結果
 /// (`imageLinks`)から来ているため —— つまり Google Books は同じ本の書影を持っている。
 ///
-/// **引くのは書影が無い本だけ。** 楽天ブックスが先に埋めていれば(そちらは
+/// 引くのは書影が無い本だけ。楽天ブックスが先に埋めていれば(そちらは
 /// レビューと同じ応答に入っているので追加コストが無い)ここでは何も起きない。
 ///
-/// **ISBN の一括指定はできない**ので 1 冊 1 リクエスト。無料枠は 1 日 1,000 リクエストなので、
+/// ISBN の一括指定はできないので 1 冊 1 リクエスト。無料枠は 1 日 1,000 リクエストなので、
 /// 同じ本を毎回引かないことが要点 —— 収集側が保存済みの書影を引き継いでから渡してくる
-/// (<c>ClassicsCollectionRunner</c>)。**冊数の上限は設けない** ——
+/// (<c>ClassicsCollectionRunner</c>)。冊数の上限は設けない ——
 /// 上限で切ると「何冊ぶん諦めたか」が画面にも残らないまま、いつまでも埋まらない本が出る。
 /// </summary>
 public class GoogleBooksCoverEnricher(
@@ -39,7 +39,7 @@ public class GoogleBooksCoverEnricher(
     /// </summary>
     const int MaxConsecutiveFailures = 5;
 
-    /// <summary>1日あたりの枠に達した(429 / 403)。**残りは諦めるが、取れたぶんは返す**。</summary>
+    /// <summary>1日あたりの枠に達した(429 / 403)。残りは諦めるが、取れたぶんは返す。</summary>
     sealed class QuotaReachedException(string message) : Exception(message);
 
     public string Name => "Google Books(書影)";
@@ -48,12 +48,12 @@ public class GoogleBooksCoverEnricher(
         IReadOnlyList<Book> books, CancellationToken cancellationToken = default)
     {
         // キーは画面から設定できるので、起動時ではなく実行のたびに解決する。
-        // **キーが無いなら問い合わせない** —— キー無しのリクエストは共有の匿名プロジェクト扱いで
+        // キーが無いなら問い合わせない —— キー無しのリクエストは共有の匿名プロジェクト扱いで
         // 1 日あたりの上限が 0 なので、1 冊目から 429 になるだけ
         var apiKey = apiKeyProvider();
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            // **黙って素通りしない。** 収集は成功として終わるので、ログに出さないと
+            // 黙って素通りしない。収集は成功として終わるので、ログに出さないと
             // 「補完したのに埋まらなかった」のか「そもそも問い合わせていない」のかが分からない
             logger.LogWarning(
                 "Google Books の API キーが未設定のため、書影の補完をしません"
@@ -97,8 +97,8 @@ public class GoogleBooksCoverEnricher(
             }
             catch (QuotaReachedException ex)
             {
-                // **ここまでに取れた書影は捨てない。** 投げて抜けると呼び出し側は補完前の本を
-                // 保存するので、数百リクエストぶんの結果が毎回消えて**いつまでも埋まらない**
+                // ここまでに取れた書影は捨てない。投げて抜けると呼び出し側は補完前の本を
+                // 保存するので、数百リクエストぶんの結果が毎回消えていつまでも埋まらない
                 // (860 冊 > 1 日 1,000 の枠なので、枠切れは必ず途中で起きる)
                 logger.LogWarning(
                     "{Filled}/{Count} 冊まで埋めたところで Google Books の枠に達した({Reason})。"
@@ -142,7 +142,7 @@ public class GoogleBooksCoverEnricher(
             + $"&key={Uri.EscapeDataString(apiKey)}";
 
         using var response = await client.GetAsync(requestUri, cancellationToken);
-        // **枠切れは 429 だけではない。** Google の API は 1 日あたりの上限を
+        // 枠切れは 429 だけではない。Google の API は 1 日あたりの上限を
         // `403 dailyLimitExceeded` で返すことがある(429 は短時間に送りすぎたとき)。
         // どちらも「叩き続けても同じものが並ぶだけ」なので、残りは諦める
         if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Forbidden)

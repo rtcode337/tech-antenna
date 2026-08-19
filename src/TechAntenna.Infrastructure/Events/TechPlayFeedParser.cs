@@ -6,7 +6,7 @@ namespace TechAntenna.Infrastructure.Events;
 
 /// <summary>TECH PLAY の RSS から取り出した1イベント。カテゴリは未正規化のまま返す。</summary>
 /// <param name="Organizer">
-/// 主催者(<c>dc:creator</c>)。**RSS の標準要素ではなく Dublin Core の要素**に入っている ——
+/// 主催者(<c>dc:creator</c>)。RSS の標準要素ではなく Dublin Core の要素に入っている ——
 /// tp: の独自要素ばかり見ていて見落としていた(実測では 50 件すべてに入っており、
 /// 「Ascent Business Consulting株式会社」のように企業名がそのまま来る)。
 /// 「公式のイベントか」の判定材料になる。

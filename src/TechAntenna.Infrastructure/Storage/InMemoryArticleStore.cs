@@ -51,7 +51,7 @@ public class InMemoryArticleStore : IArticleStore
         {
             IReadOnlyList<Article> result = _byUrl.Values
                 // 論文は本文を取り込んでいないので要約しない
-                // 論文は**要旨(ContentSnippet)がある分だけ**要約する —— 以前は材料が無くて
+                // 論文は要旨(ContentSnippet)がある分だけ要約する —— 以前は材料が無くて
                 // 一律に対象外だったが、arXiv のメタデータ(CC0)を取り込むようになった
                 .Where(a => a.Summary is null && (!a.Kind.IsPaper() || a.ContentSnippet is not null))
                 .OrderByDescending(a => a.PublishedAt ?? a.CollectedAt)

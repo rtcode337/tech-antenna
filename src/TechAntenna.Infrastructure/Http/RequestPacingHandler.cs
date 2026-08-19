@@ -1,12 +1,12 @@
 namespace TechAntenna.Infrastructure.Http;
 
 /// <summary>
-/// **その HttpClient から出る要求の間隔を強制する。**
+/// その HttpClient から出る要求の間隔を強制する。
 ///
-/// 収集元の側で `Task.Delay` を挟む書き方だと、**呼び出す場所が増えたときに守られなくなる**
+/// 収集元の側で `Task.Delay` を挟む書き方だと、呼び出す場所が増えたときに守られなくなる
 /// —— connpass は「キーワード検索」「グループの購読」「サブドメインの引き直し」「面掃き」の
 /// 4 経路が同じ相手を叩いていて、それぞれが自分のぶんの待ちしか知らない。
-/// **ここに置けば、同じ名前付き HttpClient を使う限りどの経路からでも守られる。**
+/// ここに置けば、同じ名前付き HttpClient を使う限りどの経路からでも守られる。
 ///
 /// <b>connpass の API 利用申請のページには「5 秒に 1 リクエストを超えないよう」とある。</b>
 /// 相手のお願いなので、こちらの都合(何ページ読みたいか)で破らない。
@@ -34,7 +34,7 @@ public sealed class RequestPacingHandler(TimeSpan minInterval, TimeProvider cloc
                     await Task.Delay(wait, clock, cancellationToken);
                 }
 
-                // **送る直前を起点にする。** 応答が返った時刻を起点にすると、
+                // 送る直前を起点にする。応答が返った時刻を起点にすると、
                 // 遅い応答のぶんだけ間隔が伸びて全体が必要以上に遅くなる
                 _last = clock.GetUtcNow();
             }

@@ -49,7 +49,7 @@ public class ConnpassEventSource(
 
     /// <summary>キーワードを1つ検索してから次に移るまでの待ち時間。</summary>
     /// <summary>
-    /// キーワードの間に空ける時間。**実際の間隔は HttpClient の層が守る**
+    /// キーワードの間に空ける時間。実際の間隔は HttpClient の層が守る
     /// (`RequestPacingHandler`。connpass は 5 秒に 1 リクエスト)——
     /// ここの既定を同じ値にしてあるのは、設定を読んだ人が別の数を期待しないため。
     /// </summary>
@@ -85,7 +85,7 @@ public class ConnpassEventSource(
         // キーワードごとに問い合わせて検索キーワードをタグにする
         var byUrl = new Dictionary<Uri, TechEvent>();
 
-        // 選択されたトピックがあればそれを検索語にする(**正式表記のほう** —— 検索語に
+        // 選択されたトピックがあればそれを検索語にする(正式表記のほう —— 検索語に
         // 正規化で崩れたキー `生成ai` を投げても当たらない)。未設定なら設定ファイルの keywords
         var activeKeywords = topicStore is null
             ? keywords
@@ -112,7 +112,7 @@ public class ConnpassEventSource(
         // --- 2) 購読しているシリーズを ID で引く ---
         foreach (var group in followed)
         {
-            // **解決や取得に失敗したら黙って飛ばす**(名簿の1行の打ち間違いで収集全体を止めない)。
+            // 解決や取得に失敗したら黙って飛ばす(名簿の1行の打ち間違いで収集全体を止めない)。
             // 名簿が正しいかは設定画面で見て直せる
             string json;
             try
@@ -135,7 +135,7 @@ public class ConnpassEventSource(
 
             foreach (var entry in ConnpassResponseParser.Parse(json))
             {
-                // **検索語が無いので、タグになるのはハッシュタグだけ。**
+                // 検索語が無いので、タグになるのはハッシュタグだけ。
                 // グループの表示名をタグにはしない —— イベント名が語彙に流れ込むと、
                 // タグの一覧と LLM の仕分けが「その回限りの固有名詞」で埋まる
                 Merge(entry, collectedAt, byUrl, [], pickedBy: group.Label);
@@ -208,7 +208,7 @@ public class ConnpassEventSource(
         if (byUrl.TryGetValue(entry.Url, out var existing))
         {
             // 別のキーワードでも見つかったイベントは、タグを足す。
-            // **購読で見つけた印は消さない**(検索でも当たったからといって、
+            // 購読で見つけた印は消さない(検索でも当たったからといって、
             // 「購読しているから載っている」という説明が嘘になるわけではない)
             byUrl[entry.Url] = WithTags(existing, [.. existing.RawTags, .. rawTags], existing.PickedBy ?? pickedBy);
 
@@ -236,7 +236,7 @@ public class ConnpassEventSource(
         };
     }
 
-    // 受け取るのは**生のタグ**。正規化をここ 1 か所でだけ行い、RawTags と Tags がずれないようにする
+    // 受け取るのは生のタグ。正規化をここ 1 か所でだけ行い、RawTags と Tags がずれないようにする
     TechEvent WithTags(TechEvent source, IEnumerable<string> rawTags, string? pickedBy)
     {
         var raw = rawTags.Distinct(StringComparer.OrdinalIgnoreCase).ToList();

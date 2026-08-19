@@ -9,27 +9,27 @@ namespace TechAntenna.Web.Services;
 
 /// <summary>
 /// LLM を使う機能(要約・翻訳・語彙の仕分け・今日のサマリー)の実装を、
-/// **実行のたびにキーの状態から選ぶ**。かつては起動時に環境変数を見て DI 登録を
+/// 実行のたびにキーの状態から選ぶ。かつては起動時に環境変数を見て DI 登録を
 /// 分岐していたが、それだと画面からキーを設定しても再起動するまで効かない。
 ///
-/// **画面(設定 → 外部連携の一番上)で選んだメインに従う。** 選べるのは Chiezo の相手と、
+/// 画面(設定 → 外部連携の一番上)で選んだメインに従う。選べるのは Chiezo の相手と、
 /// Claude Code(サブスクの枠)・Anthropic API(従量課金)の3種類。
-/// **選んでいない(または選んだ相手のキーが消えた)ときは従来の優先順** ——
+/// 選んでいない(または選んだ相手のキーが消えた)ときは従来の優先順 ——
 /// Claude Code のトークン > Anthropic API キー > どれも無ければ null
 /// (ボタンは disabled で出る)。
 ///
 /// かつては「Chiezo にメインを選んだかどうか」で経路が決まり、選ばないときだけ上の
-/// 優先順に落ちていた。そのため**キーを両方入れてある環境で Anthropic API を選ぶ手段が
-/// 無かった**(トークンを消すしかなかった)ので、2つも選択肢として並べてある。
+/// 優先順に落ちていた。そのためキーを両方入れてある環境で Anthropic API を選ぶ手段が
+/// 無かった(トークンを消すしかなかった)ので、2つも選択肢として並べてある。
 ///
-/// **サブは Chiezo の相手だけ**(読み比べのための経路)。メインが Claude Code や
+/// サブは Chiezo の相手だけ(読み比べのための経路)。メインが Claude Code や
 /// Anthropic API でも、Chiezo のサブは今日のサマリーに並ぶ。
 ///
 /// 組み立ては <see cref="ApiCredentials.Version"/> が変わったときだけ ——
 /// キーが変わらない限り同じインスタンスを返し続ける(Anthropic のクライアントや
 /// ブリッジのクライアントを呼び出しごとに作り直さない)。
 ///
-/// **Claude Code の CLI はこのイメージに同梱**してあり、プロセスとして起動する
+/// Claude Code の CLI はこのイメージに同梱してあり、プロセスとして起動する
 /// (<see cref="ClaudeCodeCliBridge"/>)。画面で入れたトークンは<b>子プロセスの環境変数</b>
 /// として渡す(<c>SystemProcessRunner</c> の環境提供。このプロセス自身の環境変数は変えない)。
 /// かつては別コンテナのブリッジへ HTTP で頼み、認証情報を共有ディレクトリの設定 DB 経由で
@@ -44,14 +44,14 @@ public class LlmGateway(
     TimeProvider timeProvider)
 {
     /// <summary>
-    /// Claude Code のトークンの設定キー。**CLI が読む環境変数と同じ名前**にしてある ——
+    /// Claude Code のトークンの設定キー。CLI が読む環境変数と同じ名前にしてある ——
     /// 画面の説明とブリッジ側のフォールバック(<c>CLAUDE_CODE_OAUTH_TOKEN</c>)で
     /// 同じ言葉を使えるようにするため。
     /// </summary>
     public const string ClaudeCodeTokenName = "CLAUDE_CODE_OAUTH_TOKEN";
 
     /// <summary>
-    /// Chiezo を使っていないときの生成者のキー。**相手を選べない経路はこれ 1 つ**
+    /// Chiezo を使っていないときの生成者のキー。相手を選べない経路はこれ 1 つ
     /// (Claude Code / Anthropic API のどちらでも、同時に走るのは 1 本)。
     /// </summary>
     public const string DefaultGeneratorKey = "default";
@@ -85,7 +85,7 @@ public class LlmGateway(
     public virtual IDigestComposer? DigestComposer => Current().DigestComposer;
 
     /// <summary>
-    /// 今日のサマリーを書かせる相手(**メインが先頭**)。Chiezo でサブを選んでいれば、
+    /// 今日のサマリーを書かせる相手(メインが先頭)。Chiezo でサブを選んでいれば、
     /// その相手ぶんも並ぶ —— ホームで読み比べるため。
     /// </summary>
     public virtual IReadOnlyList<DigestGenerator> DigestGenerators => Current().DigestGenerators;
@@ -125,7 +125,7 @@ public class LlmGateway(
         var apiKey = credentials.Get(AnthropicApiKeyName);
         var client = chiezo.Client();
 
-        // **画面で選んだメインに従う。** 選んだ相手のキーが無い(消した)ときは下の優先順へ落ちる
+        // 画面で選んだメインに従う。選んだ相手のキーが無い(消した)ときは下の優先順へ落ちる
         switch (config.Main)
         {
             case { } main when main.Backend == AiSettings.ClaudeCodeBackend && token is not null:
@@ -163,7 +163,7 @@ public class LlmGateway(
             TimeSpan.FromSeconds(options.TimeoutSeconds));
 
     /// <summary>
-    /// <see cref="ICliBridge"/> 越しの実装(同梱の CLI と Chiezo は**同じ口**なので、
+    /// <see cref="ICliBridge"/> 越しの実装(同梱の CLI と Chiezo は同じ口なので、
     /// <c>ICliBridge</c> の実装を差し替えるだけで同じ組み立てが使える)。
     /// </summary>
     Built FromBridge(
@@ -200,7 +200,7 @@ public class LlmGateway(
     }
 
     /// <summary>
-    /// 今日のサマリーを書かせる相手(**メインが先頭**)。**サブは Chiezo の相手だけ** ——
+    /// 今日のサマリーを書かせる相手(メインが先頭)。サブは Chiezo の相手だけ ——
     /// 読み比べのための経路で、Chiezo でなければ相手を名指しできない。
     /// メインと同じキーになるサブは落とす(同じ相手に2回書かせても比べる意味が無い)。
     /// </summary>

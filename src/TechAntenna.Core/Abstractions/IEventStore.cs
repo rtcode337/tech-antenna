@@ -9,7 +9,7 @@ public interface IEventStore
 {
     /// <summary>
     /// イベントを追加する。URL が既存と重複するものは書誌にあたる情報を上書きせず、
-    /// **主催者と参加者数だけ取り込む**(参加者数は開催が近づくほど増えるため)。
+    /// 主催者と参加者数だけ取り込む(参加者数は開催が近づくほど増えるため)。
     /// 返すのは実際に追加した件数。
     /// </summary>
     Task<int> AddRangeAsync(IEnumerable<TechEvent> events, CancellationToken cancellationToken = default);

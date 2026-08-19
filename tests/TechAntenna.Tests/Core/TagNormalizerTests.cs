@@ -48,7 +48,7 @@ public class TagNormalizerTests
     [Fact]
     public void 語の途中の制御文字を落とす()
     {
-        // `Trim()` が消すのは前後だけ。**途中**に改行が残ると、そのキーが DB・画面・
+        // `Trim()` が消すのは前後だけ。途中に改行が残ると、そのキーが DB・画面・
         // ログへ流れる(ログでは偽の行を差し込める = ログの偽装)
         Assert.Equal(["生成ai"], TagNormalizer.Normalize(["生成\nAI"]));
         Assert.Equal(["ai"], TagNormalizer.Normalize(["A\tI"]));
@@ -59,7 +59,7 @@ public class TagNormalizerTests
     [Fact]
     public void カンマ入りのタグ名は語ごとに分ける()
     {
-        // **収集元のタグ名にカンマが入っていることが実際にある** —— 実測で Qiita の直近
+        // 収集元のタグ名にカンマが入っていることが実際にある —— 実測で Qiita の直近
         // 100 記事のタグ 346 個のうち 3 個が `SEOツール,` のような形だった。
         // 落とすだけだと `a,b` が `ab` という別の語になるので、区切りとして分ける
         Assert.Equal(["seoツール"], TagNormalizer.Normalize(["SEOツール,"]));
@@ -76,11 +76,11 @@ public class TagNormalizerTests
         // 落とさないと同じ話題が `生成ai` と `#生成ai` に割れる
         Assert.Equal(["生成ai"], TagNormalizer.Normalize(["#生成AI"]));
         Assert.Equal(["プログラミング"], TagNormalizer.Normalize(["#プログラミング"]));
-        // Markdown の強調が漏れたタグ名(実測: `**Video`・`Transcript**`)
+        // Markdown の強調が漏れたタグ名(実測: `Video`・`Transcript`)
         Assert.Equal(["video", "transcript"], TagNormalizer.Normalize(["**Video", "Transcript**"]));
         // 記号だけのタグは何も残らない
         Assert.Empty(TagNormalizer.Normalize(["#", "*", "。"]));
-        // **語の中・末尾の記号は残す** —— 落とすと別の語と衝突する
+        // 語の中・末尾の記号は残す —— 落とすと別の語と衝突する
         Assert.Equal(["c#", "c++", ".net", "next.js"], TagNormalizer.Normalize(["C#", "C++", ".NET", "Next.js"]));
     }
 

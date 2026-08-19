@@ -5,7 +5,7 @@ namespace TechAntenna.Core.Topics;
 /// </summary>
 /// <param name="Display">画面に出す正式表記(`生成AI`)。検索語として外部 API へ投げるのもこれ。</param>
 /// <param name="Aliases">同じものを指す別の書き方(`人工知能`・`generative ai`)。突き合わせのときに正式表記へ寄せる。</param>
-/// <param name="Parent">1つ上の粒度(`LLM` の親は `生成AI`)。**統合はしない** —— まとめると上位の語だけが巨大化するため。</param>
+/// <param name="Parent">1つ上の粒度(`LLM` の親は `生成AI`)。統合はしない —— まとめると上位の語だけが巨大化するため。</param>
 /// <param name="Description">
 /// 用語の一言説明(1〜2文)。見慣れない語が一覧に並んだときに、開かなくても何の話か分かるように持つ。
 /// JSON に書けば人の記述が使われ、無ければ LLM が仕分けのときに埋める。
@@ -26,12 +26,12 @@ public record TopicCatalogEntry(
 }
 
 /// <summary>
-/// トピックの語彙と別名の対応表。**読み取り用のスナップショット**で、
+/// トピックの語彙と別名の対応表。読み取り用のスナップショットで、
 /// 権威は DB(<see cref="Topic"/> と <see cref="Tag"/>)にある ——
 /// 起動時と整備のあとに <see cref="Replace"/> で組み直す。
 ///
 /// <see cref="TagNormalizer"/> が潰すのは機械的な表記ゆれだけなので、
-/// 「ai と 人工知能」のような**同義語をまとめるのはこちらの仕事**
+/// 「ai と 人工知能」のような同義語をまとめるのはこちらの仕事
 /// (別名は <see cref="TagStatus.Alias"/> のタグから組む)。
 ///
 /// インスタンスは DI で各収集ソースに配られた後も同じ参照のまま差し替わる
@@ -86,7 +86,7 @@ public class TopicCatalog
     }
 
     /// <summary>
-    /// エントリの親を突き合わせキーに直す。**別名で書かれていても正式表記へ寄せる** ——
+    /// エントリの親を突き合わせキーに直す。別名で書かれていても正式表記へ寄せる ——
     /// 寄せないと(JSON に <c>parent: 人工知能</c> と書いたときなど)実在しないキーを指し、
     /// ツリーで親を見失って根として孤立する。
     /// </summary>
@@ -105,7 +105,7 @@ public class TopicCatalog
     public IReadOnlyList<TopicCatalogEntry> Entries => _snapshot.Entries;
 
     /// <summary>
-    /// キーが<b>トピック本体</b>(カタログの正式表記)か。**別名は含まない** ——
+    /// キーが<b>トピック本体</b>(カタログの正式表記)か。別名は含まない ——
     /// 一覧に出すのは正式表記の行だけで、別名の行は正式表記に吸収された重複だから
     /// (<see cref="Contains"/> は別名も true になるので、この用途には使えない)。
     /// </summary>
@@ -119,7 +119,7 @@ public class TopicCatalog
     }
 
     /// <summary>
-    /// 中身を丸ごと差し替える。**語彙の権威は DB 側**にあり、ここは読み取り用の
+    /// 中身を丸ごと差し替える。語彙の権威は DB 側にあり、ここは読み取り用の
     /// スナップショット —— 起動時と整備のあとに、DB から組み直して入れ替える。
     /// (以前は JSON に LLM の分類を合成していたが、DB を実体にしたので合成は要らなくなった)
     /// </summary>
@@ -127,7 +127,7 @@ public class TopicCatalog
 
     /// <summary>
     /// キーに登録されている別名。カタログに無いキーは空。
-    /// **検索で「類義語も含めて当てる」ために要る** —— `人工知能` で引いて `AI` に当てたい。
+    /// 検索で「類義語も含めて当てる」ために要る —— `人工知能` で引いて `AI` に当てたい。
     /// </summary>
     public IReadOnlyList<string> AliasesOf(string key) =>
         _snapshot.ByKey.TryGetValue(key, out var entry) ? entry.Aliases : [];
@@ -141,7 +141,7 @@ public class TopicCatalog
 
     /// <summary>
     /// タグ1つを、カタログの正式表記のキーに寄せる。
-    /// **カタログに無い語は落とさず、機械的に正規化しただけの値を返す** ——
+    /// カタログに無い語は落とさず、機械的に正規化しただけの値を返す ——
     /// 落とすと新しいトピックが永久に入ってこなくなるため。
     /// </summary>
     public string Resolve(string tag)
@@ -163,13 +163,13 @@ public class TopicCatalog
     }
 
     /// <summary>
-    /// テキストに出てくるトピックを、カタログの**正式表記**で返す(`RawTags` にそのまま入れられる)。
+    /// テキストに出てくるトピックを、カタログの正式表記で返す(`RawTags` にそのまま入れられる)。
     ///
-    /// **フィードがタグを持たない収集元のためのタグ付け。** Zenn の RSS も Qiita の Atom も
+    /// フィードがタグを持たない収集元のためのタグ付け。Zenn の RSS も Qiita の Atom も
     /// `category` 要素を持たず、ニュースサイトも同様なので、収集元のタグだけに頼ると
     /// タグが空のまま保存され、トピック横断にも一覧の強調にも乗らない。
     ///
-    /// 渡すのは**タイトルだけ**にすること。本文まで見ると、文中で一度触れただけの語で
+    /// 渡すのはタイトルだけにすること。本文まで見ると、文中で一度触れただけの語で
     /// タグが付いてしまう(Doorkeeper の `q` が説明文に当たって意味を失ったのと同じ)。
     /// 判定は <see cref="KeywordMatcher"/> なので、`AI` が `Rails`・`email` には当たらない。
     /// </summary>
@@ -177,7 +177,7 @@ public class TopicCatalog
         string.IsNullOrWhiteSpace(text)
             ? []
             : Entries
-                // **英語表記(English)でも当てる。** 話題の論文(HF Daily Papers)のタイトルは
+                // 英語表記(English)でも当てる。話題の論文(HF Daily Papers)のタイトルは
                 // 全部英語で、正式表記と別名だけだと実測 50 件中 3 件にしかタグが付かなかった
                 // —— LLM が付けた英語表記は Aliases ではなく English に入るため
                 .Where(entry => entry.Aliases.Prepend(entry.Display)
@@ -191,8 +191,8 @@ public class TopicCatalog
         _snapshot.ByKey.TryGetValue(key, out var entry) ? entry.Display : key;
 
     /// <summary>
-    /// 英語圏の収集元へ投げる検索語。**英語表記があればそれを、無ければ ASCII だけの別名、
-    /// それも無ければ正式表記**を返す(`生成AI` → `generative ai`)。
+    /// 英語圏の収集元へ投げる検索語。英語表記があればそれを、無ければ ASCII だけの別名、
+    /// それも無ければ正式表記を返す(`生成AI` → `generative ai`)。
     ///
     /// arXiv のような英語の収集元に日本語の正式表記をそのまま投げると 0 件になる
     /// —— 実測で `生成AI` は 0 件だった。
@@ -218,7 +218,7 @@ public class TopicCatalog
     /// トピック1件の<b>語彙としての姿</b>(同義語と親子ツリー上の位置)を組む。トピック詳細で使う。
     ///
     /// 引数は正式表記のキーでも別名でも、正規化前の表記でもよい(内部で寄せる)。
-    /// **カタログに無い語でも null は返さない** —— まだ分類されていないタグ(平置きの語)にも
+    /// カタログに無い語でも null は返さない —— まだ分類されていないタグ(平置きの語)にも
     /// 詳細ページはあるので、同義語も親子も空の姿を返して「載っていない」と示す。
     /// </summary>
     public TopicStructure StructureOf(string tag)
@@ -232,7 +232,7 @@ public class TopicCatalog
             return new TopicStructure(key, key, InCatalog: false, Description: null, [], [], []);
         }
 
-        // 同じ語を二度出さない。**LLM の分類は人手で検証されない**ので、親子が万一
+        // 同じ語を二度出さない。LLM の分類は人手で検証されないので、親子が万一
         // 循環していてもここで打ち切る(ツリーを組む側で無限に潜らないようにする)
         var visited = new HashSet<string>(StringComparer.Ordinal) { entry.Key };
 
@@ -283,10 +283,10 @@ public class TopicCatalog
     /// <summary>
     /// 選択されたトピックに<b>その配下すべて</b>を足したキーの一覧を返す。
     ///
-    /// **親を選んだら子も「興味の範囲」に含める**ため —— 「AI に興味がある」と言っているのに
+    /// 親を選んだら子も「興味の範囲」に含めるため —— 「AI に興味がある」と言っているのに
     /// `LLM` や `RAG` の記事・イベント・書籍が興味トピック側に出ないのは、選んだ側の期待と合わない。
     /// 使うのは<b>表示と強調の側だけ</b>(興味トピック配下の絞り込み・カードの★)。
-    /// **収集はこれを通さない** —— イベント・書籍・論文はトピック 1 つごとに外部へ
+    /// 収集はこれを通さない —— イベント・書籍・論文はトピック 1 つごとに外部へ
     /// 問い合わせるので、検索語まで配下へ広げると大きな親を選んだだけでリクエスト数が跳ねる。
     /// </summary>
     public IReadOnlyList<string> ExpandWithDescendants(IEnumerable<string> tags)

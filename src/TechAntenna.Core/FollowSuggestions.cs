@@ -52,7 +52,7 @@ public static class FollowSuggestions
             }
 
             // 同じグループに複数の主催者名が紐づくことがある(表記ゆれ・部署違い)。
-            // **件数は足し、表示名は件数の多かったほうを採る**
+            // 件数は足し、表示名は件数の多かったほうを採る
             var key = $"{source}:{id}";
             byKey[key] = byKey.TryGetValue(key, out var existing)
                 ? existing with

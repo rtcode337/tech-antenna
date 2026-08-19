@@ -8,11 +8,11 @@ namespace TechAntenna.Web.Services;
 /// 定番(「読むべき本」と名指しされ続けるもの)の収集。
 /// 「読むべき技術書」を挙げた記事から、薦められている本を拾う(<see cref="IBookRecommendationSource"/>)。
 ///
-/// **書籍の収集(<see cref="BookCollectionRunner"/>)から独立させてある。** あちらは
+/// 書籍の収集(<see cref="BookCollectionRunner"/>)から独立させてある。あちらは
 /// 選んだトピックを検索語にする「興味トピック」の軸で、こちらは<b>第三の軸(定番)</b> ——
 /// 新着(トレンド)でも興味の検索でもなく、固定クエリで定評を掘る。
 /// 同居していた頃は、トピック選択が空だと検索の手前で return して、
-/// **選択と関係しないはずの推薦本まで 1 冊も集まらなかった**。
+/// 選択と関係しないはずの推薦本まで 1 冊も集まらなかった。
 /// </summary>
 public class ClassicsCollectionRunner(
     IEnumerable<IBookRecommendationSource> sources,
@@ -38,14 +38,14 @@ public class ClassicsCollectionRunner(
 
     /// <summary>
     /// 薦められている本を拾って保存する。拾えるのは ISBN だけなので、書誌情報は
-    /// 後段の補完(openBD・楽天)に任せる。**補完できずタイトルが空のままの本は保存しない**
+    /// 後段の補完(openBD・楽天)に任せる。補完できずタイトルが空のままの本は保存しない
     /// (画面に空行が並ぶだけになる)。
     /// </summary>
     async Task<CollectionRunResult> CollectAsync(CancellationToken cancellationToken)
     {
         int found = 0, added = 0, failed = 0;
 
-        // **止めた収集元は叩きに行かない**(実行のたびに読む)
+        // 止めた収集元は叩きに行かない(実行のたびに読む)
         var enabled = toggles.Enabled(_sources, SourceToggles.Recommendation, source => source.Name);
         if (enabled.Count == 0)
         {
@@ -64,9 +64,9 @@ public class ClassicsCollectionRunner(
                 }
 
                 var collectedAt = clock.GetUtcNow();
-                // **保存済みの書影は引き継ぐ。** 拾えるのは ISBN だけなので毎回まっさらな本を
-                // 組み立てることになるが、そのまま補完へ渡すと**同じ本の書影を毎回 Google Books へ
-                // 問い合わせる**(1 冊 1 リクエスト・無料枠 1 日 1,000)。一度埋まった本は
+                // 保存済みの書影は引き継ぐ。拾えるのは ISBN だけなので毎回まっさらな本を
+                // 組み立てることになるが、そのまま補完へ渡すと同じ本の書影を毎回 Google Books へ
+                // 問い合わせる(1 冊 1 リクエスト・無料枠 1 日 1,000)。一度埋まった本は
                 // 二度と引かないようにする
                 var knownCovers = await KnownCoversAsync(cancellationToken);
                 var books = recommendations
@@ -123,7 +123,7 @@ public class ClassicsCollectionRunner(
     }
 
     /// <summary>
-    /// 保存済みの本の ISBN → 書影 URL。**同じ本の書影を毎回外部へ問い合わせないため**に使う。
+    /// 保存済みの本の ISBN → 書影 URL。同じ本の書影を毎回外部へ問い合わせないために使う。
     /// 推薦本は多くても数百冊なので全件読んで構わない。
     /// </summary>
     async Task<IReadOnlyDictionary<string, Uri?>> KnownCoversAsync(CancellationToken cancellationToken)
@@ -144,7 +144,7 @@ public class ClassicsCollectionRunner(
         {
             try
             {
-                // **どの補完で待っているのかを画面に出す。** 書影の補完は 1 冊 1 リクエスト・
+                // どの補完で待っているのかを画面に出す。書影の補完は 1 冊 1 リクエスト・
                 // 1 秒間隔なので数百冊なら数分かかる —— 名前が出ていないと止まって見える
                 Progress = $"{enricher.Name} で {books.Count} 冊を補完しています…";
                 books = await enricher.EnrichAsync(books, cancellationToken);

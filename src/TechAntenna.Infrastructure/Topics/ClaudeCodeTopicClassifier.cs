@@ -6,7 +6,7 @@ namespace TechAntenna.Infrastructure.Topics;
 
 /// <summary>
 /// Claude Code(同梱の CLI をプロセス起動)で未知タグを分類する。
-/// 呼び出し1回の固定費が大きいのでまとめて渡すが、**1回に詰めすぎない** ——
+/// 呼び出し1回の固定費が大きいのでまとめて渡すが、1回に詰めすぎない ——
 /// 200 語を1回で渡したら応答(全語ぶんの構造化 JSON)の生成が長くなり、
 /// 300 秒のタイムアウトで丸ごと失敗した(実測)。バッチに分ければ、
 /// 途中で失敗してもそれまでのバッチの分類は生きる。
@@ -66,7 +66,7 @@ public class ClaudeCodeTopicClassifier(ICliBridge bridge)
     }
 
     /// <summary>
-    /// 語彙の中の同義トピックを見つける。**一覧は 1 回で渡す** ——
+    /// 語彙の中の同義トピックを見つける。一覧は 1 回で渡す ——
     /// 重複はどこにあるか分からないので、バッチに割ると跨いだ重複を見落とす。
     /// </summary>
     public async Task<IReadOnlyList<TopicMergeVerdict>> SuggestMergesAsync(

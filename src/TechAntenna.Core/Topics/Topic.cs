@@ -1,7 +1,7 @@
 namespace TechAntenna.Core.Topics;
 
 /// <summary>
-/// 語彙としてのトピック1件。**タグ(<see cref="Tag"/>)から精査で昇格したもの**だけがここに入る。
+/// 語彙としてのトピック1件。タグ(<see cref="Tag"/>)から精査で昇格したものだけがここに入る。
 ///
 /// 権威は DB 側にある。`topic-seed.json` は<b>DB が空のときに流し込むシード</b>で、
 /// 以後の衝突ルールは持たない(手直しは画面から状態を書き換える)。
@@ -19,7 +19,7 @@ public class Topic
 
     /// <summary>
     /// 英語圏の収集元へ投げる検索語(`generative ai`)。
-    /// **arXiv に日本語の正式表記を投げると 0 件になる**ため別に持つ。無ければ正式表記を使う。
+    /// arXiv に日本語の正式表記を投げると 0 件になるため別に持つ。無ければ正式表記を使う。
     /// </summary>
     public string? English { get; set; }
 

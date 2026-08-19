@@ -62,7 +62,7 @@ public class EventMentionRefresherTests
     [Fact]
     public async Task 誰も書いていないイベントは0本になる()
     {
-        // **0 と null は別物。** 0 は「測ったが書かれていない」
+        // 0 と null は別物。0 は「測ったが書かれていない」
         var store = await RefreshAsync([Event("DroidKaigi 2026", 20)], [Article("Go の話")]);
 
         Assert.Equal(0, await MentionsOf(store, "DroidKaigi 2026"));

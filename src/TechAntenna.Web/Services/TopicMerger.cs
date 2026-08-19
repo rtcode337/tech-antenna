@@ -4,14 +4,14 @@ using TechAntenna.Core.Topics;
 namespace TechAntenna.Web.Services;
 
 /// <summary>
-/// トピックを別のトピックへ寄せる(統合)。**画面からの手直しと LLM の統合パスで共有する** ——
+/// トピックを別のトピックへ寄せる(統合)。画面からの手直しと LLM の統合パスで共有する ——
 /// どちらも「同義のトピックが 2 つある」を直す操作で、やることは同じ。
 ///
 /// 寄せるときにやることが 3 つある。1 つでも漏らすと語彙が壊れる:
 ///
-/// 1. **寄せ元を指していたタグを寄せ先へ付け替える**(件数が寄せ先へ合算されるように)
-/// 2. **寄せ元の子を寄せ先の子にする**(親が消えて孤児になるのを防ぐ)
-/// 3. **寄せ元のトピックの行を消し、そのタグを別名にする**
+/// 1. 寄せ元を指していたタグを寄せ先へ付け替える(件数が寄せ先へ合算されるように)
+/// 2. 寄せ元の子を寄せ先の子にする(親が消えて孤児になるのを防ぐ)
+/// 3. 寄せ元のトピックの行を消し、そのタグを別名にする
 /// </summary>
 public class TopicMerger(
     ITagStore tagStore,
@@ -23,7 +23,7 @@ public class TopicMerger(
     /// <summary>
     /// <paramref name="from"/> を <paramref name="into"/> へ寄せる。寄せられなければ false。
     ///
-    /// **選択済み(収集対象)のトピックは寄せない。** 収集キーワードが黙って変わるため ——
+    /// 選択済み(収集対象)のトピックは寄せない。収集キーワードが黙って変わるため ——
     /// 寄せたいときは先に選択を外してもらう。
     /// </summary>
     public async Task<bool> MergeAsync(
@@ -84,7 +84,7 @@ public class TopicMerger(
 
     /// <summary>
     /// トピックだったタグを語彙から外す(除外・仕分け待ちへ戻すとき)。
-    /// **トピックの行も消す** —— 残すと、どのタグにも紐づかない行がツリーに居座る。
+    /// トピックの行も消す —— 残すと、どのタグにも紐づかない行がツリーに居座る。
     /// </summary>
     public async Task DemoteAsync(string key, CancellationToken cancellationToken = default)
     {
@@ -102,11 +102,11 @@ public class TopicMerger(
     }
 
     /// <summary>
-    /// ログに出す前に改行を潰す。**キーは人と収集元から来る** ——
+    /// ログに出す前に改行を潰す。キーは人と収集元から来る ——
     /// 改行が混ざったまま出すと、ログに偽の行を差し込める(CodeQL の `cs/log-forging`)。
     ///
-    /// **根っこは <see cref="TechAntenna.Core.Topics.TagNormalizer.ToKey"/> が制御文字を
-    /// 落として塞いである。** ここで重ねて落とすのは、正規化を通らない値が将来
+    /// 根っこは <see cref="TechAntenna.Core.Topics.TagNormalizer.ToKey"/> が制御文字を
+    /// 落として塞いである。ここで重ねて落とすのは、正規化を通らない値が将来
     /// 混ざっても、ログの安全がこの1か所で保たれるようにするため。
     /// </summary>
     static string ForLog(string value) => value.Replace('\r', ' ').Replace('\n', ' ');

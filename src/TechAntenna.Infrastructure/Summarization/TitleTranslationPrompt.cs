@@ -30,7 +30,7 @@ public static class TitleTranslationPrompt
     }
 
     /// <summary>
-    /// 訳す必要があるか。**日本語(漢字・かな)を含むタイトルは訳さない** ——
+    /// 訳す必要があるか。日本語(漢字・かな)を含むタイトルは訳さない ——
     /// J-STAGE の論文はもともと和題なので、投げるだけ枠の無駄になる。
     /// </summary>
     public static bool NeedsTranslation(Article article) =>

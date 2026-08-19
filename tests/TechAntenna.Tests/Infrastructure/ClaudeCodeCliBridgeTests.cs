@@ -4,7 +4,7 @@ using TechAntenna.Infrastructure.Bridge;
 namespace TechAntenna.Tests.Infrastructure;
 
 /// <summary>
-/// Claude Code の CLI をプロセスとして起動する経路。**実際に claude は起動しない**
+/// Claude Code の CLI をプロセスとして起動する経路。実際に claude は起動しない
 /// (<see cref="StubProcessRunner"/> に差し替えて、渡す引数と失敗の扱いだけを見る)。
 /// </summary>
 public class ClaudeCodeCliBridgeTests

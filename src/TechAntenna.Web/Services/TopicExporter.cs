@@ -7,10 +7,10 @@ namespace TechAntenna.Web.Services;
 /// <summary>
 /// 語彙とタグの仕分けをファイルに書き出す。
 ///
-/// **用途は環境間の持ち運び。** LLM の仕分けは呼ぶたびに枠を使うので、本番で仕分けた結果を
+/// 用途は環境間の持ち運び。LLM の仕分けは呼ぶたびに枠を使うので、本番で仕分けた結果を
 /// 開発サーバーへ持って行けるようにする(逆向きにも使える)。バックアップにもなる。
 ///
-/// **出すのは仕分けだけ**(件数・話題度は出さない。理由は <see cref="TopicExportFile"/>)。
+/// 出すのは仕分けだけ(件数・話題度は出さない。理由は <see cref="TopicExportFile"/>)。
 /// </summary>
 public class TopicExporter(ITopicStore topicStore, ITagStore tagStore, TimeProvider clock)
 {
@@ -28,8 +28,8 @@ public class TopicExporter(ITopicStore topicStore, ITagStore tagStore, TimeProvi
                 "topics = 語彙。key は正規化済み、display が画面と検索語に使う正式表記、parent は1つ上の粒度。",
                 "tags   = 見かけた語の仕分け。status が Alias なら topicKey が寄せ先、"
                     + "NotTopic はトピックでないと判定した語、Unresolved は LLM が判断できなかった語。",
-                "**件数・話題度は入っていない** —— 取り込んだ環境が集めたデータの話なので、整備で集め直す。",
-                "**未仕分け(Pending)のタグも入っていない** —— まだ何も決まっていないため。",
+                "件数・話題度は入っていない —— 取り込んだ環境が集めたデータの話なので、整備で集め直す。",
+                "未仕分け(Pending)のタグも入っていない —— まだ何も決まっていないため。",
                 "selected(収集対象の選択)は取り込み時に既定では使わない(画面で明示したときだけ反映する)。",
             ],
             ExportedAt = clock.GetUtcNow(),

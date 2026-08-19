@@ -1,4 +1,4 @@
-# 依存の更新 PR を週 1 でまとめて受け取る(月曜 JST)。**脆弱性対応の security updates とは別**で、
+# 依存の更新 PR を週 1 でまとめて受け取る(月曜 JST)。脆弱性対応の security updates とは別で、
 # こちらは「普段の更新」を定期的に上げるための設定。
 #
 # 公開リポジトリなので Actions の実行時間は無料枠の外(標準ランナーは無料)。
@@ -7,7 +7,7 @@
 version: 2
 updates:
   # NuGet(csproj は src/ と tests/ の下に1つずつ)。
-  # **ディレクトリはワイルドカードで書く** —— プロジェクトを足したときに、ここを直し忘れて
+  # ディレクトリはワイルドカードで書く —— プロジェクトを足したときに、ここを直し忘れて
   # 「そのプロジェクトだけ更新が来ない」状態になるのを避ける
   - package-ecosystem: nuget
     directories:
@@ -30,14 +30,14 @@ updates:
       day: monday
       timezone: Asia/Tokyo
     ignore:
-      # **.NET のメジャーは自動で上げない。** このアプリは .NET 10(LTS・2028-11 まで)を
+      # .NET のメジャーは自動で上げない。このアプリは .NET 10(LTS・2028-11 まで)を
       # 選んでいて、STS の版へ上げると寿命が縮む(CLAUDE.md「技術スタック」参照)。
       # 次の LTS へ移るのは、移行を決めたときに手で上げる
       - dependency-name: "mcr.microsoft.com/dotnet/sdk"
         update-types: ["version-update:semver-major"]
       - dependency-name: "mcr.microsoft.com/dotnet/aspnet"
         update-types: ["version-update:semver-major"]
-      # **Node のメジャーは LTS 入りしたものだけを使う**(Current は追わない)。
+      # Node のメジャーは LTS 入りしたものだけを使う(Current は追わない)。
       # ここの node は Claude Code の CLI を取り出すだけのビルドステージだが、
       # 他のリポジトリと方針を揃える(travel-log の同じ設定を参照)。
       # 26 は 2026-10 に LTS 入り予定で、それまでは現行 Active LTS の 24

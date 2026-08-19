@@ -1,7 +1,7 @@
 namespace TechAntenna.Core;
 
 /// <summary>
-/// 外部データから受け取った URL の検証。**http/https の絶対 URL だけを通す**。
+/// 外部データから受け取った URL の検証。http/https の絶対 URL だけを通す。
 ///
 /// `Uri.TryCreate(…, UriKind.Absolute)` は `javascript:alert(1)` のような URL も
 /// 絶対 URI として通してしまい、取り込んだ値は画面の `&lt;a href&gt;` や

@@ -37,7 +37,7 @@ public class ChiezoAiClientTests
     [Fact]
     public async Task システムと本文を役割つきで送る()
     {
-        // **知識ベースは引かせない**(/v1/chat ではなく /v1/ai/complete)
+        // 知識ベースは引かせない(/v1/chat ではなく /v1/ai/complete)
         var factory = new RecordingFactory("""{"content":"  まとめ  ","model":"gemini-2.5-flash"}""");
 
         var completion = await Client(factory).CompleteAsync(

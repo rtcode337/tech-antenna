@@ -22,7 +22,7 @@ public class DoorkeeperFollowedGroupTests
         ]
         """;
 
-    /// <summary>グループ指定で返る中身。**収集語をどこにも含まない**。</summary>
+    /// <summary>グループ指定で返る中身。収集語をどこにも含まない。</summary>
     const string GroupEventsResponse = """
         [
           { "event": {

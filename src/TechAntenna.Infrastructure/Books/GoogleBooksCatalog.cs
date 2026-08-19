@@ -30,12 +30,12 @@ public class GoogleBooksCatalog(
         using var client = httpClientFactory.CreateClient(HttpClientName);
 
         // 日本語の技術書を拾いたいので言語を絞る。
-        // **並びは既定の関連度順**(orderBy を付けない) —— 集めたいのは新刊ではなく
+        // 並びは既定の関連度順(orderBy を付けない) —— 集めたいのは新刊ではなく
         // 「その分野で読んでおくべき本」だから。`orderBy=newest` は取りこぼしも大きく、
         // 実測では `機械学習` が 0 件(関連度順なら 300 件)だった
-        // **雑誌は除く**(`printType=books`)。集めたいのは「読んでおくべき本」なのに、
+        // 雑誌は除く(`printType=books`)。集めたいのは「読んでおくべき本」なのに、
         // 号を重ねるぶん数の多い雑誌が一覧を占めていた。ただしこれで落ちるのは
-        // Google が雑誌として登録しているものだけで、**日本のムック・増刊は書籍として返る** ——
+        // Google が雑誌として登録しているものだけで、日本のムック・増刊は書籍として返る ——
         // そちらはタイトルの型(`Periodical`)で落とす
         var requestUri =
             $"https://www.googleapis.com/books/v1/volumes?q={Uri.EscapeDataString(keyword)}"

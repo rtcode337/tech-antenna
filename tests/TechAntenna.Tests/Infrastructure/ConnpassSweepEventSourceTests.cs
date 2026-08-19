@@ -101,7 +101,7 @@ public class ConnpassSweepEventSourceTests
     [Fact]
     public async Task 上限まで読んでも終わらない月は打ち切って結果に残す()
     {
-        // 100 件ちょうどが返り続ける月。**黙って切ると「全部見た」と読めてしまう**ので、
+        // 100 件ちょうどが返り続ける月。黙って切ると「全部見た」と読めてしまうので、
         // どの月を最後まで見られなかったかを持ち帰る
         var full = Response([.. Enumerable.Range(0, 100).Select(i => ($"イベント{i}", (int?)500))]);
         var factory = new StubHttpClientFactory(full.Replace("\"results_available\": 100", "\"results_available\": 5000"));
@@ -117,14 +117,14 @@ public class ConnpassSweepEventSourceTests
     [Fact]
     public async Task 画面で止めているあいだは叩きに行かない()
     {
-        // 切り替えは**実行のたびに読む**(起動時に見て分岐すると、画面で入れても
+        // 切り替えは実行のたびに読む(起動時に見て分岐すると、画面で入れても
         // 再起動するまで効かない)。止まっているあいだは相手に 1 回も触らない
         var factory = new StubHttpClientFactory("[]");
         var source = new ConnpassSweepEventSource(factory, Clock(), 100, 1, TimeSpan.Zero, enabledProvider: () => false);
 
         Assert.Empty(await source.FetchAsync());
         Assert.Empty(factory.RequestedUris);
-        // **無効なら WorksWithoutTopics も false** —— true のままだと、面掃きを止めていても
+        // 無効なら WorksWithoutTopics も false —— true のままだと、面掃きを止めていても
         // ランナーが「トピックが空でも集めるものがある」と判断し、案内が出なくなる
         Assert.False(source.WorksWithoutTopics);
     }
@@ -132,7 +132,7 @@ public class ConnpassSweepEventSourceTests
     [Fact]
     public async Task 差分では公開日で引き一回で済ませる()
     {
-        // **2回目からは「前回以降に公開されたぶん」だけ引く。** 全掃きは月ごとに
+        // 2回目からは「前回以降に公開されたぶん」だけ引く。全掃きは月ごとに
         // 最大10ページ×月数かかるが、`publish_ymd` は複数指定できるので
         // 何日ぶんでも 1 リクエストにまとまる
         var factory = new StubHttpClientFactory(Response(("大きいカンファレンス", 500)));
@@ -146,7 +146,7 @@ public class ConnpassSweepEventSourceTests
 
         Assert.Single(events);
         var uri = Assert.Single(factory.RequestedUris);
-        // 前回の日から今日(JST)までを並べる。**前回の日も含める** ——
+        // 前回の日から今日(JST)までを並べる。前回の日も含める ——
         // その日の途中で走ったときに取りこぼさないため
         Assert.Contains("publish_ymd=20260813", uri.Query);
         Assert.Contains("publish_ymd=20260815", uri.Query);
@@ -157,7 +157,7 @@ public class ConnpassSweepEventSourceTests
     [Fact]
     public async Task 差分でも掃く期間の外は取り込まない()
     {
-        // 公開日で引くと、**開催が遠い先のイベントも一緒に返ってくる** ——
+        // 公開日で引くと、開催が遠い先のイベントも一緒に返ってくる ——
         // 全掃きと同じ範囲だけを持たないと、実行した時刻で入る/入らないが変わる
         var far = """
             { "events": [ {

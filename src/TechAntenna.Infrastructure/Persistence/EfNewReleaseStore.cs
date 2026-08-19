@@ -33,7 +33,7 @@ public class EfNewReleaseStore(IDbContextFactory<TechAntennaDbContext> contextFa
         {
             if (stored.TryGetValue(release.Url, out var existing))
             {
-                // **観測なので上書きする**(読ませるための行ではないので、最新の見え方に揃える)
+                // 観測なので上書きする(読ませるための行ではないので、最新の見え方に揃える)
                 existing.Tags = release.Tags;
                 existing.RawTags = release.RawTags;
                 continue;

@@ -11,10 +11,10 @@ public record ScheduleRunResult(int Total, int Ran, int Failed, int Skipped)
 }
 
 /// <summary>
-/// **定期実行の中身**。チェックの入ったジョブを <see cref="ScheduledJobs.InOrder"/> の順に
+/// 定期実行の中身。チェックの入ったジョブを <see cref="ScheduledJobs.InOrder"/> の順に
 /// 1つずつ通しで走らせる。
 ///
-/// **時刻で走るのも、画面の「定期実行を今すぐ実行」も同じここを通る** ——
+/// 時刻で走るのも、画面の「定期実行を今すぐ実行」も同じここを通る ——
 /// ワーカー(<c>Workers/ScheduleWorker</c>)は時刻の判定だけを持ち、中身はこの Runner。
 /// 他のジョブと同じ <see cref="JobRunner"/> なので、進捗と結果の文言が同じ作りで画面に出る。
 /// </summary>
@@ -29,7 +29,7 @@ public class ScheduleRunner(
     public override string Name => "定期実行を今すぐ実行";
 
     /// <summary>
-    /// 常に押せる。**対象が0件でもボタンは生かしておく** —— disabled にすると
+    /// 常に押せる。対象が0件でもボタンは生かしておく —— disabled にすると
     /// 「なぜ押せないのか」を別に説明することになるので、押した結果として文言で返す。
     /// </summary>
     public override bool IsConfigured => true;
@@ -79,7 +79,7 @@ public class ScheduleRunner(
             Progress = $"{i + 1}/{enabled.Count} {job.Name} を実行中…";
             logger.LogInformation("{Job} を実行します", job.Name);
 
-            // **1つずつ待つ。** 後ろのジョブは前のジョブが集めたものを材料にする
+            // 1つずつ待つ。後ろのジョブは前のジョブが集めたものを材料にする
             if (await job.RunAsync(cancellationToken))
             {
                 ran++;

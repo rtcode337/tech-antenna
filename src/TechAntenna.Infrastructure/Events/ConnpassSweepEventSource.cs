@@ -48,15 +48,15 @@ public class ConnpassSweepEventSource(
         "https://connpass.com/api/v2/events/?ym={0}&order=2&count={1}&start={2}";
 
     /// <summary>
-    /// **差分取得の口。** `publish_ymd`(公開された年月日。複数指定可)で「前回からあとに
+    /// 差分取得の口。`publish_ymd`(公開された年月日。複数指定可)で「前回からあとに
     /// 公開されたイベント」だけを引く —— 全掃きは月ごとに最大 10 ページ x 月数かかるが、
-    /// こちらは**たいてい 1 リクエスト**で済む(1 日に公開されるイベントは 100 件前後)。
+    /// こちらはたいてい 1 リクエストで済む(1 日に公開されるイベントは 100 件前後)。
     /// </summary>
     const string IncrementalEndpointFormat =
         "https://connpass.com/api/v2/events/?order=2&count={0}&start={1}{2}";
 
     /// <summary>
-    /// 差分で遡れる日数の上限。**これを超えたら全掃きに戻す** ——
+    /// 差分で遡れる日数の上限。これを超えたら全掃きに戻す ——
     /// 長く止めていた後に何十日ぶんも `publish_ymd` を並べるより、月ごとに掃くほうが速い。
     /// </summary>
     const int MaxIncrementalDays = 8;
@@ -102,12 +102,12 @@ public class ConnpassSweepEventSource(
         var byUrl = new Dictionary<Uri, TechEvent>();
         var truncated = new List<string>();
 
-        // **月の起点は日本時間の今月。** UTC で数えると、月初の朝 9 時までは前の月を掃くことになる
+        // 月の起点は日本時間の今月。UTC で数えると、月初の朝 9 時までは前の月を掃くことになる
         var start = JapanTime.To(collectedAt);
 
-        // **前回からの差分で済むならそうする。** 全掃きは「期間の全件を数え上げる」ので高い
-        // (月ごとに最大 10 ページ x 月数)が、**新しく公開されたぶんだけなら 1 リクエスト**で足りる。
-        // ただし**参加者数が伸びてしきい値を越えたイベントは差分に出てこない**(公開日は変わらない)ので、
+        // 前回からの差分で済むならそうする。全掃きは「期間の全件を数え上げる」ので高い
+        // (月ごとに最大 10 ページ x 月数)が、新しく公開されたぶんだけなら 1 リクエストで足りる。
+        // ただし参加者数が伸びてしきい値を越えたイベントは差分に出てこない(公開日は変わらない)ので、
         // 呼び出し側が週に一度は全掃きへ戻す(`SweepSettings.FullInterval`)
         if (IncrementalDays(incrementalSinceProvider?.Invoke(), start) is { Count: > 0 } days)
         {
@@ -131,7 +131,7 @@ public class ConnpassSweepEventSource(
         }
 
         Truncated = truncated;
-        // **掃けたときだけ記録する。** 途中で例外なら記録しない(次の収集で掃き直す)
+        // 掃けたときだけ記録する。途中で例外なら記録しない(次の収集で掃き直す)
         if (onSwept is not null)
         {
             await onSwept();
@@ -141,7 +141,7 @@ public class ConnpassSweepEventSource(
     }
 
     /// <summary>
-    /// 差分で引く日付(日本時間)。**null か、遡りすぎ・未来なら空**(= 全掃きに戻す)。
+    /// 差分で引く日付(日本時間)。null か、遡りすぎ・未来なら空(= 全掃きに戻す)。
     /// 前回の実行日を含めるのは、その日の途中で走ったときに取りこぼさないため。
     /// </summary>
     static IReadOnlyList<DateTime> IncrementalDays(DateTimeOffset? since, DateTimeOffset nowInJapan)
@@ -168,9 +168,9 @@ public class ConnpassSweepEventSource(
     }
 
     /// <summary>
-    /// 指定した日に**公開された**イベントだけを取る(`publish_ymd` は複数指定できるので、
+    /// 指定した日に公開されたイベントだけを取る(`publish_ymd` は複数指定できるので、
     /// 何日ぶんでも 1 リクエストにまとまる)。
-    /// **開催が掃く期間の外にあるものは捨てる** —— 全掃きと同じ範囲だけを持つため
+    /// 開催が掃く期間の外にあるものは捨てる —— 全掃きと同じ範囲だけを持つため
     /// (差分で入る/入らないが実行時刻で変わらないようにする)。
     /// </summary>
     async Task SweepPublishedAsync(
@@ -182,7 +182,7 @@ public class ConnpassSweepEventSource(
         CancellationToken cancellationToken)
     {
         var query = string.Concat(days.Select(day => $"&publish_ymd={day:yyyyMMdd}"));
-        // **全掃きと同じ範囲**にそろえる —— 全掃きは今月の頭から months か月ぶんを
+        // 全掃きと同じ範囲にそろえる —— 全掃きは今月の頭から months か月ぶんを
         // `ym` で引くので、差分でもその範囲の開催だけを残す
         // (そろえないと、差分で入るか全掃きで入るかによって持ち物が変わる)
         var windowStart = new DateTime(startInJapan.Year, startInJapan.Month, 1);
@@ -264,21 +264,21 @@ public class ConnpassSweepEventSource(
             return;
         }
 
-        // **null(参加者数が取れていない)は残さない。** この経路は「人が集まっている」ことだけを
+        // null(参加者数が取れていない)は残さない。この経路は「人が集まっている」ことだけを
         // 根拠に拾っているので、根拠が無いものを通すと単なる全件取り込みになる
         if (entry.ParticipantCount is not { } participants || participants < minParticipants)
         {
             return;
         }
 
-        // **検索語が無いので、タグになるのはハッシュタグだけ。**
+        // 検索語が無いので、タグになるのはハッシュタグだけ。
         IReadOnlyList<string> rawTags = entry.HashTag is { Length: > 0 } hashTag ? [hashTag] : [];
 
         byUrl[entry.Url] = new TechEvent
         {
             Title = entry.Title,
             Url = entry.Url,
-            // **収集元の名前は connpass と分けてある** —— どの経路で入ったのかが
+            // 収集元の名前は connpass と分けてある —— どの経路で入ったのかが
             // 一覧の「収集元」で読めないと、しきい値を動かしたときの効き目が確かめられない
             SourceName = Name,
             StartsAt = startsAt,

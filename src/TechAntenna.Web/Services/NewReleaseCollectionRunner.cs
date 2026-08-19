@@ -5,10 +5,10 @@ using TechAntenna.Core.Abstractions;
 namespace TechAntenna.Web.Services;
 
 /// <summary>
-/// 最近出た本(新刊・ムック)を集める。**読ませるためではなく数えるため**の収集で、
+/// 最近出た本(新刊・ムック)を集める。読ませるためではなく数えるための収集で、
 /// 集めたものは「出版されているテーマ」(<c>/recent</c> の節)の材料になる。
 ///
-/// **トレンドの軸**なので収集対象の選択に依存しない —— 分類(NDC)と刊行日で引く。
+/// トレンドの軸なので収集対象の選択に依存しない —— 分類(NDC)と刊行日で引く。
 /// 書籍の収集(<see cref="BookCollectionRunner"/>)とは別のジョブ・別の表:
 /// あちらは選んだトピックを検索語にして「読んでおくべき本」を集める。
 /// </summary>
@@ -35,7 +35,7 @@ public class NewReleaseCollectionRunner(
 
     async Task<CollectionRunResult> CollectAsync(CancellationToken cancellationToken)
     {
-        // **止めた収集元は叩きに行かない。** 実行のたびに読むので、画面の切り替えは
+        // 止めた収集元は叩きに行かない。実行のたびに読むので、画面の切り替えは
         // 再起動なしで効く(起動時に絞ると、切り替えても次の再起動まで変わらない)
         var enabled = toggles.Enabled(_sources, SourceToggles.NewRelease, source => source.Name);
         if (enabled.Count == 0)
@@ -44,7 +44,7 @@ public class NewReleaseCollectionRunner(
         }
 
         int found = 0, added = 0, failed = 0;
-        // **窓は毎回同じ**(直近 N か月)。同じ本を引き直すことになるが、URL で上書きするので
+        // 窓は毎回同じ(直近 N か月)。同じ本を引き直すことになるが、URL で上書きするので
         // 増えず、タグは最新の語彙で付け直される
         // 「直近 N か月」の境界も日本時間で数える(UTC の日付だと日本の朝 9 時までは前日)
         var since = DateOnly.FromDateTime(

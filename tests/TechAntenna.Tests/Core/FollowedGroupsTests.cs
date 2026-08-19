@@ -77,7 +77,7 @@ public class FollowedGroupsTests
     [InlineData("ただのメモ")]        // 書式ですらない
     public void 読めない行は捨てて拾えるようにする(string line)
     {
-        // **1行の打ち間違いで保存ごと失敗させない。** 代わりに画面へ出して直してもらう
+        // 1行の打ち間違いで保存ごと失敗させない。代わりに画面へ出して直してもらう
         Assert.Empty(FollowedGroups.Parse(line).All);
         Assert.Equal([line], FollowedGroups.Rejected(line));
     }
@@ -85,7 +85,7 @@ public class FollowedGroupsTests
     [Fact]
     public void 未設定は何も購読していない扱い()
     {
-        // **初期値は持たない** —— 実在のシリーズ ID をリポジトリに憶測で書けないため
+        // 初期値は持たない —— 実在のシリーズ ID をリポジトリに憶測で書けないため
         Assert.Empty(FollowedGroups.Parse(null).All);
         Assert.Empty(FollowedGroups.Parse("").All);
         Assert.Empty(FollowedGroups.Empty.All);

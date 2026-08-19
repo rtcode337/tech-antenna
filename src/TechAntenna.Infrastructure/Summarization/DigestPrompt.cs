@@ -25,7 +25,7 @@ public static class DigestPrompt
         "材料に無い URL を作らない)。材料に書かれていないことを補わない。";
 
     /// <summary>
-    /// 守備範囲ごとの指示文。**2本を別々の目で書かせる** —— 同じ指示で材料だけ変えると、
+    /// 守備範囲ごとの指示文。2本を別々の目で書かせる —— 同じ指示で材料だけ変えると、
     /// どちらも「話題の総ざらい」になって読み分けられない。全体は界隈の動き、
     /// 興味トピックは読者の関心に引きつけて書かせる。
     /// </summary>
@@ -152,8 +152,8 @@ public static class DigestPrompt
     }
 
     /// <summary>
-    /// 応答(構造化出力)の JSON からダイジェストを組む。**URL は材料に含めたものしか
-    /// 通さない** —— LLM が作った URL を画面のリンクにしないため(WebUrl と同じ発想の検証)。
+    /// 応答(構造化出力)の JSON からダイジェストを組む。URL は材料に含めたものしか
+    /// 通さない —— LLM が作った URL を画面のリンクにしないため(WebUrl と同じ発想の検証)。
     /// </summary>
     public static Digest Read(
         JsonElement output,
@@ -170,7 +170,7 @@ public static class DigestPrompt
         {
             foreach (var element in array.EnumerateArray())
             {
-                // 上限は**有効な項目**で数える(壊れた項目に枠を食わせない)
+                // 上限は有効な項目で数える(壊れた項目に枠を食わせない)
                 if (items.Count >= MaxItems)
                 {
                     break;

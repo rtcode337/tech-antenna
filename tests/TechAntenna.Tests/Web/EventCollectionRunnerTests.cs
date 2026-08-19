@@ -106,7 +106,7 @@ public class EventCollectionRunnerTests
     [Fact]
     public async Task 検索で入ったイベントはトピックに当たらなければ落とす()
     {
-        // 従来どおり。**購読の免除を入れたせいで絞りが効かなくなっていないか**を見る
+        // 従来どおり。購読の免除を入れたせいで絞りが効かなくなっていないかを見る
         var source = new StubSource(false, Event("関係のない勉強会", tags: "rust"));
         var (runner, store) = await BuildAsync(source, "AI");
 
@@ -144,7 +144,7 @@ public class EventCollectionRunnerTests
     [Fact]
     public async Task 止めた収集元は叩きに行かない()
     {
-        // **画面で止めたら、リクエストを出す前に落とす。** 集めた結果を捨てるのでは
+        // 画面で止めたら、リクエストを出す前に落とす。集めた結果を捨てるのでは
         // 相手を叩いてしまうので、収集元の一覧から外す形にしてある
         var source = new StubSource(true, Event("止めた相手のイベント", pickedBy: "テスト"));
         var (runner, store) = await BuildDisabledAsync(source, "テスト用の収集元", "AI");

@@ -16,7 +16,7 @@ public interface IProcessRunner
     /// <summary>
     /// プロセスを起動し、<paramref name="standardInput"/> を標準入力へ流し込んで終了を待つ。
     ///
-    /// **入力を引数ではなく標準入力で渡す**のは、Linux に単一引数の長さ上限
+    /// 入力を引数ではなく標準入力で渡すのは、Linux に単一引数の長さ上限
     /// (MAX_ARG_STRLEN = 128KiB)があり、記事をまとめると容易に超えて
     /// 実行前に E2BIG で落ちるため。
     /// </summary>

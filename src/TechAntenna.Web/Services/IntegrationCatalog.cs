@@ -4,7 +4,7 @@ using TechAntenna.Infrastructure.Feeds;
 namespace TechAntenna.Web.Services;
 
 /// <summary>
-/// APIキー・トークンの要否。**「その連携が動くのに要るか」**で言う ——
+/// APIキー・トークンの要否。「その連携が動くのに要るか」で言う ——
 /// アプリ全体が止まるかどうかではない(この連携が何をするかは Description が説明する)。
 /// </summary>
 public enum CredentialNeed
@@ -19,14 +19,14 @@ public enum CredentialNeed
     Required,
 
     /// <summary>
-    /// 同じ機能を担う連携が複数あり、**どれか1つ**が設定されていればよい(LLM の2方式)。
+    /// 同じ機能を担う連携が複数あり、どれか1つが設定されていればよい(LLM の2方式)。
     /// どれも未設定なら機能ごと動かない —— 単なる「任意」とは意味が違う。
     /// </summary>
     EitherRequired,
 }
 
 /// <summary>
-/// その連携がどちらの軸で使われるか。**両方で使うものは両方に出す** ——
+/// その連携がどちらの軸で使われるか。両方で使うものは両方に出す ——
 /// 「トレンドが動かない」と「興味トピックが動かない」で見る場所が変わるので、
 /// どちらの画面からでも必要なキーが分かるようにする。
 /// </summary>
@@ -53,12 +53,12 @@ public enum IntegrationAxis
 /// <param name="Need">キーの要否。</param>
 /// <param name="Configured">キーが設定されているか。要らない連携では常に true。</param>
 /// <param name="Description">
-/// **この連携が何のためにあるか**(画面の「説明」列)。
-/// **「未設定だと何が起きるか」ではない** —— キーの要否は隣の「キー」列と「状態」列が言うので、
+/// この連携が何のためにあるか(画面の「説明」列)。
+/// 「未設定だと何が起きるか」ではない —— キーの要否は隣の「キー」列と「状態」列が言うので、
 /// ここで繰り返すと、キーの要らない連携で「未設定のとき」の欄に用途が書いてある状態になり、
 /// 読み手の直感と食い違う。
-/// **キーが任意の連携(<see cref="CredentialNeed.Optional"/>)だけは、
-/// 入れると何が変わるかもここに書く** —— 入れる動機がほかに書かれていないため。
+/// キーが任意の連携(<see cref="CredentialNeed.Optional"/>)だけは、
+/// 入れると何が変わるかもここに書く —— 入れる動機がほかに書かれていないため。
 /// </param>
 /// <param name="Enabled">そもそもこの連携を使う設定になっているか。</param>
 /// <param name="SecretNames">
@@ -67,7 +67,7 @@ public enum IntegrationAxis
 /// キーの要らない連携は空。
 /// </param>
 /// <param name="AlternativeConfigured">
-/// <see cref="CredentialNeed.EitherRequired"/> の連携で、同じ機能を担う**もう一方**が
+/// <see cref="CredentialNeed.EitherRequired"/> の連携で、同じ機能を担うもう一方が
 /// 設定されているか(この行が未設定でも機能は動いている、を画面で言うため)。
 /// </param>
 /// <param name="ToggleName">
@@ -90,12 +90,12 @@ public record Integration(
 /// <summary>
 /// 外部連携の一覧と、キーが設定されているかどうかを組み立てる。
 ///
-/// **設定値そのものは画面に出さない**(有無だけを見る)。キーやトークンは秘匿情報なので、
+/// 設定値そのものは画面に出さない(有無だけを見る)。キーやトークンは秘匿情報なので、
 /// 長さや先頭数文字も含めて出さない。
 ///
 /// 一覧は<b>ここに手で並べる</b>。設定から自動生成はできない —— 「未設定だと何が起きるか」は
 /// 設定値には書いていないうえ、キーの要否は収集元ごとの事情(申請の要不要・無料枠の有無)で
-/// 決まるため。**外部 API を足したらここにも1行足すこと。**
+/// 決まるため。外部 API を足したらここにも1行足すこと。
 /// </summary>
 public class IntegrationCatalog(
     IConfiguration configuration,
@@ -103,7 +103,7 @@ public class IntegrationCatalog(
     IOptions<CollectionOptions> collection)
 {
     /// <summary>
-    /// LLM の用途名。**この用途の行だけは「どの AI に書かせるか」の節に出す**
+    /// LLM の用途名。この用途の行だけは「どの AI に書かせるか」の節に出す
     /// (`AiBackendSection` の下。軸ごとの表からは外す)—— 相手を選ぶ話とキーを入れる話が
     /// 並んでいないと、「選べない理由がキー未設定」だと分からない。
     /// 両方の画面から同じ名前で絞れるよう定数にしてある。
@@ -111,7 +111,7 @@ public class IntegrationCatalog(
     public const string LlmPurpose = "要約・翻訳・語彙の仕分け・今日のサマリー";
 
     /// <summary>
-    /// 通知の用途名。**この用途の行だけは「通知」の節に出す**(軸ごとの表からは外す)——
+    /// 通知の用途名。この用途の行だけは「通知」の節に出す(軸ごとの表からは外す)——
     /// 通知は<b>集めた後の出口</b>で、「どこから集めるか」の話ではない。
     /// 軸(トレンド / 興味トピック / 定番)のどれにも属さないのに `Both` で両方の節に
     /// 出ていたので、収集の表を読む邪魔になっていた。
@@ -119,10 +119,10 @@ public class IntegrationCatalog(
     public const string NotifyPurpose = "今日のサマリーの通知";
 
     /// <summary>
-    /// 用途を画面に並べる順。**サイドバーの並びに合わせる** ——
+    /// 用途を画面に並べる順。サイドバーの並びに合わせる ——
     /// ニュース → 記事 → 書籍 → 論文(トレンド)、イベント → 書籍 → 論文(興味トピック・定番)。
     /// 設定の画面だけ順番が違うと、同じものを探すのに毎回読み直すことになる。
-    /// **ここに無い用途は後ろに回る**(足したときに黙って先頭へ来ないように)。
+    /// ここに無い用途は後ろに回る(足したときに黙って先頭へ来ないように)。
     /// </summary>
     static readonly string[] PurposeOrder =
     [
@@ -148,7 +148,7 @@ public class IntegrationCatalog(
     /// 押すと入力欄に入る。保存はされないので、気に入らなければ押し直せる)。
     /// 外部から発行されるキー(API キー・トークン)は null。</param>
     /// <param name="Required">
-    /// **その連携が動くのに要る値か。** 連携が複数の値を持つとき(ntfy の
+    /// その連携が動くのに要る値か。連携が複数の値を持つとき(ntfy の
     /// ベース URL / トピック名 / トークン)、どれが無いと動かないのかは値ごとに違う ——
     /// 行として「キー: 必須」と出すと、ベース URL やトークンまで要るように読める。
     /// </param>
@@ -157,7 +157,7 @@ public class IntegrationCatalog(
         Func<string>? Generate = null, bool Required = false);
 
     /// <summary>
-    /// 画面から設定できるキーの一覧。**外部 API のキーを足したらここにも1行足すこと**
+    /// 画面から設定できるキーの一覧。外部 API のキーを足したらここにも1行足すこと
     /// (一覧の表と同じく、手で並べる —— どの設定パスがキーなのかは設定値からは分からない)。
     /// </summary>
     public static readonly IReadOnlyList<EditableSecret> EditableSecrets =
@@ -177,7 +177,7 @@ public class IntegrationCatalog(
             Hint: $"未設定なら {NtfySettings.DefaultBaseUrl}"),
         // トピック名だけはこちらで決めてよい値なので「生成」を出す(ntfy に登録は要らず、
         // 好きな名前へ送れば購読側に届く。ただし推測されると誰でも読めるので乱数で作る)
-        // **必須なのはトピック名だけ。** ベース URL には既定(ntfy.sh)があり、
+        // 必須なのはトピック名だけ。ベース URL には既定(ntfy.sh)があり、
         // トークンは認証のある ntfy を使うときだけ要る
         new(NtfySettings.TopicName, "ntfy トピック名", Sensitive: false,
             Generate: NtfySettings.GenerateTopic, Required: true),
@@ -228,7 +228,7 @@ public class IntegrationCatalog(
             "選んだトピックを検索語にして日本語の論文を集める(直近 " + jstage.WithinYears + " 年ぶん)",
             jstage.Enabled), SourceToggles.Paper));
 
-        // 出版トレンド(最近出た本からテーマを数える)。**キーも検索語も要らない**ので
+        // 出版トレンド(最近出た本からテーマを数える)。キーも検索語も要らないので
         // トレンドの軸に置ける —— 分類(NDC)と刊行日で引く
         integrations.Add(Toggleable(new Integration(
             IntegrationAxis.Trending, "出版トレンド", "NDL サーチ", CredentialNeed.NotNeeded, true,
@@ -236,7 +236,7 @@ public class IntegrationCatalog(
             newReleases.Enabled), SourceToggles.NewRelease));
 
         // --- 書籍 ---
-        // 定番の軸にも出す —— 検索には使わないが、**書影が欠けている本を ISBN で引く**のがここ
+        // 定番の軸にも出す —— 検索には使わないが、書影が欠けている本を ISBN で引くのがここ
         integrations.Add(Toggleable(WithSecret(new Integration(
             IntegrationAxis.Interests | IntegrationAxis.Classics,
             "書籍", "Google Books", CredentialNeed.Required,
@@ -259,7 +259,7 @@ public class IntegrationCatalog(
             "書籍のレビュー(件数・評価)を ISBN で引く。「読まれている度合い」の並べ替えはこれが元。"
             + "書影も同じ応答から埋まる(Google Books への問い合わせが減る)"),
             "Rakuten:ApplicationId"), SourceToggles.Enricher));
-        // 推薦本は定番の軸。**トピックの選択とは無関係**(固定クエリで「読むべき本」記事を掘る)
+        // 推薦本は定番の軸。トピックの選択とは無関係(固定クエリで「読むべき本」記事を掘る)
         integrations.Add(Toggleable(WithSecret(new Integration(
             IntegrationAxis.Classics, "書籍", "Qiita(推薦本)", CredentialNeed.Optional,
             false,
@@ -281,9 +281,9 @@ public class IntegrationCatalog(
             "選んだトピックを検索語にしてイベントを集める。設定 → イベントの購読に載せたコミュニティも引く。"
             + "API は alpha 扱いで破壊的変更がありうる"),
             "Doorkeeper:AccessToken"), SourceToggles.Event));
-        // 面掃きは検索・購読と同じキーを使う別経路。**既定では動かない**ので、
+        // 面掃きは検索・購読と同じキーを使う別経路。既定では動かないので、
         // 「使えるのに動いていない」ことが画面から読めるように 1 行を分けて出す。
-        // **定番のイベント(/classics/events)を埋めるのは主にこの2つ** ——
+        // 定番のイベント(/classics/events)を埋めるのは主にこの2つ ——
         // 検索も購読も「こちらが知っているもの」しか拾えないため
         integrations.Add(WithSecret(new Integration(
             IntegrationAxis.Interests | IntegrationAxis.Classics,
@@ -343,7 +343,7 @@ public class IntegrationCatalog(
 
         // --- 通知 ---
         // 通知そのものは接続先が無ければ動かないので「必須」(サマリーの生成は別の連携の話)。
-        // 設定済みの判定は**トピックだけ**で足りる —— ベース URL には既定(ntfy.sh)がある。
+        // 設定済みの判定はトピックだけで足りる —— ベース URL には既定(ntfy.sh)がある。
         // 通知のオン/オフ(設定画面)は接続先の有無とは別の話なので、ここの状態には混ぜない
         integrations.Add(new Integration(
             IntegrationAxis.Both, NotifyPurpose, "ntfy", CredentialNeed.Required,
@@ -362,7 +362,7 @@ public class IntegrationCatalog(
     }
 
     /// <summary>
-    /// 収集元のオン/オフを行に付ける。**役割 + 名前が鍵**(<see cref="SourceToggles"/>)——
+    /// 収集元のオン/オフを行に付ける。役割 + 名前が鍵(<see cref="SourceToggles"/>)——
     /// ランナー側も同じ鍵で引くので、画面で止めたものは叩きに行かなくなる。
     /// 面掃きだけは別の設定(<see cref="SweepSettings"/>。既定が逆で、明示的に入れたときだけ動く)。
     /// </summary>

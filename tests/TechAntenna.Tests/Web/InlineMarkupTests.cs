@@ -9,7 +9,7 @@ public class InlineMarkupTests
     [Fact]
     public void 強調とコードをHTMLに直す()
     {
-        // そのまま出すと記号が画面に見えていた(「**CLI は別コンテナ…**」がアスタリスクごと出た)
+        // そのまま出すと記号が画面に見えていた(「CLI は別コンテナ…」がアスタリスクごと出た)
         Assert.Equal(
             "<code>claude setup-token</code> で発行する。<strong>優先</strong>される",
             Html("`claude setup-token` で発行する。**優先**される"));

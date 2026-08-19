@@ -1,10 +1,10 @@
 // タグの画面(/tags)の「この一覧を全選択」。
 //
-// **上乗せの機能で、JS が動かなくても困らない** —— 1 語ずつのチェックボックスと
+// 上乗せの機能で、JS が動かなくても困らない —— 1 語ずつのチェックボックスと
 // 「チェックした語を除外する」は素の HTML フォームだけで成立している。ここが足すのは
 // 「300 語を手で 1 つずつ押さなくてよくする」ぶんだけ。
 //
-// 全ページ静的 SSR なので対話回線は張らない。**enhanced navigation の後にも当て直す** ——
+// 全ページ静的 SSR なので対話回線は張らない。enhanced navigation の後にも当て直す ——
 // blazor.web.js を読んでいるとリンクの遷移で DOM だけ差し替わり、スクリプトは再実行されない。
 (function () {
     function apply() {
@@ -16,7 +16,7 @@
 
             toggle.dataset.tagSelect = '1';
             toggle.addEventListener('change', function () {
-                // **開いている一覧の中だけ**を対象にする(details をまたいで選ぶと、
+                // 開いている一覧の中だけを対象にする(details をまたいで選ぶと、
                 // 見えていない語まで除外することになる)
                 var group = toggle.closest('.tag-group');
                 if (!group) {

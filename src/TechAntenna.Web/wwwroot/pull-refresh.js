@@ -1,15 +1,15 @@
 // PWA(ホーム画面から起動した状態)で、画面の上端から下へ引っ張ったら読み込み直す。
 //
-// **入れる理由は iOS。** ブラウザのタブなら引っ張り更新はブラウザが持っているが、
-// **iOS のホーム画面から起動した表示には無い**(戻る/進むが無いのと同じ事情。
+// 入れる理由は iOS。ブラウザのタブなら引っ張り更新はブラウザが持っているが、
+// iOS のホーム画面から起動した表示には無い(戻る/進むが無いのと同じ事情。
 // history-nav.js 参照)。Android の PWA は標準で持っているので、こちらを有効にした
-// ときは **標準の側を止める**(CSS の `overscroll-behavior-y: contain`)——
+// ときは 標準の側を止める(CSS の `overscroll-behavior-y: contain`)——
 // 両方が生きていると、1回の操作で二重に読み込み直すことになる。
 //
-// **出すのはスタンドアロン表示のときだけ。** タブで開いているときは何もしない
+// 出すのはスタンドアロン表示のときだけ。タブで開いているときは何もしない
 // (ブラウザの引っ張り更新をそのまま使う)。
 //
-// 全ページ静的 SSR なので対話回線は張らない。**登録は document に1回だけ**で、
+// 全ページ静的 SSR なので対話回線は張らない。登録は document に1回だけで、
 // enhanced navigation で本文が差し替わっても効き続ける(nav-menu.js と同じ理由)。
 (function () {
     // これだけ引いたら更新する(px)。短すぎると横スクロールや誤操作で発火する
@@ -62,7 +62,7 @@
     }
 
     document.addEventListener('touchstart', function (event) {
-        // **上端にいるときだけ受ける。** 途中から引いても更新しない(単なるスクロール)
+        // 上端にいるときだけ受ける。途中から引いても更新しない(単なるスクロール)
         if (refreshing || event.touches.length !== 1 || window.scrollY > 0) {
             startY = null;
             return;
@@ -80,7 +80,7 @@
 
         var dy = event.touches[0].clientY - startY;
         var dx = Math.abs(event.touches[0].clientX - startX);
-        // **縦の動きだけを拾う。** 横に払ったとき(表の横スクロール等)に反応しない
+        // 縦の動きだけを拾う。横に払ったとき(表の横スクロール等)に反応しない
         if (dy <= 0 || dx > Math.abs(dy)) {
             if (pulled > 0) {
                 hide();
@@ -115,7 +115,7 @@
         location.reload();
     }, { passive: true });
 
-    // **標準の引っ張り更新を止めるのはここまで来たときだけ。**
+    // 標準の引っ張り更新を止めるのはここまで来たときだけ。
     // 先に止めて JS が動かないと、どちらの手段も無くなる
     document.documentElement.classList.add('pull-refresh-on');
 })();

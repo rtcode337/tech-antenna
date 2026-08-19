@@ -72,7 +72,7 @@ public static class ConnpassResponseParser
     /// <c>/api/v2/groups/?subdomain=…</c> のレスポンスから<b>シリーズ ID</b> を取り出す。
     /// 見つからなければ null(名簿の打ち間違い・非公開のグループ)。
     ///
-    /// **サブドメインで引けるようにするための解決**で、購読の名簿を人が書けるようにするもの ——
+    /// サブドメインで引けるようにするための解決で、購読の名簿を人が書けるようにするもの ——
     /// 数字のシリーズ ID は connpass の画面に出てこないが、サブドメインは
     /// グループの URL(<c>https://&lt;ここ&gt;.connpass.com/</c>)を見れば分かる。
     /// </summary>
@@ -87,7 +87,7 @@ public static class ConnpassResponseParser
 
         foreach (var group in groups.EnumerateArray())
         {
-            // id は数値で返る。**文字列で返す**のは、そのままクエリに載せる値だから
+            // id は数値で返る。文字列で返すのは、そのままクエリに載せる値だから
             if (group.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.Number
                 && id.TryGetInt64(out var parsed))
             {
@@ -112,7 +112,7 @@ public static class ConnpassResponseParser
     static DateTimeOffset? GetDate(JsonElement e, string name) =>
         DateTimeOffset.TryParse(GetString(e, name), out var parsed) ? parsed : null;
 
-    /// <summary>数値。**欠けている項目は null のまま返す**(0 と混ぜない)。</summary>
+    /// <summary>数値。欠けている項目は null のまま返す(0 と混ぜない)。</summary>
     static int? GetInt(JsonElement e, string name) =>
         e.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
             && value.TryGetInt32(out var parsed)

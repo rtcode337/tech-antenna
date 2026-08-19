@@ -6,10 +6,10 @@ using TechAntenna.Infrastructure.Persistence;
 namespace TechAntenna.Tests.Infrastructure;
 
 /// <summary>
-/// EF の LINQ が SQL に翻訳できるかを、**DB につながずに**確かめる
+/// EF の LINQ が SQL に翻訳できるかを、DB につながずに確かめる
 /// (<c>ToQueryString</c> は接続を開かない。テストが PostgreSQL を要らないのは今までどおり)。
 ///
-/// **InMemory のストアで通っても、EF 版だけ実行時に落ちることがある。** 実際、主催者ごとの
+/// InMemory のストアで通っても、EF 版だけ実行時に落ちることがある。実際、主催者ごとの
 /// 件数を record のコンストラクタで射影したまま並べ替えていて、画面がエラーになった
 /// (「The LINQ expression could not be translated」)。翻訳できるかどうかは
 /// 動かすまで分からないので、問い合わせの形が変わったらここで気づけるようにしておく。
@@ -50,11 +50,11 @@ public class EfEventStoreTranslationTests
     }
 
     /// <summary>
-    /// **Npgsql は timestamptz に時差 0 以外の DateTimeOffset を書けない**
+    /// Npgsql は timestamptz に時差 0 以外の DateTimeOffset を書けない
     /// (Cannot write DateTimeOffset with Offset=09:00:00 ...)。収集元は `+09:00` のまま
     /// 返してくるし、カレンダーの月の境界も日本時間で決まるので、DbContext の値変換で
-    /// 保存・問い合わせの直前に UTC へそろえている。**外すと、その列を使う画面と
-    /// 収集がまとめて実行時に落ちる。**
+    /// 保存・問い合わせの直前に UTC へそろえている。外すと、その列を使う画面と
+    /// 収集がまとめて実行時に落ちる。
     /// </summary>
     [Theory]
     [InlineData(typeof(TechEvent), nameof(TechEvent.StartsAt))]

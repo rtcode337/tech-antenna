@@ -63,7 +63,7 @@ secrets.json
 # リポジトリに置くのは docker-compose.standalone.example.yml の方だけにする
 docker-compose.standalone.yml
 
-# CLI ブリッジへ渡す認証情報を置いていた場所。**いまは使わない**(CLI を同梱して
+# CLI ブリッジへ渡す認証情報を置いていた場所。いまは使わない(CLI を同梱して
 # プロセスで起動する方式に戻し、トークンは子プロセスの環境変数で渡す)が、
 # 以前の版で動かした環境には OAuth トークンを含む settings.db が残っている ——
 # 無視しておかないと、更新した人が git add -A でそれを拾う

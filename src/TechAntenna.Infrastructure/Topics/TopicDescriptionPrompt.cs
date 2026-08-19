@@ -46,7 +46,7 @@ public static class TopicDescriptionPrompt
 
     /// <summary>
     /// 応答(スキーマに沿った JSON のルート)から説明を読み取る。
-    /// 形の崩れた要素・空の説明は読み飛ばす(**知らない語は空で返させている**ので、
+    /// 形の崩れた要素・空の説明は読み飛ばす(知らない語は空で返させているので、
     /// 空を捨てることが「説明を付けない」の実現になる)。
     /// </summary>
     public static IReadOnlyList<TopicDescriptionVerdict> ReadDescriptions(JsonElement root)
@@ -83,7 +83,7 @@ public static class TopicDescriptionPrompt
     }
 
     /// <summary>
-    /// 説明を画面に出せる形にそろえる。**長さは指示だけに任せない** ——
+    /// 説明を画面に出せる形にそろえる。長さは指示だけに任せない ——
     /// 上限を超えた応答をそのまま持つと、一覧のツールチップが読めない長さになる。
     /// </summary>
     public static string? Trim(string? text)

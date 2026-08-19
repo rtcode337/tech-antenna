@@ -26,7 +26,7 @@ public record CalendarMonth(int Year, int Month, IReadOnlyList<IReadOnlyList<Cal
 /// <summary>
 /// イベントの月カレンダーを組み立てる。
 ///
-/// **日付の境界はすべて日本時間で数える**(<see cref="JapanTime"/>)—— UTC のまま日付に
+/// 日付の境界はすべて日本時間で数える(<see cref="JapanTime"/>)—— UTC のまま日付に
 /// 直すと、日本の朝 9 時までに始まるイベントが前日のマスに入る。
 /// 画面(Razor)ではなくここに置いてあるのは、月をまたぐマスの埋め方や週の折り返しを
 /// テストできるようにするため。
@@ -47,7 +47,7 @@ public static class EventCalendar
 
     /// <summary>
     /// クエリの <c>?month=2026-08</c> を読む。読めなければ false ——
-    /// **既定の月に黙って落とさない**のは呼び出し側の判断に任せるため。
+    /// 既定の月に黙って落とさないのは呼び出し側の判断に任せるため。
     /// </summary>
     public static bool TryParseKey(string? text, out int year, out int month)
     {
@@ -66,7 +66,7 @@ public static class EventCalendar
     }
 
     /// <summary>
-    /// カレンダーに出すマスの範囲(日本時間)。**月そのものではなく前後にはみ出したマスまで**を
+    /// カレンダーに出すマスの範囲(日本時間)。月そのものではなく前後にはみ出したマスまでを
     /// 含むので、ストアにはこの範囲で問い合わせる —— そうしないと、月末の週に並ぶ
     /// 翌月頭のマスだけイベントが消えて「その日は何も無い」ように見える。
     /// </summary>

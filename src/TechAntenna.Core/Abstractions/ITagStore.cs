@@ -33,7 +33,7 @@ public record TagDecision(
 /// <summary>
 /// 見かけたタグとその仕分け状態の保存先。
 ///
-/// **観測(<see cref="ObserveAsync"/>)と仕分け(<see cref="DecideAsync"/>)を分けてある。**
+/// 観測(<see cref="ObserveAsync"/>)と仕分け(<see cref="DecideAsync"/>)を分けてある。
 /// 収集は件数と話題度を書き替えるだけで状態には触らず、状態を変えるのはタグの仕分けと
 /// 画面からの手直しだけ —— 混ぜると、収集のたびに仕分けが巻き戻る。
 /// </summary>
@@ -41,7 +41,7 @@ public interface ITagStore
 {
     /// <summary>
     /// 観測結果を書き込む(無ければ <see cref="TagStatus.Pending"/> で作る)。
-    /// **状態・寄せ先・判定日時は触らない。**
+    /// 状態・寄せ先・判定日時は触らない。
     /// <paramref name="resetMissing"/> が true なら、渡されなかったタグの件数と話題度を 0 にする
     /// (別名がまとまってタグが消えたときに古い件数が残らないようにするため)。
     /// </summary>
@@ -61,16 +61,16 @@ public interface ITagStore
     Task<IReadOnlyList<Tag>> GetAllAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// 次に LLM へ聞くタグを「目立つ順」(件数 + 話題度)に返す。**上限は掛けない** ——
+    /// 次に LLM へ聞くタグを「目立つ順」(件数 + 話題度)に返す。上限は掛けない ——
     /// 1 回に何語聞くかは呼ぶ側の枠で決め、画面では枠に収まらない分も見せたいため。
     ///
     /// 対象は <see cref="TagStatus.Pending"/> と、再挑戦の時刻を過ぎた
-    /// <see cref="TagStatus.Unresolved"/>。**未仕分けは件数で足切りしない** ——
+    /// <see cref="TagStatus.Unresolved"/>。未仕分けは件数で足切りしない ——
     /// 「仕分け待ちに出ている語がそのまま対象」になるようにするため。以前は件数 3 未満を
     /// 落としていたが、収集を何回押したかで対象が変わり、落ちた語は仕分け待ちに残り続けた。
     /// 並びが「目立つ順」なので、1 回の枠に収まらない分は次の回へ自然に回る。
     ///
-    /// **例外は「紐づくデータが1件も無い保留」**(<see cref="Tag.TotalCount"/> が 0)。
+    /// 例外は「紐づくデータが1件も無い保留」(<see cref="Tag.TotalCount"/> が 0)。
     /// これは聞き直さない —— 一度 LLM が判断できなかったうえに、記事・イベント・書籍の
     /// どれにも付いていない語は、7 日ごとに聞き直しても答えが変わる材料が無く、
     /// 毎回の枠をただ食う。データが付けば件数が戻るので、そのときから対象に復帰する。

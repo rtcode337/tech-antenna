@@ -5,18 +5,18 @@ using TechAntenna.Core.Topics;
 namespace TechAntenna.Infrastructure.Feeds;
 
 /// <summary>
-/// arXiv の API で論文を集める。**選択中のトピックを検索語にして1つずつ問い合わせ**、
+/// arXiv の API で論文を集める。選択中のトピックを検索語にして1つずつ問い合わせ、
 /// 検索に使ったキーワードをそのままタグにする(connpass・書籍と同じやり方)。
 /// arXiv 側の分類(`cs.CL` 等)はタグにしない —— トピック横断の語彙と噛み合わないため。
 ///
-/// 取り込むのはタイトル・URL・投稿日・**要旨**。**要旨を取り込んでよいのは
-/// arXiv のメタデータが CC0 だから** —— API Terms of Use が「descriptive metadata について
+/// 取り込むのはタイトル・URL・投稿日・要旨。要旨を取り込んでよいのは
+/// arXiv のメタデータが CC0 だから —— API Terms of Use が「descriptive metadata について
 /// CC0 1.0 の下で自由に利用できる」と明記している(書籍の `description` は出版社の
-/// 著作物なので別扱い)。要旨があると**論文も要約の対象にできる**
+/// 著作物なので別扱い)。要旨があると論文も要約の対象にできる
 /// (書籍で書誌事実だけを取り込むのと同じ方針)。本文が無いので要約ジョブの対象からも
 /// 外してある(<see cref="ArticleKind.Paper"/>)。
 ///
-/// **リクエストの間隔は 3 秒以上空ける。** arXiv の API 利用条件が求めている下限で、
+/// リクエストの間隔は 3 秒以上空ける。arXiv の API 利用条件が求めている下限で、
 /// 無料で公開されている学術インフラなので守ること。
 /// </summary>
 public class ArxivPaperSource(
@@ -42,7 +42,7 @@ public class ArxivPaperSource(
     {
         var topics = catalog ?? TopicCatalog.Empty;
 
-        // **検索は英語表記、タグは正式表記。** arXiv は英語の索引なので `生成AI` をそのまま
+        // 検索は英語表記、タグは正式表記。arXiv は英語の索引なので `生成AI` をそのまま
         // 投げると 0 件になる(実測)。トピックの英語表記(`generative ai`)で引いて、
         // 付けるタグは他の収集元と揃うよう正式表記のままにする
         var keywords = (await topicStore.GetSelectedAsync(cancellationToken))

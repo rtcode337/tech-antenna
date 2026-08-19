@@ -34,15 +34,15 @@ public class EventCollectionRunner(
         var delay = TimeSpan.FromSeconds(options.Value.DelayBetweenSourcesSeconds);
         // connpass と Doorkeeper は選択トピックを検索語として自分で引くが、TECH PLAY の RSS は
         // 検索できないため、ここで絞る。比べる相手はイベントの正規化済みタグなのでキーを使う。
-        // **絞りは配下込み** —— 検索語を配下へ広げないのはリクエスト数の話で、巡回で
+        // 絞りは配下込み —— 検索語を配下へ広げないのはリクエスト数の話で、巡回で
         // 流れてきた分まで捨てると、表示対象(選んだトピック+配下)のイベントが入らなくなる
         var selectedTags = catalog.ExpandWithDescendants(
             (await topicStore.GetSelectedAsync(cancellationToken)).Select(topic => topic.Key));
 
-        // **選択が空でも、検索語を使わない経路(グループの購読・面掃き)があれば走らせる。**
+        // 選択が空でも、検索語を使わない経路(グループの購読・面掃き)があれば走らせる。
         // 逆にその経路を持たない収集元は、選択が空なら結果が全部捨てられると分かっているので
         // 叩きに行かない —— 集まらないと分かっている相手にリクエストを投げない
-        // **止めた収集元は叩きに行かない。** 実行のたびに読むので、画面の切り替えは
+        // 止めた収集元は叩きに行かない。実行のたびに読むので、画面の切り替えは
         // 再起動なしで効く
         var enabled = toggles.Enabled(_sources, SourceToggles.Event, source => source.Name);
         if (enabled.Count == 0)
@@ -96,7 +96,7 @@ public class EventCollectionRunner(
 
         await tagObserver.ObserveAsync(cancellationToken: cancellationToken);
 
-        // **注目度の3つめの材料(記事の言及数)をここで数え直す。** 外部は叩かず、
+        // 注目度の3つめの材料(記事の言及数)をここで数え直す。外部は叩かず、
         // 集めてある記事と突き合わせるだけ。記事は後から増えるので、
         // 新しく取れたイベントだけでなく手元のイベント全体を数え直す
         var mentioned = await mentionRefresher.RefreshAsync(cancellationToken);
@@ -107,7 +107,7 @@ public class EventCollectionRunner(
 
         return new CollectionRunResult(fetched, added, failed);
 
-        // **購読と面掃きで入ったものはトピックの絞りを通さない。** 検索語で見つけたのでは
+        // 購読と面掃きで入ったものはトピックの絞りを通さない。検索語で見つけたのでは
         // ないので選んだトピックのタグを持っておらず、ここで落とすと経路ごと無効になる
         bool Wanted(TechEvent techEvent) =>
             techEvent.PickedBy is { Length: > 0 }

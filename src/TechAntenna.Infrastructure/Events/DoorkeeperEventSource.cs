@@ -62,7 +62,7 @@ public class DoorkeeperEventSource(
         // 同じイベントが複数のキーワードで見つかることがあるので URL でまとめる
         var byUrl = new Dictionary<Uri, TechEvent>();
 
-        // 選択されたトピックがあればそれを検索語にする(**正式表記のほう** —— 検索語に
+        // 選択されたトピックがあればそれを検索語にする(正式表記のほう —— 検索語に
         // 正規化で崩れたキー `生成ai` を投げても当たらない)。未設定なら設定ファイルの keywords
         var activeKeywords = topicStore is null
             ? keywords
@@ -80,7 +80,7 @@ public class DoorkeeperEventSource(
         foreach (var keyword in activeKeywords)
         {
             // expand[]=group で主催グループを名前まで展開させる(既定では数値の ID だけが返り、
-            // 「公式のイベントか」の判定材料にならない)。**展開が効かなくても収集は続く** ——
+            // 「公式のイベントか」の判定材料にならない)。展開が効かなくても収集は続く ——
             // API は alpha 扱いなので、名前が取れなければ主催者を null のままにする
             var requestUri =
                 $"https://api.doorkeeper.jp/events?q={Uri.EscapeDataString(keyword)}"
@@ -107,7 +107,7 @@ public class DoorkeeperEventSource(
         // --- 2) 購読しているコミュニティを直接引く ---
         foreach (var group in followed)
         {
-            // **タイトルの照合はしない。** 検索語で引いていないので照合する相手が無いし、
+            // タイトルの照合はしない。検索語で引いていないので照合する相手が無いし、
             // 「このコミュニティのイベントは全部見たい」が購読の意味そのもの
             var requestUri =
                 $"https://api.doorkeeper.jp/groups/{Uri.EscapeDataString(group.Id)}/events"
@@ -120,7 +120,7 @@ public class DoorkeeperEventSource(
             }
             catch (HttpRequestException)
             {
-                // **名簿の1行の打ち間違い(404)で収集全体を止めない。**
+                // 名簿の1行の打ち間違い(404)で収集全体を止めない。
                 // 名簿が正しいかは設定画面で見て直せる
                 await WaitIfMoreAsync(--remaining, cancellationToken);
                 continue;
@@ -128,7 +128,7 @@ public class DoorkeeperEventSource(
 
             foreach (var entry in DoorkeeperResponseParser.Parse(json))
             {
-                // **検索語が無いのでタグは付かない。** グループの表示名をタグにはしない ——
+                // 検索語が無いのでタグは付かない。グループの表示名をタグにはしない ——
                 // イベント名が語彙に流れ込むと、タグの一覧と LLM の仕分けが固有名詞で埋まる
                 Merge(entry, collectedAt, byUrl, [], pickedBy: group.Label);
             }
@@ -166,7 +166,7 @@ public class DoorkeeperEventSource(
 
         if (byUrl.TryGetValue(entry.Url, out var existing))
         {
-            // **購読で見つけた印は消さない**(検索でも当たったからといって、
+            // 購読で見つけた印は消さない(検索でも当たったからといって、
             // 「購読しているから載っている」という説明が嘘になるわけではない)
             byUrl[entry.Url] = WithTags(
                 existing, [.. existing.RawTags, .. keywordTags], existing.PickedBy ?? pickedBy);
@@ -195,7 +195,7 @@ public class DoorkeeperEventSource(
         };
     }
 
-    // 受け取るのは**生のタグ**。正規化をここ 1 か所でだけ行い、RawTags と Tags がずれないようにする
+    // 受け取るのは生のタグ。正規化をここ 1 か所でだけ行い、RawTags と Tags がずれないようにする
     TechEvent WithTags(TechEvent source, IEnumerable<string> rawTags, string? pickedBy)
     {
         var raw = rawTags.Distinct(StringComparer.OrdinalIgnoreCase).ToList();

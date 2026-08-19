@@ -7,7 +7,7 @@ namespace TechAntenna.Infrastructure.Migrations
     /// <summary>
     /// 推薦の出典を「URL の text[]」から「URL と題名を持つ JSON の配列」へ変える。
     ///
-    /// **既存の行は捨てずに写す。** EF が生成する素の AlterColumn は text[] → jsonb を
+    /// 既存の行は捨てずに写す。EF が生成する素の AlterColumn は text[] → jsonb を
     /// キャストできず落ちるうえ、通っても中身が失われる —— 推薦は 800 冊規模で溜まっていて、
     /// 捨てると次の「定番の収集」を回すまで画面から推薦が消える。題名は当時取っていないので
     /// null で入れ、あとの収集で埋まる(BookMerge が題名を持つ側を残す)。
@@ -17,7 +17,7 @@ namespace TechAntenna.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // **2 段に分ける。** `ALTER ... USING` にサブクエリは書けない
+            // 2 段に分ける。`ALTER ... USING` にサブクエリは書けない
             // (PostgreSQL: cannot use subquery in transform expression)ので、
             // まず素直に写せる形(URL の JSON 配列)へ変えてから、UPDATE で1件ずつ組み替える。
             // 列名は JsonSerializer が書く形(宣言どおりの PascalCase)に合わせる ——

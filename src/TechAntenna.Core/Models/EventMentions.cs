@@ -30,11 +30,11 @@ public static class EventMentions
     static readonly Regex Decorations = new(
         @"[【\[（(〈《「『＜<][^】\]）)〉》」』＞>]*[】\]）)〉》」』＞>]", RegexOptions.Compiled);
 
-    /// <summary>回数・年・ハッシュタグ。**イベント名の本体ではない**ので落とす。</summary>
+    /// <summary>回数・年・ハッシュタグ。イベント名の本体ではないので落とす。</summary>
     static readonly Regex Ordinals = new(
         @"(第\s*\d+\s*[回弾部]|#\S+|\b(19|20)\d{2}\b年?|vol\.?\s*\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    /// <summary>名前と副題の区切り。**最初の区切りより前だけ**を名前とみなす。</summary>
+    /// <summary>名前と副題の区切り。最初の区切りより前だけを名前とみなす。</summary>
     static readonly char[] Separators = ['|', '｜', '/', '／', '~', '〜', '－', '―', '–', '—', ':', '：'];
 
     /// <summary>

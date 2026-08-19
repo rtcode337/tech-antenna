@@ -4,7 +4,7 @@ namespace TechAntenna.Web.Services;
 
 /// <summary>
 /// ntfy 通知の設定キー(ApiCredentials に渡す名前)。接続先(BaseUrl / Topic / トークン)は
-/// 外部連携の画面から設定し、**通知のオン/オフはそれとは独立に**設定画面で切り替える ——
+/// 外部連携の画面から設定し、通知のオン/オフはそれとは独立に設定画面で切り替える ——
 /// 接続先を消さなくても一時的に通知を止められるようにするため。
 /// </summary>
 public static class NtfySettings
@@ -38,14 +38,14 @@ public static class NtfySettings
 
     /// <summary>
     /// 乱数部分に使う文字。ntfy のトピック名に使えるのは <c>[-_A-Za-z0-9]</c> だが、
-    /// **見間違えやすい文字(l・1・I・0・O)を外した小文字と数字だけ**にしてある ——
+    /// 見間違えやすい文字(l・1・I・0・O)を外した小文字と数字だけにしてある ——
     /// 購読する端末へ手で打ち写すことがあるため。
     /// </summary>
     const string TopicAlphabet = "abcdefghijkmnopqrstuvwxyz23456789";
 
     /// <summary>
-    /// ランダムなトピック名を作る。**ntfy.sh のトピック名は知っている人が誰でも購読・投稿
-    /// できる**ので、推測されない名前が要る。暗号論的乱数(<see cref="RandomNumberGenerator"/>)
+    /// ランダムなトピック名を作る。ntfy.sh のトピック名は知っている人が誰でも購読・投稿
+    /// できるので、推測されない名前が要る。暗号論的乱数(<see cref="RandomNumberGenerator"/>)
     /// で作り、<c>Random</c> は使わない —— 種が推測できると名前も推測できるため。
     /// </summary>
     public static string GenerateTopic() =>
