@@ -26,8 +26,9 @@
     <h2 id="jobs-heading" class="h5">ジョブ</h2>
     <p class="page-note text-muted">
         <strong>ボタンを押すと、そのジョブがいますぐ走ります</strong>
-        (バックグラウンドで走り、進捗と結果がボタンの隣に出ます)。
-        <strong>左のチェックを入れたジョブは、下で決めた時刻に自動でも走ります</strong> ——
+        (バックグラウンドで走り、進捗と結果が同じ行に出ます)。
+        <strong>「定期実行」のチェックを入れたジョブは、下で決めた時刻に自動でも走ります</strong> ——
+        <strong>チェックは触った時点で保存されます</strong>。
         チェックの横の数字はそのときに走る順番です(下の「定期実行」を参照)。
         <strong>既定はすべてオフ・時刻なし</strong> —— 消し忘れたサーバーが収集先を
         叩き続けたり、LLM や外部 API の無料枠を使い切らないため。
@@ -38,11 +39,11 @@
        押されたのがどのボタンかは submit の value で見分ける ——
        `run:<キー>` なら1回実行、`save-schedule` なら定期実行の設定を保存。
        **実行を押したときチェックは保存しない**(押した操作だけをする) *@
-    <form method="post" @formname="jobs" @onsubmit="SubmitAsync">
+    <form method="post" @formname="jobs" @onsubmit="SubmitAsync" data-job-schedule>
         <AntiforgeryToken />
 
     <h3>ホーム</h3>
-    @Rows(JobGroup.Home)
+    @JobTable(JobGroup.Home)
     <p class="page-note text-muted">
         収集済みの情報から<strong>押さえておくべき情報のダイジェスト</strong>を LLM で作り、
         <a href="/">ホーム</a>の「今日のサマリー」に出します。
@@ -53,7 +54,7 @@
     </p>
 
     <h3>トレンド</h3>
-    @Rows(JobGroup.Trend)
+    @JobTable(JobGroup.Trend)
     <p class="page-note text-muted">
         「トレンドの収集」で<strong>ニュース・記事・話題の論文</strong>(<a href="/recent/general">トレンド</a>の
         下にあるもの)をまとめて 1 巡します(ブックマーク数の補完も含みます)。
@@ -63,7 +64,7 @@
     </p>
 
     <h3>興味トピック</h3>
-    @Rows(JobGroup.Interests)
+    @JobTable(JobGroup.Interests)
     <p class="page-note text-muted">
         <strong>収集対象に選んだトピックを検索語</strong>にして外部へ問い合わせます ——
         <a href="/settings/topics">トピック</a>を選んでいないと<strong>1 件も集まりません</strong>。
@@ -71,7 +72,7 @@
     </p>
 
     <h3>定番</h3>
-    @Rows(JobGroup.Classics)
+    @JobTable(JobGroup.Classics)
     <p class="page-note text-muted">
         「読むべき技術書」を挙げた Qiita 記事から<strong>名指しされた本</strong>を拾い、
         <a href="/classics/books">定番 → 書籍</a>に出します。
@@ -83,61 +84,77 @@
     </p>
 
     <h3>トピック(語彙の整備)</h3>
+
+    <table class="table align-middle stack jobs-table">
+        @JobTableHead()
+        <tbody>
+        @* ボタンの行: ボタン / 説明チップの ? / 副作用の注意。
+           説明は details ではなく **? を押して出すチップ(HTML 標準の popover)** —— 手順と
+           話題度の算出方法をチップ1つにまとめてある(実装は TopicMaintenanceRunner と
+           FetchTrendsAsync。説明を変えるときはそちらと揃えること)。
+           **2つのボタンは Runner が同じ1つ**なので、片方が走っていればもう片方も実行中になり、
+           二重には走らない *@
+        <JobButton Runner="_trendScores.Runner" Name="@_trendScores.Name"
+                   Action="@($"run:{_trendScores.Key}")" Operation="@_trendScores.Key"
+                   ScheduleKey="@_trendScores.Key" Order="Jobs.OrderOf(_trendScores)"
+                   Enabled="ScheduleSettings.IsEnabled(Credentials, _trendScores.Key)"
+                   AsRow="true">
+            <button class="help-toggle" type="button" popovertarget="trend-help"
+                    aria-label="「話題度を取り直す」の説明">?</button>
+            @* 副作用(仕分け待ちが増える)はチップの中に隠さない —— 押す前に知っておくべき話 *@
+            <span class="job-note text-muted">
+                外部トレンドで見つかった新しい語が、仕分け待ち(<a href="/settings/tags">タグ</a>)に増えることがあります。
+            </span>
+            <div class="help-popover" id="trend-help" popover>
+                <strong>「話題度を取り直す」は何をしている?</strong>
+                <p>
+                    外部トレンドを引いて鮮度を更新します。<strong>LLM は使いません</strong>。
+                    新しく現れた語は<strong>仕分け待ち</strong>として
+                    <a href="/settings/tags">タグ</a>の画面に溜まり、そこの「タグを仕分けなおす」で語彙に入ります。
+                </p>
+                <ol>
+                    <li><strong>話題度を取得</strong> —— Qiita の新着記事と、はてなブックマークの
+                        人気エントリーを<strong>押した時点でその場から</strong>取得します
+                        (トレンドの収集をいつ回したかには依存しません)</li>
+                    <li><strong>タグを観測</strong> —— 保存済みの記事・イベント・書籍に付いたタグの件数と、
+                        取ってきた話題度を書き込みます。<strong>ここで次の仕分けの対象が決まります</strong>
+                        (<a href="/settings/tags">タグ</a>の画面の「仕分け待ち」がその一覧です)</li>
+                    <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
+                        トピック一覧を書き込みます。話題度は親へも合算します</li>
+                </ol>
+                <strong>話題度はどう算出している?</strong>
+                <ul>
+                    <li>材料は2つ、どちらも<strong>押した時点でその場から取得</strong>します。
+                        <strong>Qiita の新着記事(直近 7 日)</strong>は「いいね数」を、
+                        <strong>はてなブックマークの人気エントリー</strong>は「ブックマーク数」を
+                        重み(どちらも最低 1)として、記事に付いているタグとタイトルに出てくる
+                        トピックへ加算します</li>
+                    <li>別名(<code>人工知能</code> など)は正式表記(<code>AI</code>)へ寄せてから数えます</li>
+                    <li>材料ごとに<strong>合計を 100 とした割合</strong>に直してから足し合わせます
+                        (数値の桁が違う材料どうしを混ぜられるように。1 材料あたり最大 100)</li>
+                    <li><strong>ツリー表示の値は配下のトピックも合算</strong>した話題度、
+                        <strong>ランキング表示はその用語単体</strong>の話題度です</li>
+                    <li>このボタンを押した時点の値で、自動では更新されません
+                        (「タグを仕分けなおす」でも変わりません)</li>
+                </ul>
+            </div>
+        </JobButton>
+
+        @* 仕分け待ちの中身とゴミの除外は<a href="/settings/tags">タグ</a>の画面。ここは押す場所だけ持つ *@
+        <JobButton Runner="_tagClassification.Runner" Name="@_tagClassification.Name"
+                   Action="@($"run:{_tagClassification.Key}")" Operation="@_tagClassification.Key"
+                   ScheduleKey="@_tagClassification.Key" Order="Jobs.OrderOf(_tagClassification)"
+                   Enabled="ScheduleSettings.IsEnabled(Credentials, _tagClassification.Key)"
+                   AsRow="true" />
+        </tbody>
+    </table>
+
+    @* **説明は表の下**(他のグループと同じ置き方)—— 先に読むものではないので、
+       押す場所より前に積まない *@
     <p class="page-note text-muted">
         収集で見かけた語を<strong>語彙(トピックのツリー)へ入れていく</strong>ジョブです。
         中身の確認と手直しは<a href="/settings/topics">トピック</a>と<a href="/settings/tags">タグ</a>の画面で。
     </p>
-
-    @* ボタンの行: ボタン / 説明チップの ? / 副作用の注意。
-       説明は details ではなく **? を押して出すチップ(HTML 標準の popover)** —— 手順と
-       話題度の算出方法をチップ1つにまとめてある(実装は TopicMaintenanceRunner と
-       FetchTrendsAsync。説明を変えるときはそちらと揃えること)。
-       **2つのボタンは Runner が同じ1つ**なので、片方が走っていればもう片方も実行中になり、
-       二重には走らない *@
-    <JobButton Runner="_trendScores.Runner" Name="@_trendScores.Name"
-               Action="@($"run:{_trendScores.Key}")" Operation="@_trendScores.Key"
-               ScheduleKey="@_trendScores.Key" Order="Jobs.OrderOf(_trendScores)"
-               Enabled="ScheduleSettings.IsEnabled(Credentials, _trendScores.Key)">
-        <button class="help-toggle" type="button" popovertarget="trend-help"
-                aria-label="「話題度を取り直す」の説明">?</button>
-        @* 副作用(仕分け待ちが増える)はチップの中に隠さない —— 押す前に知っておくべき話 *@
-        <span class="job-note text-muted">
-            外部トレンドで見つかった新しい語が、仕分け待ち(<a href="/settings/tags">タグ</a>)に増えることがあります。
-        </span>
-        <div class="help-popover" id="trend-help" popover>
-            <strong>「話題度を取り直す」は何をしている?</strong>
-            <p>
-                外部トレンドを引いて鮮度を更新します。<strong>LLM は使いません</strong>。
-                新しく現れた語は<strong>仕分け待ち</strong>として
-                <a href="/settings/tags">タグ</a>の画面に溜まり、そこの「タグを仕分けなおす」で語彙に入ります。
-            </p>
-            <ol>
-                <li><strong>話題度を取得</strong> —— Qiita の新着記事と、はてなブックマークの
-                    人気エントリーを<strong>押した時点でその場から</strong>取得します
-                    (トレンドの収集をいつ回したかには依存しません)</li>
-                <li><strong>タグを観測</strong> —— 保存済みの記事・イベント・書籍に付いたタグの件数と、
-                    取ってきた話題度を書き込みます。<strong>ここで次の仕分けの対象が決まります</strong>
-                    (<a href="/settings/tags">タグ</a>の画面の「仕分け待ち」がその一覧です)</li>
-                <li><strong>一覧を組み立てる</strong> —— 語彙・話題度・タグの件数を突き合わせて
-                    トピック一覧を書き込みます。話題度は親へも合算します</li>
-            </ol>
-            <strong>話題度はどう算出している?</strong>
-            <ul>
-                <li>材料は2つ、どちらも<strong>押した時点でその場から取得</strong>します。
-                    <strong>Qiita の新着記事(直近 7 日)</strong>は「いいね数」を、
-                    <strong>はてなブックマークの人気エントリー</strong>は「ブックマーク数」を
-                    重み(どちらも最低 1)として、記事に付いているタグとタイトルに出てくる
-                    トピックへ加算します</li>
-                <li>別名(<code>人工知能</code> など)は正式表記(<code>AI</code>)へ寄せてから数えます</li>
-                <li>材料ごとに<strong>合計を 100 とした割合</strong>に直してから足し合わせます
-                    (数値の桁が違う材料どうしを混ぜられるように。1 材料あたり最大 100)</li>
-                <li><strong>ツリー表示の値は配下のトピックも合算</strong>した話題度、
-                    <strong>ランキング表示はその用語単体</strong>の話題度です</li>
-                <li>このボタンを押した時点の値で、自動では更新されません
-                    (「タグを仕分けなおす」でも変わりません)</li>
-            </ul>
-        </div>
-    </JobButton>
 
     @* **仕分け待ちが溜まっていることは、押す場所で知らせる。** かつてはトピックの画面に
        出していたが、そこには押すボタンが無く「見つけたのに何もできない」案内だった。
@@ -146,15 +163,10 @@
     {
         <p class="pending-notice">
             未仕分けのタグが <strong>@_pendingCount 語</strong>あります。
-            下の「タグを仕分けなおす」で語彙に入ります
+            上の「タグを仕分けなおす」で語彙に入ります
             (中身の確認と除外は<a href="/settings/tags">タグの画面</a>で)。
         </p>
     }
-    @* 仕分け待ちの中身とゴミの除外は<a href="/settings/tags">タグ</a>の画面。ここは押す場所だけ持つ *@
-    <JobButton Runner="_tagClassification.Runner" Name="@_tagClassification.Name"
-               Action="@($"run:{_tagClassification.Key}")" Operation="@_tagClassification.Key"
-               ScheduleKey="@_tagClassification.Key" Order="Jobs.OrderOf(_tagClassification)"
-               Enabled="ScheduleSettings.IsEnabled(Credentials, _tagClassification.Key)" />
 
     @* 挙動が画面から分かるようにしておく(説明は TopicMaintenanceRunner の実装と揃えること) *@
     <details class="score-help">
@@ -191,7 +203,33 @@
         </ol>
     </details>
 
-    <h3>定期実行</h3>
+    @* **JS が動かない環境のためのチェックの保存。** チェックは触った時点で保存される
+       (job-schedule.js)ので、効いているあいだは JS がこのボタンを隠す ——
+       押す必要が無いものを出しておくと「押さないと保存されない」と読める。
+       その場保存が失敗したときは出し直す(**保存する手段を画面から消さない**。
+       トピックの「選択を保存」と同じ流儀)。
+       **置き場はジョブの表の後ろ・定期実行の節の前** —— チェックはジョブの表にあり、
+       ここはその塊の終わりに当たる *@
+    @* **隠すのはボタンだけでなく行ごと。** 添える説明は「このボタン」の話なので、
+       ボタンが出ていないと何を指しているのか読めない。
+       **文面は「出ているときに正しいこと」を書く** —— この行が見えているのは
+       その場保存が効いていないときだけなので、「触った時点で保存されます」とは書けない *@
+    <div class="save-jobs" data-save-jobs>
+        <button type="submit" name="Action" value="save-jobs"
+                class="btn btn-outline-primary btn-sm">定期実行のチェックを保存</button>
+        @if (_jobsMessage is { Length: > 0 })
+        {
+            <span class="text-body-secondary">@_jobsMessage</span>
+        }
+        else
+        {
+            <span class="text-muted">チェックを変えたら押してください。</span>
+        }
+    </div>
+
+    @* **「定期実行」は「ジョブ」と同じ高さの見出し。** ジョブのグループ(ホーム・トレンド…)と
+       違って**ジョブの分類ではない**ので、h3 に並べると1つのグループに見える *@
+    <h2 class="h5">定期実行</h2>
     @* **時刻を決めて、チェックの入ったジョブを通しで走らせる。** かつてはジョブごとに
        「N 分ごと」で回していたが、それだと収集・仕分け・サマリーが互いの結果を待たずに
        走り、サマリーがその日の収集を含まない材料で作られることがあった。
@@ -204,12 +242,37 @@
         保存した内容は再起動なしで効きます。
     </p>
 
+    @* **保存ボタンは入力欄の隣に置く。** 節の一番下に置いていた頃は、打ち込んだ場所と
+       押す場所が離れていて保存ボタンを探すことになっていた *@
     <div class="schedule-times">
         <label for="schedule-times">実行する時刻(日本時間・いくつでも)</label>
-        <input id="schedule-times" name="Times" value="@_timesInput"
-               placeholder="07:00, 19:00" aria-describedby="schedule-times-help" />
+        <div class="schedule-times-row">
+            <input id="schedule-times" name="Times" value="@_timesInput"
+                   placeholder="07:00, 19:00" aria-describedby="schedule-times-help" />
+            <button type="submit" name="Action" value="save-times"
+                    class="btn btn-outline-primary btn-sm">保存</button>
+            @if (_timesError is { Length: > 0 })
+            {
+                <span class="text-danger">@_timesError</span>
+            }
+            else if (_timesMessage is { Length: > 0 })
+            {
+                <span class="text-body-secondary">@_timesMessage</span>
+            }
+        </div>
         <span id="schedule-times-help" class="text-muted">
             <code>HH:mm</code> をカンマか空白で区切って並べます(空にすると止まります)。
+        </span>
+        @* 次にいつ走るかは**時刻の説明のすぐ後ろ**に出す —— 打ち込む場所のそばに置かないと、
+           「設定できているつもりで動いていない」に気づけない。
+           **文を組むのは ScheduleSettings.Describe の1か所**(チェックのその場保存の応答も
+           同じものを返す)—— 別々に書くと、チェックを入れた直後の画面だけ古い文言が残る *@
+        <span class="schedule-next text-muted" data-schedule-summary>
+            @{
+                var times = ScheduleSettings.GetTimes(Credentials);
+                var enabledCount = Jobs.InOrder.Count(job => ScheduleSettings.IsEnabled(Credentials, job.Key));
+            }
+            @ScheduleSettings.Describe(times, enabledCount, Clock.GetUtcNow())
         </span>
     </div>
 
@@ -224,65 +287,61 @@
         </span>
     </JobButton>
 
-    @* 保存はチェックと時刻をまとめて書き込む。**チェックは未チェックだと POST に
-       乗らない**ので、乗っていないジョブはオフとして保存する *@
-    <div>
-        <button type="submit" name="Action" value="save-schedule"
-                class="btn btn-outline-primary btn-sm">定期実行の設定を保存</button>
-        @if (_scheduleError is { Length: > 0 })
-        {
-            <span class="ms-2 text-danger">@_scheduleError</span>
-        }
-        else if (_scheduleMessage is { Length: > 0 })
-        {
-            <span class="ms-2 text-body-secondary">@_scheduleMessage</span>
-        }
-    </div>
+    @* チェックのその場保存(job-schedule.js)の結果。**画面の下端に固定して出す** ——
+       チェックは5つの表に散っていて、押した行のそばに出せない(トピックの選択と同じ理由)。
+       成功は数秒で消し、失敗は残す *@
+    <p class="schedule-status" data-schedule-status hidden></p>
     </form>
-
-    @* 次にいつ走るかを出す —— 設定できているつもりで動いていない、に気づけるように *@
-    <p class="page-note text-muted">
-        @{
-            var times = ScheduleSettings.GetTimes(Credentials);
-            var enabledCount = Jobs.InOrder.Count(job => ScheduleSettings.IsEnabled(Credentials, job.Key));
-        }
-        @if (times.Count == 0)
-        {
-            <text><strong>いまは定期実行しません</strong>(時刻が未設定)。</text>
-        }
-        else if (enabledCount == 0)
-        {
-            <text><strong>時刻は設定されていますが、走るジョブがありません</strong>
-                (チェックが1つも入っていません)。</text>
-        }
-        else if (ScheduleSettings.NextOccurrence(times, Clock.GetUtcNow()) is { } next)
-        {
-            <text>次は <strong>@JapanTime.Format(next)</strong> に @enabledCount 件のジョブが走ります。</text>
-        }
-    </p>
 
 </section>
 
 @* グループに属するジョブの行(番号は実行順)。**インラインテンプレートはマークアップ側の
    @@{ } にしか書けない**ので、@@code ではなくここに置く(タグの画面と同じ) *@
 @{
-    RenderFragment Rows(JobGroup group) =>
+    @* 表の見出し。**どの表も同じ4列**(定期実行 / ジョブ / 状態 / 今すぐ実行)にそろえる ——
+       画面に表が5つ並ぶので、列が違うと毎回読み直すことになる *@
+    @* **ローカル関数にする**(変数にすると宣言より前で使えない —— この @@{ } は
+       ページの末尾にあり、表はその上で組んでいる) *@
+    RenderFragment JobTableHead() =>
     @<text>
-        @foreach (var entry in Jobs.InOrder
-            .Select((job, index) => (Job: job, Order: index + 1))
-            .Where(entry => entry.Job.Group == group))
-        {
-            <JobButton Runner="entry.Job.Runner" Name="@entry.Job.Name"
-                       Action="@($"run:{entry.Job.Key}")" Operation="@entry.Job.Key"
-                       ScheduleKey="@entry.Job.Key" Order="entry.Order"
-                       Enabled="ScheduleSettings.IsEnabled(Credentials, entry.Job.Key)" />
-        }
+        <thead>
+            <tr>
+                <th scope="col">定期実行</th>
+                <th scope="col">ジョブ</th>
+                <th scope="col">状態</th>
+                <th scope="col">今すぐ実行</th>
+            </tr>
+        </thead>
+    </text>;
+
+    RenderFragment JobTable(JobGroup group) =>
+    @<text>
+        @* スマホでは 1 行 1 枚のカードに畳む(ボタンと結果の文言が入るので詰めても収まらない) *@
+        <table class="table align-middle stack jobs-table">
+            @JobTableHead()
+            <tbody>
+                @foreach (var entry in Jobs.InOrder
+                    .Select((job, index) => (Job: job, Order: index + 1))
+                    .Where(entry => entry.Job.Group == group))
+                {
+                    <JobButton Runner="entry.Job.Runner" Name="@entry.Job.Name"
+                               Action="@($"run:{entry.Job.Key}")" Operation="@entry.Job.Key"
+                               ScheduleKey="@entry.Job.Key" Order="entry.Order"
+                               Enabled="ScheduleSettings.IsEnabled(Credentials, entry.Job.Key)"
+                               AsRow="true" />
+                }
+            </tbody>
+        </table>
     </text>;
 }
 
 @code {
-    string? _scheduleMessage;
-    string? _scheduleError;
+    /// <summary>時刻の保存の結果(入力欄の隣に出す)。</summary>
+    string? _timesMessage;
+    string? _timesError;
+
+    /// <summary>チェックの保存の結果(JS が動かないときの経路。ボタンの隣に出す)。</summary>
+    string? _jobsMessage;
 
     /// <summary>時刻の入力欄。保存済みの値で初期化し、保存に失敗したときは打った文字を残す。</summary>
     string _timesInput = "";
@@ -305,7 +364,10 @@
         _pendingCount = (await TagStore.GetPendingAsync(Clock.GetUtcNow())).Count;
     }
 
-    /// <summary>押されたボタン(<c>run:&lt;キー&gt;</c> か <c>save-schedule</c>)。</summary>
+    /// <summary>
+    /// 押されたボタン(<c>run:&lt;キー&gt;</c> / <c>run-schedule</c> /
+    /// <c>save-times</c> / <c>save-jobs</c>)。
+    /// </summary>
     [SupplyParameterFromForm(FormName = "jobs", Name = "Action")]
     public string? Action { get; set; }
 
@@ -323,9 +385,18 @@
             return;
         }
 
-        if (Action == "save-schedule")
+        // **時刻とチェックは別々に保存する。** チェックは触った時点で保存される
+        // (job-schedule.js)ので、時刻を保存するボタンがついでにチェックまで書くと、
+        // 「押したボタンの用と、実際に書き換わるもの」が食い違う
+        if (Action == "save-times")
         {
-            await SaveScheduleAsync();
+            await SaveTimesAsync();
+            return;
+        }
+
+        if (Action == "save-jobs")
+        {
+            await SaveJobsAsync();
             return;
         }
 
@@ -348,25 +419,19 @@
         }
     }
 
-    async Task SaveScheduleAsync()
+    /// <summary>実行する時刻だけを保存する(チェックには触らない)。</summary>
+    async Task SaveTimesAsync()
     {
-        _scheduleMessage = null;
-        _scheduleError = null;
+        _timesMessage = null;
+        _timesError = null;
 
-        // **時刻が読めなければ何も保存しない。** 一部だけ保存すると、画面の表示と
-        // 実際に走る設定が食い違う
+        // **読めなければ何も保存しない。** 一部だけ保存すると、画面の表示と
+        // 実際に走る設定が食い違う。打った文字は残す(打ち直せるように)
         if (!ScheduleSettings.TryParseTimes(Times, out var times, out var error))
         {
             _timesInput = Times ?? "";
-            _scheduleError = error;
+            _timesError = error;
             return;
-        }
-
-        var enabled = (EnabledJobs ?? []).ToHashSet(StringComparer.Ordinal);
-        foreach (var job in Jobs.InOrder)
-        {
-            // 無効が既定なので、オンだけ "true" を書き、オフは行を消す(= 既定に戻す)
-            await ApplyAsync(ScheduleSettings.EnabledName(job.Key), enabled.Contains(job.Key));
         }
 
         if (times.Count == 0)
@@ -382,9 +447,27 @@
         }
 
         _timesInput = ScheduleSettings.Format(times);
-        _scheduleMessage = times.Count == 0
+        _timesMessage = times.Count == 0
             ? "保存しました(時刻が無いので定期実行はしません)。"
-            : $"保存しました({enabled.Count} 件のジョブを {_timesInput} に実行します)。";
+            : $"{_timesInput} に保存しました。";
+    }
+
+    /// <summary>
+    /// 定期実行のチェックを保存する(時刻には触らない)。
+    /// **JS が動かないときの経路** —— 効いていればチェックは触った時点で保存されている
+    /// (`/api/jobs/schedule`)ので、ここは同じ値の上書きになる。
+    /// **チェックは未チェックだと POST に乗らない**ので、乗っていないジョブはオフとして保存する。
+    /// </summary>
+    async Task SaveJobsAsync()
+    {
+        var enabled = (EnabledJobs ?? []).ToHashSet(StringComparer.Ordinal);
+        foreach (var job in Jobs.InOrder)
+        {
+            // 無効が既定なので、オンだけ "true" を書き、オフは行を消す(= 既定に戻す)
+            await ApplyAsync(ScheduleSettings.EnabledName(job.Key), enabled.Contains(job.Key));
+        }
+
+        _jobsMessage = $"{enabled.Count} 件のジョブを定期実行に入れました。";
 
         Task ApplyAsync(string name, bool on) => on
             ? Credentials.SetAsync(name, "true")

@@ -630,6 +630,47 @@ app.MapPost("/api/topics/select", async (
     return Results.Ok(new { key, selected, count });
 });
 
+// 定期実行のチェックを**触った時点で1件だけ保存する**(wwwroot/job-schedule.js)。
+// フォームの「定期実行の設定を保存」が時刻とチェックをまとめて書くのとは別の経路 ——
+// チェック1つのたびにページを作り直すと、実行中のジョブの進捗表示まで巻き込んで再描画される。
+//
+// **パスは `/api/jobs/schedule`**(トピックの選択と同じ流儀)。フォーム形式で受けるのは
+// `UseAntiforgery()` が自動で検証するのがこの形だから(JSON の本文だと検証されない)。
+app.MapPost("/api/jobs/schedule", async (
+    IFormCollection form,
+    ScheduledJobs jobs,
+    ApiCredentials credentials,
+    TimeProvider clock) =>
+{
+    var key = form["key"].ToString();
+    var enabled = form["enabled"] == "true";
+
+    if (jobs.ByKey(key) is null)
+    {
+        // 知らないジョブを黙って保存しない。**画面側でチェックを元に戻せるよう理由を返す**
+        return Results.NotFound(new { error = $"「{key}」というジョブはありません。" });
+    }
+
+    // 無効が既定なので、オンだけ "true" を書き、オフは行を消す(= 既定に戻す)
+    var name = ScheduleSettings.EnabledName(key);
+    if (enabled)
+    {
+        await credentials.SetAsync(name, "true");
+    }
+    else
+    {
+        await credentials.RemoveAsync(name);
+    }
+
+    // 「次は … に N 件」の1行は**画面と同じ組み立て**(ScheduleSettings.Describe)を返す ——
+    // 文言を2か所で組むと、チェックを入れた直後の画面だけ古いまま残る
+    var count = jobs.InOrder.Count(job => ScheduleSettings.IsEnabled(credentials, job.Key));
+    var summary = ScheduleSettings.Describe(
+        ScheduleSettings.GetTimes(credentials), count, clock.GetUtcNow());
+
+    return Results.Ok(new { key, enabled, count, summary });
+});
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 

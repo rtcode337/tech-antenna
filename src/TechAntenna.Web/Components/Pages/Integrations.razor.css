@@ -62,14 +62,6 @@ h3.axis {
 }
 
 /* 表を面の上に載せて、行の区切りだけで見せる */
-.table {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-}
-
 /* 「未設定・無効のとき」は補足なので、幅を取りすぎないようにする */
 td.effect {
     font-size: 0.85rem;

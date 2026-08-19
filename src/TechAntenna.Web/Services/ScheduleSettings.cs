@@ -35,6 +35,32 @@ public static class ScheduleSettings
     public static bool IsEnabled(ApiCredentials credentials, string jobKey) =>
         credentials.Get(EnabledName(jobKey)) == "true";
 
+    /// <summary>
+    /// 「次にいつ何件走るか」の1行。**画面と、チェックのその場保存の応答で同じ文を出す**ため、
+    /// 組み立てをここ1か所に置く —— 別々に書くと、チェックを入れた直後の画面だけ
+    /// 「走るジョブがありません」のような古い文言が残る。
+    ///
+    /// **強調(太字)は入れない。** JS が差し替えるので、混ぜると差し替えた行だけ
+    /// 見た目が変わる。
+    /// </summary>
+    public static string Describe(
+        IReadOnlyList<TimeOnly> times, int enabledCount, DateTimeOffset now)
+    {
+        if (times.Count == 0)
+        {
+            return "いまは定期実行しません（時刻が未設定）。";
+        }
+
+        if (enabledCount == 0)
+        {
+            return "時刻は設定されていますが、走るジョブがありません（チェックが1つも入っていません）。";
+        }
+
+        return NextOccurrence(times, now) is { } next
+            ? $"次は {JapanTime.Format(next)} に {enabledCount} 件のジョブが走ります。"
+            : "";
+    }
+
     /// <summary>設定されている実行時刻(早い順)。未設定なら空 = 定期実行しない。</summary>
     public static IReadOnlyList<TimeOnly> GetTimes(ApiCredentials credentials) =>
         TryParseTimes(credentials.Get(TimesName), out var times, out _) ? times : [];

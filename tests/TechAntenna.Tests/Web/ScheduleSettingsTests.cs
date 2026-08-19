@@ -108,6 +108,34 @@ public class ScheduleSettingsTests
     }
 
     // 設定キーはジョブごとに分かれる(片方を切ってももう片方は残る)
+    // 「次にいつ何件走るか」の1行は、画面とチェックのその場保存(API)で同じものを出す。
+    // 2か所で組むと、チェックを入れた直後の画面だけ古い文言が残る
+    [Fact]
+    public void 時刻が無ければ定期実行しないと言う()
+    {
+        Assert.Equal(
+            "いまは定期実行しません（時刻が未設定）。",
+            ScheduleSettings.Describe([], 3, Jst("2026-08-19T10:00:00+09:00")));
+    }
+
+    [Fact]
+    public void 時刻はあってもチェックが無ければそう言う()
+    {
+        // 設定できているつもりで動いていない、に気づけるようにする
+        Assert.Equal(
+            "時刻は設定されていますが、走るジョブがありません（チェックが1つも入っていません）。",
+            ScheduleSettings.Describe([new TimeOnly(7, 0)], 0, Jst("2026-08-19T10:00:00+09:00")));
+    }
+
+    [Fact]
+    public void 次に走る時刻と件数を日本時間で言う()
+    {
+        Assert.Equal(
+            "次は 2026-08-19 19:00 JST に 2 件のジョブが走ります。",
+            ScheduleSettings.Describe(
+                [new TimeOnly(7, 0), new TimeOnly(19, 0)], 2, Jst("2026-08-19T10:00:00+09:00")));
+    }
+
     [Fact]
     public void ジョブごとに設定キーが分かれる()
     {

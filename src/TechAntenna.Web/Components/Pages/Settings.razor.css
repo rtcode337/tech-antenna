@@ -34,8 +34,35 @@
     font-weight: 650;
 }
 
+/* 入力欄と保存ボタンを横に並べる。**保存は打ち込んだ場所の隣**(節の下に置くと探すことになる)。
+   **ボタンは折り返さない** —— 入力欄が固定幅だと狭い画面でボタンが下の行へ落ち、
+   打ち込む場所と押す場所がまた離れる。入力欄のほうを縮ませる(`flex: 1 1 …` + `min-width: 0`)。
+   保存の結果だけは長くなるので、そこは折り返してよい(`flex-basis: 100%`) */
+.schedule-times-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.schedule-times-row > button {
+    flex: none;
+}
+
+/* 保存の結果は次の行へ回す(入力欄を押しつぶさないため) */
+.schedule-times-row > span {
+    flex: 1 0 100%;
+    display: block;
+    margin-top: 0;
+    font-size: 0.85rem;
+}
+
 .schedule-times input {
-    width: min(22rem, 100%);
+    /* **縮むのは入力欄の側。** `min-width: 0` を書かないと flex の既定
+       (`min-width: auto`)で中身の幅より縮まず、ボタンが押し出されて折り返す */
+    flex: 1 1 8rem;
+    min-width: 0;
+    max-width: 22rem;
     padding: 0.35rem 0.6rem;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
@@ -98,4 +125,49 @@
     margin-top: 0.3rem;
     font-size: 0.86rem;
     line-height: 1.6;
+}
+
+/* JS が動かない環境のためのチェックの保存。**ジョブの表の後ろ・定期実行の節の前**に置く
+   (チェックはジョブの表にあり、ここがその塊の終わり)。JS が効いていれば隠れる */
+.save-jobs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 1.25rem 0;
+    font-size: 0.85rem;
+}
+
+/* チェックをその場で保存したときの知らせ(job-schedule.js)。
+   **画面の下端に固定して出す** —— チェックは5つの表に散っていて、押した行のそばには
+   出せない(トピックの選択と同じ理由)。JS が動かないときは出ないまま(hidden のまま) */
+.schedule-status {
+    position: fixed;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    z-index: 10;
+    max-width: min(32rem, calc(100vw - 2rem));
+    margin: 0;
+    padding: 0.5rem 0.9rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--pill);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    color: var(--text);
+    font-size: 0.86rem;
+}
+
+/* 失敗は消えずに残るので、色でも成功と見分けられるようにする */
+.schedule-status.error {
+    border-color: var(--danger);
+    color: var(--danger);
+    font-weight: 600;
+}
+
+/* 次にいつ走るか。時刻の説明のすぐ後ろに出す(打ち込む場所のそば) */
+.schedule-next {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
 }
