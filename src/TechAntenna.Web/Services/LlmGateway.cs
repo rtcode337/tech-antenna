@@ -41,8 +41,7 @@ public class LlmGateway(
     IOptions<ClaudeCodeOptions> claudeCodeOptions,
     IOptions<AnthropicOptions> anthropicOptions,
     ChiezoAi chiezo,
-    TimeProvider timeProvider,
-    ILogger<LlmGateway> logger)
+    TimeProvider timeProvider)
 {
     /// <summary>
     /// Claude Code のトークンの設定キー。**CLI が読む環境変数と同じ名前**にしてある ——

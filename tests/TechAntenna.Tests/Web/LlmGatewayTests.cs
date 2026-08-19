@@ -27,8 +27,7 @@ public class LlmGatewayTests : IDisposable
             new ChiezoAi(
                 new UnusedHttpClientFactory(),
                 Options.Create(new ChiezoOptions { BaseUrl = chiezoUrl })),
-            TimeProvider.System,
-            NullLogger<LlmGateway>.Instance);
+            TimeProvider.System);
         return (gateway, credentials);
     }
 

@@ -13,7 +13,6 @@ public class BookCollectionRunner(
     ITopicStore topicStore,
     TagObserver tagObserver,
     IOptions<BooksOptions> options,
-    TimeProvider clock,
     ILogger<BookCollectionRunner> logger) : JobRunner
 {
     readonly IBookCatalog? _catalog = catalogs.FirstOrDefault();

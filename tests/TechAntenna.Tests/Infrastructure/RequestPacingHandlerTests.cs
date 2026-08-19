@@ -69,7 +69,7 @@ public class RequestPacingHandlerTests
             .Select(i => client.GetStringAsync($"https://connpass.com/api/v2/events/?ym=20260{i + 1}"))
             .ToList();
 
-        Assert.Equal(1, sentAt.Count);
+        Assert.Single(sentAt);
 
         clock.Advance(TimeSpan.FromSeconds(5));
         clock.Advance(TimeSpan.FromSeconds(5));

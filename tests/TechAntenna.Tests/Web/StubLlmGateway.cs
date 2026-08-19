@@ -26,8 +26,7 @@ public class StubLlmGateway(
         Options.Create(new ClaudeCodeOptions()),
         Options.Create(new AnthropicOptions()),
         new ChiezoAi(new UnusedHttpClientFactory(), Options.Create(new ChiezoOptions())),
-        TimeProvider.System,
-        NullLogger<LlmGateway>.Instance)
+        TimeProvider.System)
 {
     public override ISummarizer? Summarizer => summarizer;
 
