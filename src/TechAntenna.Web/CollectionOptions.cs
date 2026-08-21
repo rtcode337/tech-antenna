@@ -149,9 +149,38 @@ public class QiitaOptions
     /// </summary>
     public int MaxArticles { get; set; } = 200;
 
-    /// <summary>リクエストの間隔(秒)。無料でコミュニティに開かれている API のため空ける。</summary>
+    /// <summary>
+    /// リクエストの間隔(秒)。無料でコミュニティに開かれている API のため空ける。
+    /// 待ちは名前付き HttpClient の層(<c>RequestPacingHandler</c>)で掛けるので、
+    /// 推薦本と引用の<b>どちらの経路から呼んでも</b>守られる。
+    /// </summary>
     public double DelaySeconds { get; set; } = 1;
 
+    /// <summary>選んだトピックの記事から、引用されている本を拾う設定。</summary>
+    public QiitaCitationOptions Citations { get; set; } = new();
+}
+
+/// <summary>
+/// トピックの記事での引用(興味トピックの軸)の設定。推薦本(定番の軸)と分けてあるのは、
+/// 母集団も検索語の決まり方も違うため —— あちらは固定クエリ、こちらは選んだトピック。
+/// </summary>
+public class QiitaCitationOptions
+{
+    /// <summary>トピックの記事から引用本を拾うか。</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// 検索クエリの雛形。<c>{topic}</c> が選んだトピックの正式表記に置き換わる。
+    /// 既定がタグ検索 + ストック数の下限なのは、誰にも読まれていない記事の名指しまで
+    /// 数えると指標が薄まるため。1トピックにつきここに並べた数だけ問い合わせが増える。
+    /// </summary>
+    public List<string> Queries { get; set; } = ["tag:{topic} stocks:>50"];
+
+    /// <summary>
+    /// クエリ1つあたりで読む記事数の上限。推薦本(既定 200)より少ないのは、
+    /// トピックの数だけ繰り返すため —— 5 トピック × 100 件で 10 リクエストになる。
+    /// </summary>
+    public int MaxArticles { get; set; } = 100;
 }
 
 /// <summary>

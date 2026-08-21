@@ -32,17 +32,22 @@
     font-size: 0.88rem;
 }
 
-/* 記事で薦められている本の強調(/books・トピック詳細と同じ文法: 左帯 + 薄い面) */
-.recommended-book {
+/* 記事に名指しされた本の強調(/books・トピック詳細と同じ文法: 左帯 + 薄い面) */
+.endorsed-book {
     padding: 0.25rem 0.5rem;
     border-left: 3px solid var(--accent-border);
     background: var(--accent-soft);
     border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
-.recommended {
+.endorsed {
     color: var(--accent);
     font-weight: 600;
+}
+
+/* 引用は控えめに(推薦と同じ濃さで並ぶと1つの数の内訳に見える) */
+.endorsed.cited {
+    color: var(--text-muted);
 }
 
 /* スマホでは見出しと値を縦に積む(8rem の列を確保すると値が潰れる) */

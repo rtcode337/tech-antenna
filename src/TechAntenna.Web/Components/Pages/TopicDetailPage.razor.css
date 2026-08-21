@@ -108,22 +108,27 @@ li:hover {
     box-shadow: var(--shadow);
 }
 
-/* 記事で薦められている本。記事一覧の「選んだトピック」と同じ文法(左帯 + 薄い面) */
-li.recommended-book {
+/* 記事に名指しされた本(推薦・引用)。記事一覧の「選んだトピック」と同じ文法(左帯 + 薄い面) */
+li.endorsed-book {
     border-left-color: var(--accent);
     background: var(--accent-soft);
 }
 
-/* 記事で薦められた回数。レビューとは別軸なので色を分ける(/books と同じ) */
-.recommended {
+/* 記事に名指しされた回数。レビューとは別軸なので色を分ける(/books と同じ) */
+.endorsed {
     color: var(--accent);
     font-weight: 650;
     text-decoration: none;
     white-space: nowrap;
 }
 
-.recommended:hover {
+.endorsed:hover {
     text-decoration: underline;
+}
+
+/* 引用は控えめに(推薦と同じ濃さで並ぶと1つの数の内訳に見える。/books と同じ) */
+.endorsed.cited {
+    color: var(--text-muted);
 }
 
 li > a,

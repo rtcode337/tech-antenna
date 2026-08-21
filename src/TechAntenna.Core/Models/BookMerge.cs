@@ -57,6 +57,15 @@ public static class BookMerge
             changed = true;
         }
 
+        // 引用も同じく積み上がる。トピックごとに記事を読むので、同じ本が別のトピックの記事でも
+        // 引用される —— 上書きにすると最後に回したトピックの分しか残らない
+        var citedBy = UnionSources(stored.CitedBy, incoming.CitedBy);
+        if (!citedBy.SequenceEqual(stored.CitedBy))
+        {
+            stored.CitedBy = citedBy;
+            changed = true;
+        }
+
         return changed;
     }
 
@@ -104,10 +113,10 @@ public static class BookMerge
     /// 題名は後から埋まることがある(この列より前に集めた分は null で入っている)ので、
     /// 単純な Distinct だと先に入った題名なしの行が居座る。
     /// </summary>
-    static IReadOnlyList<RecommendedArticle> UnionSources(
-        IReadOnlyList<RecommendedArticle> stored, IReadOnlyList<RecommendedArticle> incoming)
+    static IReadOnlyList<SourceArticle> UnionSources(
+        IReadOnlyList<SourceArticle> stored, IReadOnlyList<SourceArticle> incoming)
     {
-        var byUrl = new Dictionary<string, RecommendedArticle>(StringComparer.Ordinal);
+        var byUrl = new Dictionary<string, SourceArticle>(StringComparer.Ordinal);
         var order = new List<string>();
         foreach (var article in stored.Concat(incoming))
         {

@@ -22,9 +22,8 @@ public class QiitaBookRecommendationSourceTests
 
     static QiitaBookRecommendationSource NewSource(
         StubHttpClientFactory factory, params IReadOnlyList<string> queries) =>
-        new(factory,
-            queries.Count > 0 ? queries : ["tag:技術書 stocks:>100"],
-            delayBetweenRequests: TimeSpan.Zero);
+        new(new QiitaSearch(factory),
+            queries.Count > 0 ? queries : ["tag:技術書 stocks:>100"]);
 
     [Fact]
     public async Task 複数の記事で薦められた本ほど推薦回数が多くなる()
@@ -57,7 +56,7 @@ public class QiitaBookRecommendationSourceTests
     public async Task 検索クエリを指定しなければ問い合わせない()
     {
         var factory = new StubHttpClientFactory(Response);
-        var source = new QiitaBookRecommendationSource(factory, [" "], delayBetweenRequests: TimeSpan.Zero);
+        var source = new QiitaBookRecommendationSource(new QiitaSearch(factory), [" "]);
 
         Assert.Empty(await source.FetchAsync());
         Assert.Empty(factory.RequestedUris);

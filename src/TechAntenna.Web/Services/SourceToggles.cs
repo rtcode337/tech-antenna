@@ -26,6 +26,7 @@ public class SourceToggles(ApiCredentials credentials)
     public const string Book = "book";
     public const string Enricher = "enricher";
     public const string Recommendation = "recommendation";
+    public const string Citation = "citation";
     public const string NewRelease = "newrelease";
     public const string Trend = "trend";
     public const string Bookmark = "bookmark";

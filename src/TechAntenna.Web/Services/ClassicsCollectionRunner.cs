@@ -26,9 +26,6 @@ public class ClassicsCollectionRunner(
 {
     readonly IReadOnlyList<IBookRecommendationSource> _sources = sources.ToList();
 
-    /// <summary>書影の引き継ぎのために読み込む保存済みの冊数。推薦本は多くても数百冊。</summary>
-    const int StoredBookLimit = 2000;
-
     public override string Name => "定番の収集";
 
     public override bool IsConfigured => _sources.Count > 0;
@@ -68,7 +65,7 @@ public class ClassicsCollectionRunner(
                 // 組み立てることになるが、そのまま補完へ渡すと同じ本の書影を毎回 Google Books へ
                 // 問い合わせる(1 冊 1 リクエスト・無料枠 1 日 1,000)。一度埋まった本は
                 // 二度と引かないようにする
-                var knownCovers = await KnownCoversAsync(cancellationToken);
+                var knownCovers = await KnownCovers.LoadAsync(store, cancellationToken);
                 var books = recommendations
                     .Select(recommendation => new Book
                     {
@@ -120,20 +117,6 @@ public class ClassicsCollectionRunner(
         await tagObserver.ObserveAsync(cancellationToken: cancellationToken);
 
         return new CollectionRunResult(found, added, failed);
-    }
-
-    /// <summary>
-    /// 保存済みの本の ISBN → 書影 URL。同じ本の書影を毎回外部へ問い合わせないために使う。
-    /// 推薦本は多くても数百冊なので全件読んで構わない。
-    /// </summary>
-    async Task<IReadOnlyDictionary<string, Uri?>> KnownCoversAsync(CancellationToken cancellationToken)
-    {
-        var stored = await store.GetRecentAsync(StoredBookLimit, cancellationToken);
-
-        return stored
-            .Where(book => book.CoverUrl is not null && book.Isbn13 is { Length: > 0 })
-            .GroupBy(book => book.Isbn13!, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.First().CoverUrl, StringComparer.Ordinal);
     }
 
     async Task<IReadOnlyList<Book>> EnrichAsync(

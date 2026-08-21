@@ -62,7 +62,8 @@ erDiagram
         text CoverUrl
         double ReviewAverage "楽天。レビュー無しは null"
         integer ReviewCount "null=未取得 / 0=レビューなし"
-        jsonb RecommendedBy "推薦元の記事(URL と題名)"
+        jsonb RecommendedBy "推薦元の記事(まとめ記事。URL と題名)"
+        jsonb CitedBy "引用元の記事(トピックの記事。URL と題名)"
         timestamptz ReadAt "本人が読み終えた日時。未読は null（収集は触らない）"
         text_array Tags
         text_array RawTags
@@ -176,12 +177,21 @@ erDiagram
 - **`Tags` / `RawTags` / `Authors` は `text[]`**。C# の
   `IReadOnlyList<string>` と値変換でつないでいる。**この変換のせいで LINQ から翻訳できず、
   タグごとの件数集計だけ生 SQL**(PostgreSQL の `unnest`)で書いてある
-- **`Books.RecommendedBy` は `jsonb`**(`Digests.Items` と同じ流儀)。URL と題名の 2 値を
-  1 件として持つため、`text[]` から移した(`ChangeBookRecommendedByToArticles`)。
+- **`Books.RecommendedBy` / `Books.CitedBy` は `jsonb`**(`Digests.Items` と同じ流儀)。
+  URL と題名の 2 値を 1 件として持つため、`text[]` から移した
+  (`ChangeBookRecommendedByToArticles`)。
   **移行では既存の URL を `{"Url": …, "Title": null}` へ写す** —— 800 冊規模で溜まっており、
   捨てると次の「定番の収集」まで画面から推薦が消える。`ALTER ... USING` にサブクエリは
   書けない(PostgreSQL)ので、`to_jsonb` で写してから `UPDATE` で組み替える 2 段にしてある。
   出典単体で検索・集計する予定は無く、常に本を丸ごと読み書きするので行に正規化していない
+- **推薦(`RecommendedBy`)と引用(`CitedBy`)は別の列**(`AddBookCitedBy`)。どちらも
+  「記事1本がその本を名指しした」という同じ形だが、母集団が違う —— 推薦は「読むべき技術書」を
+  挙げた**まとめ記事**(定番の軸。トピックの選択に依存しない)、引用は**選んだトピックについて
+  書かれた記事**が本文で挙げたもの(興味トピックの軸)。並べ替えでは 1 票ずつ合算するが
+  (`BookPopularity.Endorsements`)、混ぜて保存すると出どころを後から分けられない
+  (`BookmarkCount` と `UpvoteCount` を分けているのと同じ理由)。
+  **列を足す移行の既定値は `'[]'`** —— EF が生成する空文字は `jsonb` として不正で、
+  既存行のある DB ではマイグレーションごと落ちる
 - **`Tags` は正規化済み、`RawTags` は収集元のまま。** 規則を変えたときに過去データを作り直せる
   ように両方持つ(`RawTags` から `Tags` を再生成する)
 - **列挙は数値ではなく名前で保存**(`Articles.Kind`・`Tags.Status`・`Tags.DecidedBy`)。
@@ -194,7 +204,7 @@ erDiagram
   `null` で上書きもしない)。`Events.MentionCount` は収集とは別に、収集の最後で
   手元の記事と突き合わせて数え直す(外部は叩かない)
 - **`Books.ReadAt` だけは収集が一切触らない列**。外から取れる指標(`ReviewCount` /
-  `RecommendedBy`)が「世の中でどれだけ読まれ、薦められているか」なのに対し、これは
+  `RecommendedBy` / `CitedBy`)が「世の中でどれだけ読まれ、薦められているか」なのに対し、これは
   **本人しか持てない記録**で、画面の「読んだ」からだけ書き換わる
   (`IBookStore.ToggleReadAsync`)。合流(`BookMerge`)が写すと、収集元の本は常に
   `null` なので**再収集のたびに印が消える**。真偽値ではなく日時にしてあるのは、

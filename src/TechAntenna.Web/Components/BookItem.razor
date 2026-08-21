@@ -1,4 +1,5 @@
 @using TechAntenna.Core
+@using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
 @using TechAntenna.Core.Topics
 @using TechAntenna.Web.Services
@@ -9,9 +10,9 @@
    タグは全部出し、HighlightTags に入っているものだけ強調する(記事カードの
    「選んだトピックのタグ」と同じ文法)—— /books は配下のトピックを親のグループへ
    まとめるので、どのタグでそのグループに載ったのかがタグの帯から分かるようにする。
-   EmphasizeRecommended はトピックの中で推薦本を目立たせるか ——
+   EmphasizeEndorsed はトピックの中で「記事に名指しされた本」を目立たせるか ——
    推薦本だけを並べる枠では全冊が該当して意味を成さないので切る *@
-<li class="mb-3 d-flex gap-2 @(EmphasizeRecommended && Book.RecommendationCount > 0 ? "recommended-book" : "") @(Book.IsRead ? "read-book" : "")">
+<li class="mb-3 d-flex gap-2 @(EmphasizeEndorsed && BookPopularity.Endorsements(Book) > 0 ? "endorsed-book" : "") @(Book.IsRead ? "read-book" : "")">
     @if (Book.CoverUrl is { } coverUrl)
     {
         <img src="@coverUrl" alt="" width="48" loading="lazy" />
@@ -43,21 +44,14 @@
                    並べていた頃は、押す前にどこで薦められているのか分からなかった
                    (どこで薦められたかは本を選ぶ材料そのもの)。畳んでおくのは、1 冊に
                    何本も出典が付くと一覧が出典で埋まるため。JS は使わない *@
-                <details class="recommended ms-1">
-                    <summary>推薦 @Book.RecommendationCount 件</summary>
-                    <ul class="recommended-sources list-unstyled">
-                        @foreach (var article in Book.RecommendedBy)
-                        {
-                            <li>
-                                <a href="@article.Url" target="_blank" rel="noopener">
-                                    @* 題名はこの列より前に集めた分には無い。URL で代替する ——
-                                       押せない行にはしない(次の収集で題名が入る) *@
-                                    @(string.IsNullOrWhiteSpace(article.Title) ? article.Url : article.Title)
-                                </a>
-                            </li>
-                        }
-                    </ul>
-                </details>
+                @Sources("sources-recommended", "推薦", Book.RecommendedBy)
+            }
+            @if (Book.CitationCount > 0)
+            {
+                @* 引用は推薦と別のバッジにする —— 並べ替えでは1票ずつ合算するが、
+                   「まとめ記事が薦めた」のと「そのトピックの記事が引き合いに出した」のは
+                   別の話で、1つの数にまとめると出どころが読めなくなる *@
+                @Sources("sources-cited", "引用", Book.CitedBy)
             }
             @if (Book.ReviewCount is { } reviewCount and > 0)
             {
@@ -106,9 +100,30 @@
     [Parameter]
     public IReadOnlySet<string> HighlightTags { get; set; } = new HashSet<string>();
 
-    /// <summary>推薦本を左帯 + 薄い面で目立たせるか。</summary>
+    /// <summary>記事に名指しされた本(推薦・引用)を左帯 + 薄い面で目立たせるか。</summary>
     [Parameter]
-    public bool EmphasizeRecommended { get; set; }
+    public bool EmphasizeEndorsed { get; set; }
+
+    /// <summary>
+    /// 出典の折りたたみ(推薦・引用)。中身が同じ形なので1か所から描く ——
+    /// 2つ書き分けると、題名の代替や折りたたみの作りが片方だけずれる。
+    /// </summary>
+    RenderFragment Sources(string kind, string label, IReadOnlyList<SourceArticle> articles) =>
+        @<details class="sources @kind ms-1">
+            <summary>@label @articles.Count 件</summary>
+            <ul class="sources-list list-unstyled">
+                @foreach (var article in articles)
+                {
+                    <li>
+                        <a href="@article.Url" target="_blank" rel="noopener">
+                            @* 題名はこの列より前に集めた分には無い。URL で代替する ——
+                               押せない行にはしない(次の収集で題名が入る) *@
+                            @(string.IsNullOrWhiteSpace(article.Title) ? article.Url : article.Title)
+                        </a>
+                    </li>
+                }
+            </ul>
+        </details>;
 
     /// <summary>
     /// 「読んだ」を押せるようにするか。押すのはページのフォームへの submit なので、

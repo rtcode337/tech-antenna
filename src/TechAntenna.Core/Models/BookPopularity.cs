@@ -1,3 +1,5 @@
+using TechAntenna.Core.Abstractions;
+
 namespace TechAntenna.Core.Models;
 
 /// <summary>
@@ -53,18 +55,44 @@ public static class BookPopularity
         books.OrderBy(book => book.IsRead);
 
     /// <summary>
+    /// 記事に名指しされた票数。推薦(「読むべき技術書」のまとめ記事)と
+    /// 引用(選んだトピックについて書かれた記事での言及)を<b>1票ずつ合算する</b>。
+    ///
+    /// 列は分けたまま合算するのが要点(<see cref="Book.RecommendedBy"/> /
+    /// <see cref="Book.CitedBy"/>)—— 画面では別のバッジで出し、並べ替えのときだけ
+    /// 1つの数にする。イベントの注目度が公式・参加者数・記事の言及数を別々に持ったまま
+    /// 1つのスコアにするのと同じ扱いで、混ぜて保存すると「まとめ記事が薦めたのか、
+    /// トピックの記事が触れたのか」を後から分けられなくなる。
+    ///
+    /// 重みを変えていないのは、どちらも「1本の記事がその本を名指しした」という
+    /// 同じ形の根拠だから。まとめ記事のほうが強い(または弱い)と決める材料が今は無い。
+    ///
+    /// <b>数えるのは記事の URL で重複を落とした数。</b> 同じ記事が両方に入ることがある ——
+    /// 「読むべき技術書100選」のようなまとめ記事は技術書のタグと個別分野のタグを両方持つので、
+    /// 推薦の固定クエリにも引用のトピック検索にも当たる(実測: `tag:機械学習` の上位に
+    /// 書籍紹介記事が並ぶ)。単純に足すと、その1本が2票になる。
+    /// </summary>
+    public static int Endorsements(Book book) =>
+        book.RecommendedBy
+            .Concat(book.CitedBy)
+            .Select(article => article.Url)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+
+    /// <summary>
     /// 読んでおくべき度の高い順に並べる。
     ///
     /// まず読んだ本を後ろへ回す(<see cref="ReadLast"/>)—— 読み終えた本がいつまでも
     /// 上位を占めると、この一覧の用途(次に読む本を選ぶ)を果たさない。
-    /// そのうえで推薦回数(記事で薦められた数)を最優先にする —— レビュー数は
-    /// 「読まれた量」で一般向けの本ほど有利になるが、推薦は「詳しい人が名指しで薦めた」
-    /// ぶん精度が高い。同数ならレビューの指標で、それも取れていない本(null)は後ろへ。
+    /// そのうえで記事に名指しされた票数(<see cref="Endorsements"/>)を最優先にする ——
+    /// レビュー数は「読まれた量」で一般向けの本ほど有利になるが、名指しは
+    /// 「詳しい人が本文で挙げた」ぶん精度が高い。
+    /// 同数ならレビューの指標で、それも取れていない本(null)は後ろへ。
     /// </summary>
     public static IOrderedEnumerable<Book> ByPopularity(this IEnumerable<Book> books) =>
         books
             .ReadLast()
-            .ThenByDescending(book => book.RecommendationCount)
+            .ThenByDescending(Endorsements)
             .ThenByDescending(book => Score(book) is not null)
             .ThenByDescending(book => Score(book) ?? 0)
             .ThenByDescending(book => book.CollectedAt);

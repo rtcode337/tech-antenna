@@ -30,11 +30,15 @@ else
         <strong>配下のトピックの本は親のグループにまとめて</strong>出し、
         タグのうち<strong>そのグループに反応したもの</strong>を青いバッジで強調しています。
         複数のトピックで見つかった本は、そのすべてに出ます。
-        並びは<strong>薦められている順</strong>(記事で名指しされた回数)、次に
+        並びは<strong>記事に名指しされた順</strong>、次に
         <strong>読まれている順</strong>(レビュー件数と平均評価から算出)です。
         どちらも取れていない本は後ろに置いています。
-        記事で薦められている本は、トピックの中でも<strong>強調</strong>しています
-        (トピックに関係なく薦められている定番は<a href="/classics/books">定番 → 書籍</a>へ)。
+        名指しは<strong>推薦</strong>(「読むべき技術書」を挙げたまとめ記事)と
+        <strong>引用</strong>(選んだトピックについて書かれた記事が本文で挙げたもの)の
+        2種類で、<strong>1票ずつ合算</strong>して並べ、件数はそれぞれ別に出しています
+        (押すと出典の記事が開きます)。名指しのある本は、トピックの中でも<strong>強調</strong>
+        しています(トピックに関係なく薦められている定番は
+        <a href="/classics/books">定番 → 書籍</a>へ)。
         <strong>雑誌・ムック・増刊は出していません</strong> —— 号を重ねるぶん数が多く、
         「読んでおくべき本」を探すのに埋もれるためです。
         <strong>読み終えた本は右端の「読んだ」で印を付けられます</strong> ——
@@ -71,7 +75,7 @@ else
                     @foreach (var book in group.Books)
                     {
                         <BookItem Book="book" HighlightTags="group.Subtree"
-                                  EmphasizeRecommended="true" ShowReadToggle="true" />
+                                  EmphasizeEndorsed="true" ShowReadToggle="true" />
                     }
                 </ul>
             </details>

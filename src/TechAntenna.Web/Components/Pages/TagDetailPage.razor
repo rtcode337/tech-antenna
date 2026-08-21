@@ -145,7 +145,7 @@ else
                    読んだ本は薄くして末尾へ回す(並べ替えは TopicService)——
                    印を付け直すのは書籍の一覧(/interests/books・/classics/books)の仕事で、
                    ここは「なぜ下にいるのか」が読めればよい *@
-                <li class="mb-2 @(book.RecommendationCount > 0 ? "recommended-book" : "") @(book.IsRead ? "read-book" : "")">
+                <li class="mb-2 @(BookPopularity.Endorsements(book) > 0 ? "endorsed-book" : "") @(book.IsRead ? "read-book" : "")">
                     @if (book.Url is { } url)
                     {
                         <a href="@url" target="_blank" rel="noopener">@book.Title</a>
@@ -165,11 +165,21 @@ else
                             <text>@string.Join("、", book.Authors) — </text>
                         }
                         @(book.Publisher ?? "出版社不明")
+                        @* 推薦(まとめ記事)と引用(トピックの記事)は別々に出す ——
+                           並べ替えでは1票ずつ合算するが、出どころは別の話。
+                           押せるのは1本目だけ(出典を全部並べるのは書籍の一覧の仕事) *@
                         @if (book.RecommendationCount > 0)
                         {
-                            <a class="recommended ms-1" href="@book.RecommendedBy[0]"
+                            <a class="endorsed ms-1" href="@book.RecommendedBy[0].Url"
                                target="_blank" rel="noopener" title="この本を薦めている記事へ">
                                 推薦 @book.RecommendationCount 件
+                            </a>
+                        }
+                        @if (book.CitationCount > 0)
+                        {
+                            <a class="endorsed cited ms-1" href="@book.CitedBy[0].Url"
+                               target="_blank" rel="noopener" title="この本を挙げている記事へ">
+                                引用 @book.CitationCount 件
                             </a>
                         }
                     </small>

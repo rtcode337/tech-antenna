@@ -268,6 +268,17 @@ public class IntegrationCatalog(
             qiita.Enabled),
             "Qiita:AccessToken"), SourceToggles.Recommendation));
 
+        // トピックの記事での引用は興味トピックの軸。推薦本(定番)と同じ Qiita API を使うが、
+        // 母集団が違う —— あちらは固定クエリのまとめ記事、こちらは選んだトピックの記事
+        integrations.Add(Toggleable(WithSecret(new Integration(
+            IntegrationAxis.Interests, "書籍", "Qiita(トピックの引用)", CredentialNeed.Optional,
+            false,
+            "選んだトピックの記事が本文で挙げている本を拾い、「記事に名指しされた票」として"
+            + "書籍の並びに効かせる。**トークンを入れると**上限が 60 → 1000 リクエスト/時になる。"
+            + "取れる数はトピック次第(教科書のある分野ほど厚い)",
+            qiita.Citations.Enabled),
+            "Qiita:AccessToken"), SourceToggles.Citation));
+
         // --- イベント ---
         integrations.Add(Toggleable(WithSecret(new Integration(
             IntegrationAxis.Interests | IntegrationAxis.Classics, "イベント", "connpass", CredentialNeed.Required,

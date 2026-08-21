@@ -21,7 +21,7 @@ public class ClassicsCollectionRunnerTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<BookRecommendation>>(isbns
                 .Select(isbn => new BookRecommendation(
-                    isbn, [new RecommendedArticle("https://example.com/article", "読むべき技術書")]))
+                    isbn, [new SourceArticle("https://example.com/article", "読むべき技術書")]))
                 .ToList());
     }
 

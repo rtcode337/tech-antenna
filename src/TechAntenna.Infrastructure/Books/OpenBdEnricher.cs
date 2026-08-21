@@ -84,6 +84,9 @@ public class OpenBdEnricher(IHttpClientFactory httpClientFactory) : IBookEnriche
             // 補完できた本ほどトピック横断から落ちる
             RawTags = book.RawTags,
             RecommendedBy = book.RecommendedBy,
+            // 引用も同じく写す。落とすと、収集直後は正常に見えるのに
+            // 保存の合流で票が消える(推薦・生タグと同じ落とし穴)
+            CitedBy = book.CitedBy,
         };
     }
 }

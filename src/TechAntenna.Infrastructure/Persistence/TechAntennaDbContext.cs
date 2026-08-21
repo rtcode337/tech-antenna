@@ -137,17 +137,10 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
             // かつては URL だけの text[] だったが、画面が番号ではなく題名を出すようになり、
             // 2 つの値を1件として持つ必要が出た。出典単体で検索・集計する予定は無く、
             // 常に本を丸ごと読み書きするので、行に正規化してもテーブルが増えるだけ
-            book.Property(b => b.RecommendedBy)
-                .HasConversion(
-                    value => JsonSerializer.Serialize(value, (JsonSerializerOptions?)null),
-                    value => JsonSerializer.Deserialize<List<RecommendedArticle>>(
-                        value, (JsonSerializerOptions?)null) ?? new List<RecommendedArticle>(),
-                    new ValueComparer<IReadOnlyList<RecommendedArticle>>(
-                        (a, b) => a != null && b != null && a.SequenceEqual(b),
-                        v => v.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
-                        v => v.ToList()))
-                .HasColumnType("jsonb")
-                .IsRequired();
+            ConfigureSourceArticles(book.Property(b => b.RecommendedBy));
+            // 引用は推薦とは別の列。母集団が違うので、同じ列に混ぜると
+            // 「まとめ記事が薦めたのか、トピックの記事が触れたのか」を後から分けられない
+            ConfigureSourceArticles(book.Property(b => b.CitedBy));
         });
 
         modelBuilder.Entity<Tag>(tag =>
@@ -248,6 +241,25 @@ public class TechAntennaDbContext(DbContextOptions<TechAntennaDbContext> options
         new(value => value.HasValue ? value.Value.ToUniversalTime() : value, value => value);
 
     // IReadOnlyList<string> のままでは EF が扱えないため、PostgreSQL の text[] 列との間で変換する
+    /// <summary>
+    /// 出典記事(推薦・引用)の列。URL と題名の組なので JSON 1 列で持つ
+    /// (ダイジェストの項目と同じ流儀)。かつては URL だけの text[] だったが、
+    /// 画面が番号ではなく題名を出すようになり、2 つの値を1件として持つ必要が出た。
+    /// 出典単体で検索・集計する予定は無く、常に本を丸ごと読み書きするので、
+    /// 行に正規化してもテーブルが増えるだけ。
+    /// </summary>
+    static void ConfigureSourceArticles(PropertyBuilder<IReadOnlyList<SourceArticle>> articles) =>
+        articles.HasConversion(
+                value => JsonSerializer.Serialize(value, (JsonSerializerOptions?)null),
+                value => JsonSerializer.Deserialize<List<SourceArticle>>(
+                    value, (JsonSerializerOptions?)null) ?? new List<SourceArticle>(),
+                new ValueComparer<IReadOnlyList<SourceArticle>>(
+                    (a, b) => a != null && b != null && a.SequenceEqual(b),
+                    v => v.Aggregate(0, (hash, item) => HashCode.Combine(hash, item.GetHashCode())),
+                    v => v.ToList()))
+            .HasColumnType("jsonb")
+            .IsRequired();
+
     static void ConfigureTags(PropertyBuilder<IReadOnlyList<string>> tags) =>
         tags.HasConversion(
                 value => value.ToArray(),

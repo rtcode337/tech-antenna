@@ -1,3 +1,4 @@
+using TechAntenna.Core.Abstractions;
 using TechAntenna.Core.Models;
 
 namespace TechAntenna.Tests.Core;
@@ -68,6 +69,68 @@ public class BookPopularityTests
         Assert.Equal(
             ["そこそこ", "未取得", "読み終えた定番"],
             books.ByPopularity().Select(book => book.Title));
+    }
+
+    [Fact]
+    public void 記事に名指しされた本はレビューの多い本より上に来る()
+    {
+        // 名指し(推薦・引用)は「詳しい人が本文で挙げた」ぶん精度が高い ——
+        // レビュー数は「読まれた量」で、一般向けの本ほど有利になる
+        var cited = Reviewed("記事が挙げた本", 3, 4.0);
+        cited.CitedBy = [new SourceArticle("https://example.com/a", "機械学習の入門")];
+
+        var books = new[] { Reviewed("よく読まれている本", 300, 4.3), cited };
+
+        Assert.Equal(
+            ["記事が挙げた本", "よく読まれている本"],
+            books.ByPopularity().Select(book => book.Title));
+    }
+
+    [Fact]
+    public void 推薦と引用は1票ずつ合算する()
+    {
+        // 列は分けたまま(まとめ記事の名指しか、トピックの記事での言及か)、
+        // 並べ替えのときだけ1つの数にする
+        var recommended = Reviewed("まとめ記事が1本", 0);
+        recommended.RecommendedBy = [new SourceArticle("https://example.com/matome")];
+        var cited = Reviewed("トピックの記事が2本", 0);
+        cited.CitedBy =
+            [new SourceArticle("https://example.com/1"), new SourceArticle("https://example.com/2")];
+
+        Assert.Equal(1, BookPopularity.Endorsements(recommended));
+        Assert.Equal(2, BookPopularity.Endorsements(cited));
+        Assert.Equal(
+            ["トピックの記事が2本", "まとめ記事が1本"],
+            new[] { recommended, cited }.ByPopularity().Select(book => book.Title));
+    }
+
+    [Fact]
+    public void 同じ記事が推薦と引用の両方に入っても1票()
+    {
+        // 「読むべき技術書100選」のようなまとめ記事は技術書のタグと分野のタグを両方持つので、
+        // 推薦の固定クエリにも引用のトピック検索にも当たる —— 単純に足すと1本が2票になる
+        var book = Reviewed("両方に入った本", 0);
+        book.RecommendedBy = [new SourceArticle("https://qiita.com/items/aaaa", "読むべき技術書100選")];
+        book.CitedBy =
+        [
+            new SourceArticle("https://qiita.com/items/aaaa", "読むべき技術書100選"),
+            new SourceArticle("https://qiita.com/items/bbbb", "機械学習の前処理"),
+        ];
+
+        Assert.Equal(2, BookPopularity.Endorsements(book));
+    }
+
+    [Fact]
+    public void 票数が同じならレビューの指標で決める()
+    {
+        var cited = Reviewed("引用1件・レビュー多め", 200, 4.2);
+        cited.CitedBy = [new SourceArticle("https://example.com/1")];
+        var recommended = Reviewed("推薦1件・レビュー少なめ", 3, 4.0);
+        recommended.RecommendedBy = [new SourceArticle("https://example.com/matome")];
+
+        Assert.Equal(
+            ["引用1件・レビュー多め", "推薦1件・レビュー少なめ"],
+            new[] { recommended, cited }.ByPopularity().Select(book => book.Title));
     }
 
     [Fact]

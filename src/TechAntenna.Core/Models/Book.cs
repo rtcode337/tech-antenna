@@ -47,11 +47,24 @@ public class Book
     /// <summary>
     /// この本を薦めていた記事(出典。URL と題名)。レビュー数とは別軸の指標で、
     /// レビューが「どれだけ読まれたか」なら、こちらは「詳しい人が薦めたか」。
+    /// 材料は「読むべき技術書」を挙げたまとめ記事(定番の軸。トピックの選択に依存しない)。
     /// </summary>
-    public IReadOnlyList<RecommendedArticle> RecommendedBy { get; set; } = [];
+    public IReadOnlyList<SourceArticle> RecommendedBy { get; set; } = [];
 
     /// <summary>何本の記事で薦められたか。<see cref="RecommendedBy"/> から導くので列は持たない。</summary>
     public int RecommendationCount => RecommendedBy.Count;
+
+    /// <summary>
+    /// この本を引用していた記事(出典。URL と題名)。<see cref="RecommendedBy"/> とは
+    /// 別の列にしてある —— 母集団が違うので、同じ列に混ぜると2つの意味が1つの数字に潰れる
+    /// (推薦は「読むべき本」を挙げたまとめ記事の名指し、引用は選んだトピックについて
+    /// 書かれた普通の記事がその本に触れたこと)。並べ替えでは1票ずつ合算するが、
+    /// 画面では別のバッジで出す —— はてブ数と upvote 数を分けているのと同じ扱い。
+    /// </summary>
+    public IReadOnlyList<SourceArticle> CitedBy { get; set; } = [];
+
+    /// <summary>何本の記事で引用されたか。<see cref="CitedBy"/> から導くので列は持たない。</summary>
+    public int CitationCount => CitedBy.Count;
 
     /// <summary>
     /// 読み終えた日時。未読は null(画面から立てる)。

@@ -6,8 +6,8 @@ li {
     border-left: 3px solid transparent;
 }
 
-/* 記事で薦められている本。記事一覧の「選んだトピック」と同じ文法(左帯 + 薄い面) */
-li.recommended-book {
+/* 記事に名指しされた本(推薦・引用)。記事一覧の「選んだトピック」と同じ文法(左帯 + 薄い面) */
+li.endorsed-book {
     border-left-color: var(--accent);
     background: var(--accent-soft);
 }
@@ -47,17 +47,27 @@ small {
     line-height: 1.6;
 }
 
-/* 記事で薦められた回数。レビューとは別軸なので色を分ける。
-   「推薦 N 件」自体が開閉のつまみ(details/summary)で、中に出典の記事が並ぶ */
-.recommended {
+/* 記事に名指しされた回数。レビューとは別軸なので色を分ける。
+   「推薦 N 件」「引用 N 件」自体が開閉のつまみ(details/summary)で、中に出典の記事が並ぶ */
+.sources {
     display: inline-block;
-    color: var(--accent);
     font-weight: 650;
     vertical-align: top;
 }
 
+/* 推薦(まとめ記事の名指し)と引用(トピックの記事での言及)は色で分ける ——
+   数え方は同じ「記事 N 本」なので、同じ濃さで並ぶと1つの数の内訳に見える。
+   引用を控えめにするのは、まとめ記事より母集団が広く件数が出やすいため */
+.sources-recommended {
+    color: var(--accent);
+}
+
+.sources-cited {
+    color: var(--text-muted);
+}
+
 /* つまみ。標準マーカーは消して、開閉の三角は自前で描く(他の折りたたみと同じ流儀) */
-.recommended > summary {
+.sources > summary {
     /* 押せる幅を字の周りに取る(スマホの指で押す) */
     padding: 0.1rem 0;
     white-space: nowrap;
@@ -65,41 +75,42 @@ small {
     list-style: none;
 }
 
-.recommended > summary::-webkit-details-marker {
+.sources > summary::-webkit-details-marker {
     display: none;
 }
 
-.recommended > summary::after {
+.sources > summary::after {
     content: " ▶";
     font-size: 0.7em;
 }
 
-.recommended[open] > summary::after {
+.sources[open] > summary::after {
     content: " ▼";
 }
 
-/* 出典の記事。題名を出すので1件1行(横に並べると題名が読めない)。
+/* 出典の記事(推薦・引用で共通)。題名を出すので1件1行(横に並べると題名が読めない)。
    一覧の中の入れ子なので、字は本文より小さく・行間は詰めない(指で押す対象) */
-.recommended-sources {
+.sources-list {
     margin: 0.2rem 0 0.35rem;
     padding: 0;
     font-weight: 400;
     white-space: normal;
 }
 
-.recommended-sources li {
+.sources-list li {
     margin-bottom: 0.2rem;
     line-height: 1.5;
 }
 
-.recommended-sources a {
-    color: var(--accent);
+.sources-list a {
+    /* つまみの色(推薦=アクセント / 引用=控えめ)をそのまま継ぐ */
+    color: inherit;
     text-decoration: none;
     /* 長い題名・URL でも折り返して収まるようにする(スマホの幅で溢れさせない) */
     overflow-wrap: anywhere;
 }
 
-.recommended-sources a:hover {
+.sources-list a:hover {
     text-decoration: underline;
 }
 

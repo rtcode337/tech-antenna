@@ -395,19 +395,39 @@ builder.Services.AddSingleton<IBookEnricher>(sp => new GoogleBooksCoverEnricher(
     sp.GetRequiredService<ILogger<GoogleBooksCoverEnricher>>(),
     TimeSpan.FromSeconds(books.CoverLookupDelaySeconds)));
 
-// 「読むべき技術書」を挙げた記事から薦められている本を拾う。書籍の検索とは独立した経路
+// Qiita API から本を拾う2つの経路。どちらも同じ検索(QiitaSearch)を通る ——
+// 違うのは母集団で、推薦本は固定クエリ(定番の軸)、引用は選んだトピック(興味トピックの軸)
 var qiita = builder.Configuration
     .GetSection(QiitaOptions.SectionName)
     .Get<QiitaOptions>() ?? new QiitaOptions();
-if (qiita.Enabled && qiita.Queries.Count > 0)
+var qiitaRecommendations = qiita.Enabled && qiita.Queries.Count > 0;
+var qiitaCitations = qiita.Citations.Enabled && qiita.Citations.Queries.Count > 0;
+if (qiitaRecommendations || qiitaCitations)
 {
-    builder.Services.AddHttpClient(QiitaBookRecommendationSource.HttpClientName, ConfigureBookClient);
-    builder.Services.AddSingleton<IBookRecommendationSource>(sp => new QiitaBookRecommendationSource(
+    // リクエストの間隔は収集元ではなくここで守る。Qiita は推薦本と引用の2経路が
+    // 同じ相手を叩いていて、経路ごとの Task.Delay ではそれぞれ自分のぶんの待ちしか
+    // 知らない —— 続けて走ると間隔が縮む(connpass と同じ理由)
+    builder.Services.AddHttpClient(QiitaSearch.HttpClientName, ConfigureBookClient)
+        .AddHttpMessageHandler(sp => new RequestPacingHandler(
+            TimeSpan.FromSeconds(qiita.DelaySeconds), sp.GetRequiredService<TimeProvider>()));
+    builder.Services.AddSingleton(sp => new QiitaSearch(
         sp.GetRequiredService<IHttpClientFactory>(),
-        qiita.Queries,
-        qiita.MaxArticles,
-        () => sp.GetRequiredService<ApiCredentials>().Get("Qiita:AccessToken"),
-        TimeSpan.FromSeconds(qiita.DelaySeconds)));
+        () => sp.GetRequiredService<ApiCredentials>().Get("Qiita:AccessToken")));
+}
+
+// 「読むべき技術書」を挙げた記事から薦められている本を拾う。書籍の検索とは独立した経路
+if (qiitaRecommendations)
+{
+    builder.Services.AddSingleton<IBookRecommendationSource>(sp => new QiitaBookRecommendationSource(
+        sp.GetRequiredService<QiitaSearch>(), qiita.Queries, qiita.MaxArticles));
+}
+
+// 選んだトピックの記事が本文で名指ししている本を拾う(興味トピックの軸)。
+// キーは要らない(トークンは上限を上げるだけ)ので、Google Books のキーが無くても動く
+if (qiitaCitations)
+{
+    builder.Services.AddSingleton<IBookCitationSource>(sp => new QiitaBookCitationSource(
+        sp.GetRequiredService<QiitaSearch>(), qiita.Citations.Queries, qiita.Citations.MaxArticles));
 }
 
 builder.Services.AddSingleton<BookCollectionRunner>();
