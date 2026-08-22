@@ -170,11 +170,14 @@ public class QiitaCitationOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// 検索クエリの雛形。<c>{topic}</c> が選んだトピックの正式表記に置き換わる。
+    /// 検索クエリの雛形。<c>{topic}</c> が選んだトピックの正式表記、<c>{tag}</c> が
+    /// Qiita のタグ表記(区切りを落とした小文字。`Claude Code` → `claudecode`)に置き換わる。
+    /// <b><c>tag:</c> に書くのは <c>{tag}</c> のほう</b> —— Qiita のタグに空白は入らず、
+    /// 検索構文では空白が語の区切りなので、`tag:Claude Code` は別の検索になる。
     /// 既定がタグ検索 + ストック数の下限なのは、誰にも読まれていない記事の名指しまで
     /// 数えると指標が薄まるため。1トピックにつきここに並べた数だけ問い合わせが増える。
     /// </summary>
-    public List<string> Queries { get; set; } = ["tag:{topic} stocks:>50"];
+    public List<string> Queries { get; set; } = ["tag:{tag} stocks:>50"];
 
     /// <summary>
     /// クエリ1つあたりで読む記事数の上限。推薦本(既定 200)より少ないのは、

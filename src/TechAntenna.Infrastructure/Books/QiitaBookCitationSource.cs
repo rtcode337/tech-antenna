@@ -1,3 +1,4 @@
+using TechAntenna.Core;
 using TechAntenna.Core.Abstractions;
 
 namespace TechAntenna.Infrastructure.Books;
@@ -10,9 +11,16 @@ namespace TechAntenna.Infrastructure.Books;
 /// トピックを検索語にして、そのトピックの記事が本文で本を名指ししているかを見る。
 /// 「その分野の記事が引き合いに出す本」なので、興味トピックの軸に置いてある。
 ///
-/// クエリは <paramref name="queryTemplates"/> の <c>{topic}</c> をトピックの正式表記
-/// (`生成ai` ではなく `生成AI`)で置き換えて組む。既定はタグ検索 +
-/// ストック数の下限 —— 誰にも読まれていない記事の名指しまで数えると指標が薄まる。
+/// クエリは <paramref name="queryTemplates"/> の差し込み口を置き換えて組む。口は2つあり、
+/// <c>{topic}</c> がトピックの正式表記(`生成ai` ではなく `生成AI`)、
+/// <c>{tag}</c> が<b>Qiita のタグ表記</b>(区切りを落とした小文字。`Claude Code` → `claudecode`)。
+/// 既定はタグ検索 + ストック数の下限 —— 誰にも読まれていない記事の名指しまで数えると指標が薄まる。
+///
+/// <b><c>tag:</c> には正式表記を入れてはいけない。</b> Qiita のタグに空白は入らず、
+/// 検索構文の空白は語の区切りなので、`tag:Claude Code` は「タグ Claude かつ本文に Code」と
+/// 読まれる —— <b>0 件にはならないぶん気づけない</b>。実測では
+/// `tag:Claude Code stocks:&gt;50` が 67 記事(本のリンクは 0 件)、
+/// 正しい `tag:claudecode stocks:&gt;50` は 170 記事(本 4 冊)だった。
 ///
 /// <b>トピックによって濃さがまるで違う。</b> 実測では `tag:機械学習 stocks:&gt;50` の 50 記事中
 /// 9 記事が本のリンクを含んでいた(異なる ASIN 33 個)のに対し、`tag:LLM stocks:&gt;50` は 1 記事
@@ -23,8 +31,11 @@ public class QiitaBookCitationSource(
     IReadOnlyList<string> queryTemplates,
     int maxArticlesPerQuery = 100) : IBookCitationSource
 {
-    /// <summary>クエリの雛形でトピックに置き換わる場所。</summary>
+    /// <summary>クエリの雛形でトピックの正式表記に置き換わる場所。</summary>
     public const string TopicPlaceholder = "{topic}";
+
+    /// <summary>クエリの雛形で Qiita のタグ表記に置き換わる場所。</summary>
+    public const string TagPlaceholder = "{tag}";
 
     public string Name => "Qiita(トピックの記事)";
 
@@ -36,9 +47,18 @@ public class QiitaBookCitationSource(
             return [];
         }
 
+        // タグ表記は突き合わせキーと同じ作り方(空白・`-`・`・` を落として小文字)。
+        // 語彙の正式表記から機械的に作れるので、トピックごとにタグ名を持たなくてよい
+        var tag = TagNormalizer.ToKey(topic);
+
         var queries = queryTemplates
             .Where(template => !string.IsNullOrWhiteSpace(template))
-            .Select(template => template.Replace(TopicPlaceholder, topic, StringComparison.Ordinal))
+            // タグ表記が空になる語(記号だけの語)で `tag:` を組むと全件を引きに行くので落とす
+            .Where(template => tag.Length > 0
+                || !template.Contains(TagPlaceholder, StringComparison.Ordinal))
+            .Select(template => template
+                .Replace(TagPlaceholder, tag, StringComparison.Ordinal)
+                .Replace(TopicPlaceholder, topic, StringComparison.Ordinal))
             .ToList();
 
         var articles = await search.SearchAsync(queries, maxArticlesPerQuery, cancellationToken);

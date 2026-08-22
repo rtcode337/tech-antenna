@@ -1363,7 +1363,7 @@ aria-label で示す)。**GET のフォーム**(`?q=`)なので静的 SSR のま
 | | 推薦(`IBookRecommendationSource`) | 引用(`IBookCitationSource`) |
 |---|---|---|
 | 母集団 | 「読むべき技術書」を挙げた**まとめ記事** | **選んだトピックについて書かれた記事** |
-| クエリ | 固定(`Qiita:Queries`) | `Qiita:Citations:Queries` の `{topic}` を置換 |
+| クエリ | 固定(`Qiita:Queries`) | `Qiita:Citations:Queries` の `{tag}` / `{topic}` を置換 |
 | 軸 | 定番(選択に依存しない) | 興味トピック(選択で変わる) |
 | ジョブ | 定番の収集 | 書籍の収集 |
 | 列 | `Book.RecommendedBy` | `Book.CitedBy` |
@@ -1378,6 +1378,14 @@ aria-label で示す)。**GET のフォーム**(`?q=`)なので静的 SSR のま
   (はてブ数と upvote 数を別の列にしているのと同じ理由)。画面でも別のバッジで出す
   (推薦はアクセント色、引用は控えめ)。**重みを変えていない**のは、どちらも
   「1本の記事がその本を名指しした」という同じ形の根拠だから
+- **`tag:` に渡すのは正式表記ではなく Qiita のタグ表記**(`{tag}`。区切りを落とした小文字で、
+  突き合わせキーと同じ作り方 —— `Claude Code` → `claudecode`)。Qiita のタグに空白は入らず、
+  検索構文の空白は語の区切りなので、`tag:Claude Code` は「タグ `Claude` かつ本文に `Code`」と
+  読まれる。**0 件にならないぶん、壊れていることに気づけない** —— 実測で
+  `tag:Claude Code stocks:>50` は 67 記事当たったが本のリンクは 0 件、
+  正しい `tag:claudecode stocks:>50` は 170 記事で本 4 冊だった
+  (`Claude Code 仕事術` を含む)。空白を含む語彙は他にもある
+  (`GitHub Copilot`・`VS Code`・`Google Cloud` …)。**正式表記のほうを使うのは本文検索のとき**
 - **引用はトピックによって濃さがまるで違う。** 実測では `tag:機械学習 stocks:>50` の 50 記事中
   9 記事が本のリンクを含んでいた(異なる ASIN 33 個)のに対し、`tag:LLM stocks:>50` は 1 記事
   —— 教科書のある古い分野ほど厚く、新しい分野では数件しか取れない。0 件でも異常ではない

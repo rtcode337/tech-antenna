@@ -23,7 +23,7 @@ public class QiitaBookCitationSourceTests
     static QiitaBookCitationSource NewSource(
         StubHttpClientFactory factory, params IReadOnlyList<string> templates) =>
         new(new QiitaSearch(factory),
-            templates.Count > 0 ? templates : ["tag:{topic} stocks:>50"]);
+            templates.Count > 0 ? templates : ["tag:{tag} stocks:>50"]);
 
     [Fact]
     public async Task トピックを検索語にして引用された本を拾う()
@@ -55,6 +55,41 @@ public class QiitaBookCitationSourceTests
         Assert.All(
             factory.RequestedUris,
             uri => Assert.Contains(Uri.EscapeDataString("生成AI"), uri.Query, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task タグの差し込み口には区切りを落とした表記を入れる()
+    {
+        // Qiita のタグに空白は入らず、検索構文の空白は語の区切り —— 正式表記のまま
+        // `tag:Claude Code` と書くと「タグ Claude かつ本文に Code」という別の検索になる
+        var factory = new StubHttpClientFactory(Response);
+        var source = NewSource(factory, "tag:{tag} stocks:>50", "{topic} 参考書");
+
+        await source.FetchAsync("Claude Code");
+
+        Assert.Equal(2, factory.RequestedUris.Count);
+        Assert.Contains(
+            Uri.EscapeDataString("tag:claudecode"),
+            factory.RequestedUris[0].Query,
+            StringComparison.Ordinal);
+        // 本文検索のほうは正式表記のまま(タグ名ではないので詰めない)
+        Assert.Contains(
+            Uri.EscapeDataString("Claude Code 参考書"),
+            factory.RequestedUris[1].Query,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task タグ表記が空になる語ではタグ検索をしない()
+    {
+        // `tag:` が空のまま飛ぶと全件を引きに行くので、その雛形ごと落とす
+        var factory = new StubHttpClientFactory(Response);
+        var source = NewSource(factory, "tag:{tag} stocks:>50", "{topic} 参考書");
+
+        await source.FetchAsync("-");
+
+        var uri = Assert.Single(factory.RequestedUris);
+        Assert.Contains(Uri.EscapeDataString("- 参考書"), uri.Query, StringComparison.Ordinal);
     }
 
     [Fact]
