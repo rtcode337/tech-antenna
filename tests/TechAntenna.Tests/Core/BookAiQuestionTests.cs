@@ -29,9 +29,21 @@ public class BookAiQuestionTests
             "『リーダブルコード』(Dustin Boswell、Trevor Foucher、オライリー・ジャパン、ISBN 9784873115658)",
             prompt,
             StringComparison.Ordinal);
-        // 頼むのは解説と、買える場所(一覧には紹介文が無いので、そこを聞かせる)
-        Assert.Contains("解説してください", prompt, StringComparison.Ordinal);
+        // 頼むのは買える場所と解説(一覧には紹介文が無いので、そこを聞かせる)
         Assert.Contains("購入できるサイトのリンク", prompt, StringComparison.Ordinal);
+        Assert.Contains("解説してください", prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void 購入できるサイトを先に聞く()
+    {
+        // 押した人がまず知りたいのは買える場所。解説が先だと、長い前置きの後ろに埋もれる
+        var prompt = BookAiQuestion.Prompt(NewBook());
+
+        Assert.True(
+            prompt.IndexOf("購入できるサイトのリンク", StringComparison.Ordinal)
+                < prompt.IndexOf("解説してください", StringComparison.Ordinal),
+            $"買える場所を先に聞いていない: {prompt}");
     }
 
     [Fact]

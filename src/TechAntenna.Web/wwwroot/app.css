@@ -388,16 +388,22 @@ hr {
     white-space: nowrap;
 }
 
-/* 書誌の詳細ページへの小さなリンク。書名は「AI に聞く」リンクになっているので、
-   本そのもののページはメタ行に控えめに置く。書籍の一覧・トピック詳細・タグ詳細の
-   3 画面で使うのでここに持つ(.read-mark と同じ扱い) */
-.detail-link {
+/* 「この本について AI に聞く」印。書名の隣に置く小さなリンクで、書名そのもの
+   (書誌の詳細ページ)とは行き先が違う。書籍の一覧・トピック詳細・タグ詳細の
+   3 画面で使うのでここに持つ(.read-mark と同じ扱い)。
+   既定は控えめ —— 読みに来た人の目に最初に入るのは書名であってほしい */
+.ask-ai {
+    display: inline-flex;
+    align-items: center;
+    /* 指で押せる幅を字の周りに取る(印そのものは 14px しかない) */
+    padding: 0.15rem 0.25rem;
     color: var(--text-muted);
-    font-weight: 400;
-    white-space: nowrap;
+    vertical-align: middle;
+    line-height: 1;
 }
 
-.detail-link:hover {
+.ask-ai:hover,
+.ask-ai:focus-visible {
     color: var(--accent);
 }
 

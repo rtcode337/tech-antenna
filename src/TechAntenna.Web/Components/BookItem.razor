@@ -18,13 +18,18 @@
         <img src="@coverUrl" alt="" width="48" loading="lazy" />
     }
     <div>
-        @* 書名は「この本について AI に聞く」リンク(BookAiQuestion)。一覧に出ているのは
-           書誌と名指しの数だけで、中身が自分に要る本かどうかは読み取れない —— 紹介文は
-           出版社の著作物なので取り込んでいない。書誌の詳細ページはメタ行の「詳細」へ回した
-           (押す先が2つになるので、大きいほうを「知りたいこと」に充てる)。
-           行き先が本のページではないので、title で何が開くかを言う *@
-        <a href="@BookAiQuestion.Url(Book)" target="_blank" rel="noopener"
-           title="この本について AI に聞く(Google の AI モードが開きます)">@Book.Title</a>
+        @* 書名は書誌の詳細ページ(引用で拾った本は ISBN しか持たないのでリンクにならない)。
+           その横の印が「この本について AI に聞く」——「押したら別の場所へ飛ぶ」を
+           書名そのものに背負わせない(押す人が期待するのは本のページ) *@
+        @if (Book.Url is { } url)
+        {
+            <a href="@url" target="_blank" rel="noopener">@Book.Title</a>
+        }
+        else
+        {
+            <span>@Book.Title</span>
+        }
+        @AskAi(Book)
         <br />
         <small class="text-muted">
             @if (Book.Authors.Count > 0)
@@ -35,11 +40,6 @@
             @if (Book.PublishedOn is { } publishedOn)
             {
                 <text> — @publishedOn.ToString("yyyy-MM")</text>
-            }
-            @if (Book.Url is { } url)
-            {
-                @* 書誌の詳細ページ。引用で拾った本は ISBN しか持たないので、この行だけ出ない *@
-                <a class="detail-link ms-1" href="@url" target="_blank" rel="noopener">詳細</a>
             }
             @if (Book.RecommendationCount > 0)
             {
@@ -107,6 +107,25 @@
     /// <summary>記事に名指しされた本(推薦・引用)を左帯 + 薄い面で目立たせるか。</summary>
     [Parameter]
     public bool EmphasizeEndorsed { get; set; }
+
+    /// <summary>
+    /// 「この本について AI に聞く」印。書名の横に置く小さなリンクで、押すと
+    /// <see cref="BookAiQuestion"/> の問いを持って Google の AI モードが開く。
+    ///
+    /// 字を持たない印なので <c>aria-label</c> でどの本の話かを言う ——
+    /// 一覧には同じ印が冊数ぶん並ぶので、「AI に聞く」だけでは読み上げで区別できない。
+    /// </summary>
+    public static RenderFragment AskAi(Book book) =>
+        @<a class="ask-ai" href="@BookAiQuestion.Url(book)" target="_blank" rel="noopener"
+            title="この本について AI に聞く(Google の AI モードが開きます)"
+            aria-label="@($"『{book.Title}』について AI に聞く")">
+            @* 印は文字ではなく SVG で描く —— ✦ のような記号は持っていない環境で豆腐になる。
+               currentColor なのでダークモードでも色が付いてくる(ロゴと同じ流儀) *@
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+                <path fill="currentColor"
+                      d="M12 1.5c0 4.7 3.8 8.5 8.5 10-4.7 1.5-8.5 5.3-8.5 10-0-4.7-3.8-8.5-8.5-10 4.7-1.5 8.5-5.3 8.5-10z" />
+            </svg>
+        </a>;
 
     /// <summary>
     /// 出典の折りたたみ(推薦・引用)。中身が同じ形なので1か所から描く ——
