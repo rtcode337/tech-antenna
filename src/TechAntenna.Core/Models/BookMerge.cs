@@ -14,10 +14,14 @@ public static class BookMerge
     /// <summary>
     /// <paramref name="incoming"/> の内容を <paramref name="stored"/> へ取り込む。変化があれば true。
     ///
-    /// 書誌情報そのものは上書きしない(既に保存してある値を後から来た検索結果で壊さないため)。
-    /// 例外はレビューで、これは時間とともに増える数値なので新しい値で上書きする。
-    /// 欠けている書影は埋める(上書きはしない)—— 補完で取れた値をここで捨てると、
-    /// 既に保存済みの本には表紙が永久に付かない。
+    /// 書誌情報そのものは<b>上書きしない</b>(既に保存してある値を後から来た検索結果で
+    /// 壊さないため)。ただし<b>欠けているものは埋める</b>(書影・刊行年月・出版社・著者)——
+    /// 補完で取れた値をここで捨てると、既に保存済みの本には永久に付かない。
+    /// 実際、書影で同じ落とし穴を踏んでいる(収集のたびに取り直しては合流で捨てていた)。
+    ///
+    /// <b>題名だけは埋めない。</b> ISBN も URL も無い本の同一性は題名で見るので
+    /// (<see cref="BookKey"/>)、後から書き換えると別の本として扱われる。
+    /// 題名を埋めるのは保存より前(<c>OpenBdEnricher</c>)の仕事。
     ///
     /// 「読んだ」の印(<see cref="Book.ReadAt"/>)はここで一切触らない。収集元から
     /// 来る本の <c>ReadAt</c> は常に null なので、写すと再収集のたびに印が消える ——
@@ -35,6 +39,27 @@ public static class BookMerge
         if (stored.CoverUrl is null && incoming.CoverUrl is { } cover)
         {
             stored.CoverUrl = cover;
+            changed = true;
+        }
+
+        // **欠けている書誌を埋める(上書きはしない)。** 記事の引用から拾った本は ISBN しか
+        // 持たず、openBD が答えるまで刊行年月も出版社も空のまま —— ここで埋めないと、
+        // 次の収集で取れても保存の合流で捨てられ、画面はいつまでも「出版社不明」のままになる
+        if (stored.PublishedOn is null && incoming.PublishedOn is { } publishedOn)
+        {
+            stored.PublishedOn = publishedOn;
+            changed = true;
+        }
+
+        if (stored.Publisher is not { Length: > 0 } && incoming.Publisher is { Length: > 0 } publisher)
+        {
+            stored.Publisher = publisher;
+            changed = true;
+        }
+
+        if (stored.Authors.Count == 0 && incoming.Authors.Count > 0)
+        {
+            stored.Authors = incoming.Authors;
             changed = true;
         }
 

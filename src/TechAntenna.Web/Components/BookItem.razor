@@ -1,3 +1,4 @@
+@using System.Globalization
 @using TechAntenna.Core
 @using TechAntenna.Core.Abstractions
 @using TechAntenna.Core.Models
@@ -32,15 +33,7 @@
         @AskAi(Book)
         <br />
         <small class="text-muted">
-            @if (Book.Authors.Count > 0)
-            {
-                <text>@string.Join("、", Book.Authors) — </text>
-            }
-            @(Book.Publisher ?? "出版社不明")
-            @if (Book.PublishedOn is { } publishedOn)
-            {
-                <text> — @publishedOn.ToString("yyyy-MM")</text>
-            }
+            @Bibliography(Book)
             @if (Book.RecommendationCount > 0)
             {
                 @* レビュー(読まれた量)とは別軸なので、並べて別々に出す。
@@ -119,6 +112,29 @@
                       d="M12 1.5c0 4.7 3.8 8.5 8.5 10-4.7 1.5-8.5 5.3-8.5 10-0-4.7-3.8-8.5-8.5-10 4.7-1.5 8.5-5.3 8.5-10z" />
             </svg>
         </a>;
+
+    /// <summary>
+    /// 著者・出版社・刊行年月の1行。<b>書名を描く 3 か所から呼ぶ</b>
+    /// (ここと、行を自前で持つトピック詳細・タグ詳細)—— 書き分けていた頃は
+    /// 詳細ページにだけ刊行年月が出ておらず、「出る行と出ない行がある」ように見えていた。
+    ///
+    /// <b>分からないものも書く。</b> 黙って落とすと、まだ書誌の付いていない本と
+    /// 今月出た本の区別が付かない。記事の引用から拾った本は ISBN しか無いので、
+    /// openBD が答えるまでここが「不明」になる。
+    /// </summary>
+    public static RenderFragment Bibliography(Book book) =>
+        @<text>
+            @if (book.Authors.Count > 0)
+            {
+                <text>@string.Join("、", book.Authors) — </text>
+            }
+            @(book.Publisher ?? "出版社不明") —
+            @* 日は収集元によって当てにならない(月初・年初で埋まる)ので年月まで。
+               書式は文化圏に依らせない(和暦の環境で同じ画面の日付が揃わなくなる) *@
+            @(book.PublishedOn is { } publishedOn
+                ? publishedOn.ToString("yyyy-MM", CultureInfo.InvariantCulture)
+                : "刊行年月不明")
+        </text>;
 
     /// <summary>
     /// 出典の折りたたみ(推薦・引用)。中身が同じ形なので1か所から描く ——

@@ -12,11 +12,23 @@ public class Book
     /// <summary>ISBN-13(ハイフンなし)。提供されないソースでは null。</summary>
     public string? Isbn13 { get; init; }
 
-    public IReadOnlyList<string> Authors { get; init; } = [];
+    /// <summary>
+    /// 著者。init ではなく set なのは、後から埋まることがあるため(<see cref="BookMerge"/>)。
+    /// </summary>
+    public IReadOnlyList<string> Authors { get; set; } = [];
 
-    public string? Publisher { get; init; }
+    /// <summary>出版社。後から埋まることがある(<see cref="Authors"/> と同じ)。</summary>
+    public string? Publisher { get; set; }
 
-    public DateOnly? PublishedOn { get; init; }
+    /// <summary>
+    /// 刊行年月日(日が分からない収集元では月初・年初になる。画面には年月だけ出す)。
+    ///
+    /// **後から埋まることがある**ので init ではなく set(<see cref="CoverUrl"/> と同じ事情)。
+    /// 記事の引用から拾った本は ISBN しか無く、openBD が答えるまで空のまま ——
+    /// 合流(<see cref="BookMerge"/>)で埋められないと、次の収集で取り直しても
+    /// 保存されず、いつまでも刊行年月の出ない行が残る。
+    /// </summary>
+    public DateOnly? PublishedOn { get; set; }
 
     /// <summary>書誌詳細ページの URL。</summary>
     public Uri? Url { get; init; }
@@ -59,7 +71,7 @@ public class Book
     /// <summary>
     /// 読み終えた日時。未読は null(画面から立てる)。
     ///
-    /// 外から取れる指標(<see cref="ReviewCount"/>・<see cref="RecommendedBy"/>)とは別の軸。
+    /// 外から取れる指標(<see cref="RecommendedBy"/>・<see cref="CitedBy"/>)とは別の軸。
     /// あちらは「世の中でどれだけ読まれ、薦められているか」で、こちらは本人しか持てない情報
     /// —— 混ぜると「読まれている本」と「自分が読んだ本」の区別が付かなくなる。
     ///

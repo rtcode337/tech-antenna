@@ -224,11 +224,9 @@ else
                     }
                     <br />
                     <small class="text-muted">
-                        @if (book.Authors.Count > 0)
-                        {
-                            <text>@string.Join("、", book.Authors) — </text>
-                        }
-                        @(book.Publisher ?? "出版社不明")
+                        @* 書誌の1行は BookItem から借りる —— 書き分けていた頃は、
+                           ここにだけ刊行年月が出ていなかった *@
+                        @BookItem.Bibliography(book)
                         @* 推薦(まとめ記事)と引用(トピックの記事)は別々に出す ——
                            並べ替えでは1票ずつ合算するが、出どころは別の話。
                            押せるのは1本目だけ(出典を全部並べるのは書籍の一覧の仕事) *@

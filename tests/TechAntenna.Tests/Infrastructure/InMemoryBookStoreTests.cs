@@ -135,6 +135,68 @@ public class InMemoryBookStoreTests
     }
 
     [Fact]
+    public async Task 既にある本に刊行年月や出版社が無ければ後から埋める()
+    {
+        // 記事の引用から拾った本は ISBN しか無く、openBD が答えるまで書誌が空のまま。
+        // ここで埋めないと、次の収集で取れても合流で捨てられ、画面はいつまでも
+        // 「出版社不明 — 刊行年月不明」のままになる(書影と同じ落とし穴)
+        var store = new InMemoryBookStore();
+        await store.AddRangeAsync([Tagged("A", "9784111111111", "ai", "AI")]);
+
+        var again = Tagged("A", "9784111111111", "ai", "AI");
+        again.PublishedOn = new DateOnly(2024, 3, 15);
+        again.Publisher = "技術評論社";
+        again.Authors = ["著者"];
+        await store.AddRangeAsync([again]);
+
+        var book = Assert.Single(await store.GetRecentAsync(10));
+        Assert.Equal(new DateOnly(2024, 3, 15), book.PublishedOn);
+        Assert.Equal("技術評論社", book.Publisher);
+        Assert.Equal(["著者"], book.Authors);
+    }
+
+    [Fact]
+    public async Task 既にある書誌は上書きしない()
+    {
+        // 取得元が変わるたびに刊行年月や出版社が入れ替わらないようにする(書影と同じ扱い)
+        var store = new InMemoryBookStore();
+        var first = Tagged("A", "9784111111111", "ai", "AI");
+        first.PublishedOn = new DateOnly(2020, 1, 1);
+        first.Publisher = "先に入った出版社";
+        await store.AddRangeAsync([first]);
+
+        var again = Tagged("A", "9784111111111", "ai", "AI");
+        again.PublishedOn = new DateOnly(2024, 3, 15);
+        again.Publisher = "後から来た出版社";
+        await store.AddRangeAsync([again]);
+
+        var book = Assert.Single(await store.GetRecentAsync(10));
+        Assert.Equal(new DateOnly(2020, 1, 1), book.PublishedOn);
+        Assert.Equal("先に入った出版社", book.Publisher);
+    }
+
+    [Fact]
+    public async Task 題名は後から埋めない()
+    {
+        // ISBN も URL も無い本の同一性は題名で見る(BookKey)。後から書き換えると
+        // 別の本として扱われるので、題名を埋めるのは保存より前(補完)の仕事
+        var store = new InMemoryBookStore();
+        await store.AddRangeAsync([new Book
+        {
+            Title = "元の題名", Isbn13 = "9784111111111",
+            SourceName = "テスト", CollectedAt = new DateTimeOffset(2026, 7, 30, 0, 0, 0, TimeSpan.Zero),
+        }]);
+
+        await store.AddRangeAsync([new Book
+        {
+            Title = "後から来た題名", Isbn13 = "9784111111111",
+            SourceName = "テスト", CollectedAt = new DateTimeOffset(2026, 7, 31, 0, 0, 0, TimeSpan.Zero),
+        }]);
+
+        Assert.Equal("元の題名", (await store.GetRecentAsync(10)).Single().Title);
+    }
+
+    [Fact]
     public async Task 既にある書影は上書きしない()
     {
         // 書誌情報と同じ扱い。取得元が変わるたびに表紙が入れ替わらないようにする
