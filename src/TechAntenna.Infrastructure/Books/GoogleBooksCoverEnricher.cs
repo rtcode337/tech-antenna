@@ -14,7 +14,7 @@ namespace TechAntenna.Infrastructure.Books;
 /// 興味トピックの書籍に表紙が出るのは、あちらが Google Books の検索結果
 /// (`imageLinks`)から来ているため —— つまり Google Books は同じ本の書影を持っている。
 ///
-/// 引くのは書影が無い本だけ。楽天ブックスが先に埋めていれば(そちらは
+/// 引くのは書影が無い本だけ。openBD が先に埋めていれば(そちらは
 /// レビューと同じ応答に入っているので追加コストが無い)ここでは何も起きない。
 ///
 /// ISBN の一括指定はできないので 1 冊 1 リクエスト。無料枠は 1 日 1,000 リクエストなので、
@@ -189,8 +189,6 @@ public class GoogleBooksCoverEnricher(
             CoverUrl = cover,
             SourceName = book.SourceName,
             CollectedAt = book.CollectedAt,
-            ReviewCount = book.ReviewCount,
-            ReviewAverage = book.ReviewAverage,
             Tags = book.Tags,
             // 生タグを写し忘れると、再正規化(RawTags から Tags を作り直す)でタグが空になる
             RawTags = book.RawTags,

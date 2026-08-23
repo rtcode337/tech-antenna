@@ -35,16 +35,6 @@ public class Book
     public required string SourceName { get; init; }
 
     /// <summary>
-    /// レビュー件数。「どのくらい読まれているか」の代理指標で、定番書ほど積み上がる。
-    /// 取得元(楽天ブックス)を設定していない・その本が見つからないときは null
-    /// (「0 件」とは意味が違う —— 0 は読まれていない、null は分からない)。
-    /// </summary>
-    public int? ReviewCount { get; set; }
-
-    /// <summary>平均評価(5点満点)。レビューが無ければ null。</summary>
-    public double? ReviewAverage { get; set; }
-
-    /// <summary>
     /// この本を薦めていた記事(出典。URL と題名)。レビュー数とは別軸の指標で、
     /// レビューが「どれだけ読まれたか」なら、こちらは「詳しい人が薦めたか」。
     /// 材料は「読むべき技術書」を挙げたまとめ記事(定番の軸。トピックの選択に依存しない)。

@@ -3,45 +3,18 @@ using TechAntenna.Core.Abstractions;
 namespace TechAntenna.Core.Models;
 
 /// <summary>
-/// 「その分野で読んでおくべき本」の度合いを、レビュー件数と平均評価から出す。
+/// 「その分野で読んでおくべき本」の並べ替え。
 ///
-/// 件数と評価のどちらか片方では順位にならない。件数だけだと、評価の低い話題書が
-/// 定番書を押しのける。評価だけだと、レビュー 1 件で星 5 の本が最上位に来る。
-/// そこで評価をベイズ平均で件数に応じて割り引き、それに件数の対数を掛ける。
-/// 対数にするのは、レビュー 1000 件の本を 100 件の本の 10 倍には扱わないため
-/// (桁が違えば差は付くが、上位が 1 冊で埋まらない)。
+/// <b>かつてはレビュー(件数・平均評価)も材料にしていた</b>が、取得元だった
+/// 楽天ブックスの連携を外したときに一緒に落とした —— 他に日本語書籍のレビューを
+/// 引ける無料の口が無く(Google Books の <c>ratingsCount</c> は日本語書籍にほぼ
+/// 入っていない)、永久に null の列で並べ替えても順位に出ないため。
+/// いま残っているのは<b>記事に名指しされた票数</b>で、これは
+/// 「詳しい人が本文で挙げたか」を測る —— レビュー(読まれた量)より一般向けの本に
+/// 偏りにくい。レビューを戻すなら、取得元と一緒に <see cref="ByPopularity"/> へ足す。
 /// </summary>
 public static class BookPopularity
 {
-    /// <summary>ベイズ平均の事前分布の重み(件数)。これ以下のレビュー数では評価をあまり信用しない。</summary>
-    const double PriorCount = 5;
-
-    /// <summary>ベイズ平均の事前分布の平均(5点満点の平均的な評価)。</summary>
-    const double PriorAverage = 3.0;
-
-    /// <summary>
-    /// 読んでおくべき度。レビュー情報が取れていない本は null(0 ではない) ——
-    /// 「読まれていない」と「分からない」を混ぜると、取得元を設定する前の本が
-    /// まとめて最下位に沈むため。
-    /// </summary>
-    public static double? Score(Book book)
-    {
-        if (book.ReviewCount is not { } count)
-        {
-            return null;
-        }
-
-        if (count <= 0)
-        {
-            return 0;
-        }
-
-        var average = book.ReviewAverage ?? PriorAverage;
-        var bayesian = ((count * average) + (PriorCount * PriorAverage)) / (count + PriorCount);
-
-        return Math.Log10(1 + count) * bayesian;
-    }
-
     /// <summary>
     /// 読んだ本を後ろへ回す。並びの規則が何であれ最初に効かせる第一のキーで、
     /// これだけを掛ければ元の並びは<b>各グループの中でそのまま残る</b>
@@ -84,16 +57,12 @@ public static class BookPopularity
     ///
     /// まず読んだ本を後ろへ回す(<see cref="ReadLast"/>)—— 読み終えた本がいつまでも
     /// 上位を占めると、この一覧の用途(次に読む本を選ぶ)を果たさない。
-    /// そのうえで記事に名指しされた票数(<see cref="Endorsements"/>)を最優先にする ——
-    /// レビュー数は「読まれた量」で一般向けの本ほど有利になるが、名指しは
-    /// 「詳しい人が本文で挙げた」ぶん精度が高い。
-    /// 同数ならレビューの指標で、それも取れていない本(null)は後ろへ。
+    /// そのうえで記事に名指しされた票数(<see cref="Endorsements"/>)で並べ、
+    /// 同数なら新しく集めたものを先に出す。
     /// </summary>
     public static IOrderedEnumerable<Book> ByPopularity(this IEnumerable<Book> books) =>
         books
             .ReadLast()
             .ThenByDescending(Endorsements)
-            .ThenByDescending(book => Score(book) is not null)
-            .ThenByDescending(book => Score(book) ?? 0)
             .ThenByDescending(book => book.CollectedAt);
 }

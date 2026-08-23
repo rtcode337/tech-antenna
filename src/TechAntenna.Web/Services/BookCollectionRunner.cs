@@ -114,7 +114,6 @@ public class BookCollectionRunner(
             var books = await catalog.SearchAsync(keyword, cancellationToken);
             books = ExcludePeriodicals(books, keyword);
             books = await EnrichAsync(books, cancellationToken);
-            books = ApplyReviewFloor(books);
 
             var newlyAdded = await store.AddRangeAsync(books, cancellationToken);
             logger.LogInformation(
@@ -139,7 +138,7 @@ public class BookCollectionRunner(
     /// <summary>
     /// そのトピックの記事が本文で名指ししている本を拾って保存する。
     ///
-    /// 拾えるのは ISBN と出典記事だけなので、書誌は後段の補完(openBD・楽天)に任せる ——
+    /// 拾えるのは ISBN と出典記事だけなので、書誌は後段の補完(openBD)に任せる ——
     /// 定番の推薦本と同じ作り。タイトルが埋まらなかった本は保存しない(空行が並ぶだけになる)。
     /// タグは<b>検索語にしたトピック</b>で、検索で見つけた本と同じ規則
     /// —— これが無いと、その本は興味トピックの一覧のどのグループにも出てこない。
@@ -200,7 +199,7 @@ public class BookCollectionRunner(
 
     /// <summary>
     /// 雑誌・ムック・増刊を落とす(<see cref="Periodical"/>)。補完より前に落とす ——
-    /// 落とすと決めた本に openBD や楽天へ問い合わせても、外部を余計に叩くだけ。
+    /// 落とすと決めた本に openBD へ問い合わせても、外部を余計に叩くだけ。
     ///
     /// 集めたいのは「その分野で読んでおくべき本」なのに、号を重ねるぶん数の多い雑誌が
     /// 検索結果を占めていた(実際に週刊アスキーの号が並んだ)。
@@ -217,23 +216,6 @@ public class BookCollectionRunner(
         }
 
         return kept;
-    }
-
-    /// <summary>
-    /// レビューが少なすぎる本を落とす(`Books:MinReviewCount`、既定 0 = 落とさない)。
-    /// レビューが取れた本だけが対象 —— 取れていない本(null)まで落とすと、
-    /// 楽天のアプリ ID を設定していない環境で 1 冊も保存されなくなる。
-    ///
-    /// 掛けるのは検索で見つけた本だけ。引用は「記事が名指しした」ことが根拠なので、
-    /// レビューの少なさで落とすと経路そのものが無意味になる。
-    /// </summary>
-    IReadOnlyList<Book> ApplyReviewFloor(IReadOnlyList<Book> books)
-    {
-        var floor = options.Value.MinReviewCount;
-
-        return floor <= 0
-            ? books
-            : books.Where(book => book.ReviewCount is not { } count || count >= floor).ToList();
     }
 
     async Task<IReadOnlyList<Book>> EnrichAsync(

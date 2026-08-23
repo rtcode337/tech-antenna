@@ -28,15 +28,6 @@ public static class BookMerge
     {
         var changed = MergeTags(stored, incoming);
 
-        // レビューは「今どれだけ読まれているか」なので、取れたら最新の値に差し替える。
-        // 取れなかった(null)ときに上書きすると、取得元が一時的に落ちただけで指標が消える
-        if (incoming.ReviewCount is { } count && count != stored.ReviewCount)
-        {
-            stored.ReviewCount = count;
-            stored.ReviewAverage = incoming.ReviewAverage;
-            changed = true;
-        }
-
         // 書影は「欠けているときだけ」埋める。上書きはしない(書誌情報と同じ扱い)が、
         // 埋めないと取り直した書影が保存の合流で捨てられる —— 書影の補完を足す前に
         // 保存した本は書影が null のまま残っているので、収集のたびに Google Books へ

@@ -60,8 +60,6 @@ erDiagram
         date PublishedOn
         text Url
         text CoverUrl
-        double ReviewAverage "楽天。レビュー無しは null"
-        integer ReviewCount "null=未取得 / 0=レビューなし"
         jsonb RecommendedBy "推薦元の記事(まとめ記事。URL と題名)"
         jsonb CitedBy "引用元の記事(トピックの記事。URL と題名)"
         timestamptz ReadAt "本人が読み終えた日時。未読は null（収集は触らない）"
@@ -146,7 +144,7 @@ erDiagram
 「未設定」として扱い、画面から入れ直してもらう。行は消さない —— 鍵を戻せば読める可能性を残す)。
 
 `NewReleases` は**最近出た本の観測**(トレンドの「本になっているテーマ」の材料)。
-**`Books` と分けてある** —— あちらは「読んでおくべき本」で、レビュー・推薦・書影を伴って
+**`Books` と分けてある** —— あちらは「読んでおくべき本」で、推薦・書影を伴って
 一覧に並べるもの。こちらは<b>読ませるためではなく数えるため</b>に集めるので、持つのは
 タイトル・出版者・刊行日とタグだけ。混ぜると書籍の一覧が新刊で埋まる(読み込みの窓を
 新刊が食う)。**同じ窓(直近 N か月)を毎回引き直して上書きする**表なので、
@@ -196,15 +194,17 @@ erDiagram
   ように両方持つ(`RawTags` から `Tags` を再生成する)
 - **列挙は数値ではなく名前で保存**(`Articles.Kind`・`Tags.Status`・`Tags.DecidedBy`)。
   `psql` で覗いたときに読めるほうを優先した
-- **`null` と `0` は別物**。`BookmarkCount` / `UpvoteCount` / `ReviewCount` /
+- **`null` と `0` は別物**。`BookmarkCount` / `UpvoteCount` /
   `ParticipantCount` / `MentionCount` の `null` は「取得していない」、`0` は「ブックマーク・
-  upvote・レビュー・参加者・言及が無い」。混ぜると未取得の行が最下位に沈む
+  upvote・参加者・言及が無い」。混ぜると未取得の行が最下位に沈む
 - **収集で上書きするのは「後から増える数」だけ。** 既存行の書誌にあたる情報は上書きせず、
-  `Events` は主催者・参加者数・`PickedBy`、`Books` はレビューだけを取り込む(取れなかった回に
-  `null` で上書きもしない)。`Events.MentionCount` は収集とは別に、収集の最後で
+  `Events` は主催者・参加者数・`PickedBy` を取り込む(取れなかった回に `null` で上書きもしない)。
+  `Books` は**欠けている書影とタグ・名指しの出典**だけ ——
+  かつては「後から増える数」としてレビューも取り込んでいたが、**取得元(楽天ブックス)ごと
+  列を落とした**(`DropBookReviews`)。`Events.MentionCount` は収集とは別に、収集の最後で
   手元の記事と突き合わせて数え直す(外部は叩かない)
-- **`Books.ReadAt` だけは収集が一切触らない列**。外から取れる指標(`ReviewCount` /
-  `RecommendedBy` / `CitedBy`)が「世の中でどれだけ読まれ、薦められているか」なのに対し、これは
+- **`Books.ReadAt` だけは収集が一切触らない列**。外から取れる指標(`RecommendedBy` /
+  `CitedBy`)が「世の中でどれだけ読まれ、薦められているか」なのに対し、これは
   **本人しか持てない記録**で、画面の「読んだ」からだけ書き換わる
   (`IBookStore.ToggleReadAsync`)。合流(`BookMerge`)が写すと、収集元の本は常に
   `null` なので**再収集のたびに印が消える**。真偽値ではなく日時にしてあるのは、

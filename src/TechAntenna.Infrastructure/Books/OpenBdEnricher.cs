@@ -76,9 +76,6 @@ public class OpenBdEnricher(IHttpClientFactory httpClientFactory) : IBookEnriche
             CoverUrl = book.CoverUrl ?? entry.CoverUrl,
             SourceName = book.SourceName,
             CollectedAt = book.CollectedAt,
-            // openBD はレビューを持たないが、先に別の補完が入れた値を落とさないよう写す
-            ReviewCount = book.ReviewCount,
-            ReviewAverage = book.ReviewAverage,
             Tags = book.Tags,
             // 生タグを写し忘れると、再正規化(RawTags から Tags を作り直す)でタグが空になり、
             // 補完できた本ほどトピック横断から落ちる

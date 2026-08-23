@@ -109,13 +109,6 @@ public class BooksOptions
     /// openBD は技術書の書影をほとんど持たないので、定番の書籍にはこの補完が要る。
     /// </summary>
     public int CoverLookupDelaySeconds { get; set; } = 1;
-
-    /// <summary>
-    /// 保存するのに必要なレビュー件数の下限。レビューが取れた本だけが対象で、
-    /// 取れていない本(null)は通す —— 楽天のアプリ ID を設定していない状態で
-    /// 足切りが効くと、1冊も保存されなくなるため。既定 0 は足切り無し。
-    /// </summary>
-    public int MinReviewCount { get; set; } = 0;
 }
 
 /// <summary>
@@ -184,19 +177,6 @@ public class QiitaCitationOptions
     /// トピックの数だけ繰り返すため —— 5 トピック × 100 件で 10 リクエストになる。
     /// </summary>
     public int MaxArticles { get; set; } = 100;
-}
-
-/// <summary>
-/// 楽天ウェブサービスの設定。appsettings の Rakuten セクションから読む。
-/// レビュー件数(「どのくらい読まれているか」の代理指標)の取得に使う。
-/// </summary>
-public class RakutenOptions
-{
-    public const string SectionName = "Rakuten";
-
-
-    /// <summary>1 ISBN 引くごとに空ける間隔(秒)。ISBN の一括指定ができないため件数分のリクエストになる。</summary>
-    public double DelaySeconds { get; set; } = 1;
 }
 
 /// <summary>要約の設定。appsettings の Anthropic セクションから読む(実行間隔・件数は方式共通)。</summary>

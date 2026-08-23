@@ -35,7 +35,7 @@ public class ClassicsCollectionRunner(
 
     /// <summary>
     /// 薦められている本を拾って保存する。拾えるのは ISBN だけなので、書誌情報は
-    /// 後段の補完(openBD・楽天)に任せる。補完できずタイトルが空のままの本は保存しない
+    /// 後段の補完(openBD)に任せる。補完できずタイトルが空のままの本は保存しない
     /// (画面に空行が並ぶだけになる)。
     /// </summary>
     async Task<CollectionRunResult> CollectAsync(CancellationToken cancellationToken)

@@ -114,11 +114,6 @@ small {
     text-decoration: underline;
 }
 
-.review {
-    color: var(--warning-text);
-    white-space: nowrap;
-}
-
 /* 「読んだ」の印と切り替え。行の右端に置く(タグの数で位置が動かないよう、
    メタ行の中ではなく flex の3つ目の子。`margin-left: auto` で右へ寄せる)。
    見た目そのもの(色・薄さ)は app.css —— トピック詳細・タグ詳細でも同じ印を出すため */

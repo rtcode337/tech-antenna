@@ -165,8 +165,6 @@ public class IntegrationCatalog(
         new("Connpass:ApiKey", "connpass API キー"),
         new("Doorkeeper:AccessToken", "Doorkeeper アクセストークン"),
         new("Books:GoogleBooksApiKey", "Google Books API キー"),
-        new("Rakuten:ApplicationId", "楽天ウェブサービス アプリ ID"),
-        new("Rakuten:AccessKey", "楽天ウェブサービス アクセスキー(任意)"),
         new("Qiita:AccessToken", "Qiita アクセストークン"),
         new(LlmGateway.ClaudeCodeTokenName, "Claude Code OAuth トークン"),
         new(LlmGateway.AnthropicApiKeyName, "Anthropic API キー"),
@@ -244,21 +242,12 @@ public class IntegrationCatalog(
             "選んだトピックを検索語にして書籍を探す。定番の書籍の書影もここから引く。"
             + "キー無しのリクエストは共有の匿名枠(上限 0 件)に入るので、毎回 429 になる"),
             "Books:GoogleBooksApiKey"), SourceToggles.Book));
-        // 補完(openBD・楽天)は興味トピックの検索でも定番の推薦本でも使う
+        // 補完(openBD)は興味トピックの検索でも定番の推薦本でも使う
         integrations.Add(Toggleable(new Integration(
             IntegrationAxis.Interests | IntegrationAxis.Classics,
             "書籍", "openBD", CredentialNeed.NotNeeded, true,
             "ISBN から書誌情報(タイトル・著者・出版社)を補う。日本の書誌が無料で引ける(技術書の書影はほとんど持たない)",
             books.UseOpenBd), SourceToggles.Enricher));
-        // 「必須」= この連携(レビュー取得)が動くのに必須。書籍そのものは Google Books が
-        // 集めるので、アプリとしては無くても回る
-        integrations.Add(Toggleable(WithSecret(new Integration(
-            IntegrationAxis.Interests | IntegrationAxis.Classics,
-            "書籍", "楽天ブックス", CredentialNeed.Required,
-            false,
-            "書籍のレビュー(件数・評価)を ISBN で引く。「読まれている度合い」の並べ替えはこれが元。"
-            + "書影も同じ応答から埋まる(Google Books への問い合わせが減る)"),
-            "Rakuten:ApplicationId"), SourceToggles.Enricher));
         // 推薦本は定番の軸。トピックの選択とは無関係(固定クエリで「読むべき本」記事を掘る)
         integrations.Add(Toggleable(WithSecret(new Integration(
             IntegrationAxis.Classics, "書籍", "Qiita(推薦本)", CredentialNeed.Optional,

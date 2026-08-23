@@ -30,9 +30,8 @@ else
         <strong>配下のトピックの本は親のグループにまとめて</strong>出し、
         タグのうち<strong>そのグループに反応したもの</strong>を青いバッジで強調しています。
         複数のトピックで見つかった本は、そのすべてに出ます。
-        並びは<strong>記事に名指しされた順</strong>、次に
-        <strong>読まれている順</strong>(レビュー件数と平均評価から算出)です。
-        どちらも取れていない本は後ろに置いています。
+        並びは<strong>記事に名指しされた順</strong>で、
+        名指しの無い本は後ろに置いています。
         名指しは<strong>推薦</strong>(「読むべき技術書」を挙げたまとめ記事)と
         <strong>引用</strong>(選んだトピックについて書かれた記事が本文で挙げたもの)の
         2種類で、<strong>1票ずつ合算</strong>して並べ、件数はそれぞれ別に出しています
@@ -82,14 +81,6 @@ else
         }
     </form>
 
-    @if (_needsRakutenCredit)
-    {
-        @* 楽天から取ったデータ(レビューと書影)を出すときはクレジット表記が要る
-           (利用規約 Article 13)。指定の HTML は改変不可なので、テキスト版をそのまま置いている *@
-        <p class="credit">
-            <a href="https://developers.rakuten.com/" target="_blank">Supported by Rakuten Developers</a>
-        </p>
-    }
 }
 
 @code {
@@ -97,7 +88,6 @@ else
     const int Limit = 400;
 
     IReadOnlyList<TopicGroup>? _groups;
-    bool _needsRakutenCredit;
     string? _message;
 
     /// <summary>
@@ -148,9 +138,6 @@ else
             .Where(book => !Periodical.IsLikely(book))
             .ToList();
         _groups = Group(books, await TopicStore.GetSelectedAsync());
-        // クレジット表記は楽天のデータを実際に出しているときだけ置く
-        // レビューだけでなく書影も楽天由来のことがある(openBD は技術書の書影をほぼ持たない)
-        _needsRakutenCredit = RakutenCredit.IsRequiredFor(_groups.SelectMany(group => group.Books));
     }
 
     /// <summary>

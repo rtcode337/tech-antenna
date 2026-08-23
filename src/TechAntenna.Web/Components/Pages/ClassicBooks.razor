@@ -67,14 +67,6 @@ else
         </ul>
     </form>
 
-    @if (_needsRakutenCredit)
-    {
-        @* 楽天から取ったデータ(レビューと書影)を出すときはクレジット表記が要る
-           (利用規約 Article 13)。指定の HTML は改変不可なので、テキスト版をそのまま置いている *@
-        <p class="credit">
-            <a href="https://developers.rakuten.com/" target="_blank">Supported by Rakuten Developers</a>
-        </p>
-    }
 }
 
 @code {
@@ -87,7 +79,6 @@ else
     const int Limit = 400;
 
     IReadOnlyList<Book>? _books;
-    bool _needsRakutenCredit;
     string? _message;
 
     [SupplyParameterFromForm(FormName = "classic-books-read")]
@@ -130,8 +121,6 @@ else
             .Where(book => book.RecommendationCount >= MinRecommendations)
             .ByPopularity()
             .ToList();
-        // クレジット表記は楽天のデータ(レビュー・書影)を実際に出しているときだけ置く
-        _needsRakutenCredit = RakutenCredit.IsRequiredFor(_books);
 
         // 強調は配下込み —— 親(AI)を選んだ人にとって、子(LLM・RAG)も興味の範囲
         _interests = Catalog

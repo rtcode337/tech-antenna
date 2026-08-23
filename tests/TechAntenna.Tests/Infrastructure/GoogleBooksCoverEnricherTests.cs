@@ -56,9 +56,9 @@ public class GoogleBooksCoverEnricherTests
     [Fact]
     public async Task 既に書影がある本は引かない()
     {
-        // 1 冊 1 リクエストで無料枠は 1 日 1,000。楽天や openBD で埋まったぶんは投げない
+        // 1 冊 1 リクエストで無料枠は 1 日 1,000。openBD で埋まったぶんは投げない
         var factory = new StubHttpClientFactory(Response);
-        var cover = new Uri("https://thumbnail.image.rakuten.co.jp/medium.jpg");
+        var cover = new Uri("https://openbd.jp/cover.jpg");
 
         var book = Assert.Single(
             await NewEnricher(factory).EnrichAsync([NewBook("9784873115658", cover)]));

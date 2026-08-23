@@ -371,24 +371,9 @@ if (books.UseOpenBd)
     builder.Services.AddSingleton<IBookEnricher, OpenBdEnricher>();
 }
 
-// 楽天ブックスはレビュー(読まれている度合い)専用の後段。アプリ ID は画面から
-// 実行時に設定できるので常に登録し、無ければエンリッチャ側が何もしない
-builder.Services.Configure<RakutenOptions>(
-    builder.Configuration.GetSection(RakutenOptions.SectionName));
-
-var rakuten = builder.Configuration
-    .GetSection(RakutenOptions.SectionName)
-    .Get<RakutenOptions>() ?? new RakutenOptions();
-builder.Services.AddHttpClient(RakutenBooksEnricher.HttpClientName, ConfigureBookClient);
-builder.Services.AddSingleton<IBookEnricher>(sp => new RakutenBooksEnricher(
-    sp.GetRequiredService<IHttpClientFactory>(),
-    () => sp.GetRequiredService<ApiCredentials>().Get("Rakuten:ApplicationId"),
-    () => sp.GetRequiredService<ApiCredentials>().Get("Rakuten:AccessKey"),
-    TimeSpan.FromSeconds(rakuten.DelaySeconds)));
-
-// 書影の補完は最後に置く。openBD(技術書の書影をほとんど持たない)と楽天
-// (レビューと同じ応答に書影が入るので追加コスト無し)で埋まらなかったぶんだけを、
-// Google Books へ ISBN で引きに行く —— 1 冊 1 リクエストなので、他で埋まるなら引かない
+// 書影の補完は最後に置く。openBD(技術書の書影をほとんど持たない)で埋まらなかった
+// ぶんだけを Google Books へ ISBN で引きに行く —— 1 冊 1 リクエストなので、
+// 先に埋まるなら引かない。楽天ブックスを外してからは、ここが実質唯一の書影の出どころ
 builder.Services.AddSingleton<IBookEnricher>(sp => new GoogleBooksCoverEnricher(
     sp.GetRequiredService<IHttpClientFactory>(),
     () => sp.GetRequiredService<ApiCredentials>().Get("Books:GoogleBooksApiKey"),

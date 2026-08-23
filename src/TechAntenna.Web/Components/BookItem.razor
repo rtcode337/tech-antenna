@@ -57,13 +57,6 @@
                    別の話で、1つの数にまとめると出どころが読めなくなる *@
                 @Sources("sources-cited", "引用", Book.CitedBy)
             }
-            @if (Book.ReviewCount is { } reviewCount and > 0)
-            {
-                <span class="review ms-1">
-                    ★ @(Book.ReviewAverage?.ToString("0.0") ?? "—")
-                    <span class="text-muted">(@reviewCount 件)</span>
-                </span>
-            }
             @foreach (var tag in Book.Tags)
             {
                 <span class="badge ms-1 @(HighlightTags.Contains(tag) ? "bg-primary" : "bg-light text-dark")">@Catalog.DisplayOf(tag)</span>
