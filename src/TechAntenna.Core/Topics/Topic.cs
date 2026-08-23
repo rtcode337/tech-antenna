@@ -32,6 +32,17 @@ public class Topic
     /// <summary>このアプリの収集キーワードとして選択されているか。</summary>
     public bool IsSelected { get; set; }
 
+    /// <summary>
+    /// 興味トピックの画面に並べる順(小さいほど先)。<b>0 は未指定</b>で、指定済みの後ろに回る。
+    ///
+    /// 話題度や件数で並べると<b>収集のたびに順番が入れ替わる</b> —— 毎日見る一覧では、
+    /// いつも同じ位置にあるほうが目的のトピックへ早く届く。並べ替えは画面の
+    /// ドラッグ(<c>/interests/books</c>)から <see cref="Abstractions.ITopicStore.UpdateOrderAsync"/> で保存する。
+    ///
+    /// <b>収集には効かない</b>(検索の順番を変えても集まるものは同じ)。
+    /// </summary>
+    public int SortOrder { get; set; }
+
     /// <summary>この語単体の話題度(配下は含まない)。</summary>
     public double TrendScore { get; set; }
 

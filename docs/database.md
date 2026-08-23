@@ -91,6 +91,7 @@ erDiagram
         text Description "一言説明（120 文字以内）"
         text DecidedBy "Seed / Llm / Human"
         boolean IsSelected "収集対象に選んだか"
+        integer SortOrder "興味トピックの並び（0 = 未指定で末尾）"
         double TrendScore "単体の話題度"
         double SubtreeTrendScore "配下込みの話題度"
         integer ArticleCount "自分 + 別名のタグから合算"

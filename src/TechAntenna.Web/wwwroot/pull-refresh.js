@@ -61,9 +61,16 @@
         indicator.style.transform = '';
     }
 
+    // トピックの並べ替え(topic-order.js)の最中は反応しない —— 上端のグループを
+    // 掴んで下へ運ぶ動きが「引っ張って更新」と同じ形になり、離した拍子に読み込み直すと
+    // 並べ替えた結果が保存前に消えたように見える
+    function dragging() {
+        return document.documentElement.dataset.dragging === '1';
+    }
+
     document.addEventListener('touchstart', function (event) {
         // 上端にいるときだけ受ける。途中から引いても更新しない(単なるスクロール)
-        if (refreshing || event.touches.length !== 1 || window.scrollY > 0) {
+        if (refreshing || dragging() || event.touches.length !== 1 || window.scrollY > 0) {
             startY = null;
             return;
         }
@@ -74,7 +81,7 @@
     }, { passive: true });
 
     document.addEventListener('touchmove', function (event) {
-        if (startY === null || event.touches.length !== 1) {
+        if (startY === null || dragging() || event.touches.length !== 1) {
             return;
         }
 

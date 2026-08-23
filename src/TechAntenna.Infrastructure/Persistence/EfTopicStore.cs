@@ -138,11 +138,52 @@ public class EfTopicStore(IDbContextFactory<TechAntennaDbContext> contextFactory
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        return await db.Topics
-            .Where(topic => topic.IsSelected)
-            .OrderBy(topic => topic.Key)
+        return await Ordered(db)
             .Select(topic => new SelectedTopic(
                 topic.Key, topic.Display == "" ? topic.Key : topic.Display, topic.English))
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<int> UpdateOrderAsync(
+        IReadOnlyList<string> keys, CancellationToken cancellationToken = default)
+    {
+        var wanted = TagNormalizer.Normalize(keys);
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // **選択済みを丸ごと読んでから振り直す。** 渡された分だけ書くと、画面に出ていない
+        // トピック(本が 1 冊も無いもの)が古い番号のまま残って間に割り込む
+        var selected = await Ordered(db).ToListAsync(cancellationToken);
+        var byKey = selected.ToDictionary(topic => topic.Key, StringComparer.Ordinal);
+
+        var ordered = wanted
+            .Where(byKey.ContainsKey)
+            .Concat(selected.Select(topic => topic.Key))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        var order = 0;
+        foreach (var key in ordered)
+        {
+            byKey[key].SortOrder = ++order;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        return order;
+    }
+
+    /// <summary>
+    /// 選択済みトピックを画面の並びで。**未指定(0)は後ろへ** ——
+    /// 並べ替えたことのない環境では全部 0 なので、従来どおりキーの順に出る。
+    ///
+    /// <b>問い合わせを切り出してあるのはテストのため。</b> 真偽値での並べ替えは
+    /// InMemory のストアでは素通りするので、翻訳できるかを
+    /// <c>EfTopicStoreTranslationTests</c> が <c>ToQueryString</c> で見張っている
+    /// (DB にはつながない。<see cref="EfTagStore.PendingQuery"/> と同じ流儀)。
+    /// </summary>
+    public static IOrderedQueryable<Topic> Ordered(TechAntennaDbContext db) => db.Topics
+        .Where(topic => topic.IsSelected)
+        .OrderBy(topic => topic.SortOrder == 0)
+        .ThenBy(topic => topic.SortOrder)
+        .ThenBy(topic => topic.Key);
 }

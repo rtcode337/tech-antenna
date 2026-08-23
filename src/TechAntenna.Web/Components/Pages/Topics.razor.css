@@ -219,33 +219,6 @@ details[open] > summary .caret::before {
     font-weight: 600;
 }
 
-/* その場保存の結果(topic-select.js が出す)。画面の下端に固定する ——
-   一覧は数百行あるので、ページの上や下に置くといま押した行のそばに出てこない。
-   幅は中身なりで、長い名前でも画面からはみ出さないように上限を付ける */
-.select-status {
-    position: fixed;
-    left: 50%;
-    bottom: 1rem;
-    transform: translateX(-50%);
-    z-index: 10;
-    max-width: min(32rem, calc(100vw - 2rem));
-    margin: 0;
-    padding: 0.5rem 0.9rem;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--pill);
-    background: var(--surface);
-    box-shadow: var(--shadow);
-    font-size: 0.86rem;
-    color: var(--text);
-}
-
-/* 失敗は消えずに残るので、色でも成功と見分けられるようにする */
-.select-status.error {
-    border-color: var(--danger);
-    color: var(--danger);
-    font-weight: 600;
-}
-
 /* トピック名と、その後ろのかっこ書きの説明。
    説明は1行に収めて溢れを … にする —— 折り返させると 150 行の一覧が縦に伸び、
    話題度や日時を追いにくくなる(全文はツールチップで読める) */

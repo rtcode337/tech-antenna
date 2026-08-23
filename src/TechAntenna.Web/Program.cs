@@ -635,6 +635,28 @@ app.MapPost("/api/topics/select", async (
     return Results.Ok(new { key, selected, count });
 });
 
+// 興味トピックの並びを、ドラッグで動かした時点で保存する(wwwroot/topic-order.js)。
+// パス・受け方はトピックの選択(/api/topics/select)と同じ流儀 —— フォーム形式で受けるのは
+// `UseAntiforgery()` が自動で検証するのがこの形だから(JSON の本文だと検証されない)。
+//
+// **並びは丸ごと受ける**(1 件ずつではない)。ドラッグは 1 回で複数の行の位置を変えるので、
+// 動いた行だけを送ると受け側で元の並びを推測することになる。
+app.MapPost("/api/topics/order", async (
+    IFormCollection form, ITopicStore topics, CancellationToken cancellationToken) =>
+{
+    // 画面は同じ名前で並び順に送ってくる(`keys=生成ai&keys=llm&…`)
+    var keys = form["keys"].Where(key => !string.IsNullOrWhiteSpace(key)).Select(key => key!).ToList();
+
+    if (keys.Count == 0)
+    {
+        return Results.BadRequest(new { error = "並び順が空です。" });
+    }
+
+    var count = await topics.UpdateOrderAsync(keys, cancellationToken);
+
+    return Results.Ok(new { count });
+});
+
 // 定期実行のチェックを触った時点で1件だけ保存する(wwwroot/job-schedule.js)。
 // フォームの「定期実行の設定を保存」が時刻とチェックをまとめて書くのとは別の経路 ——
 // チェック1つのたびにページを作り直すと、実行中のジョブの進捗表示まで巻き込んで再描画される。

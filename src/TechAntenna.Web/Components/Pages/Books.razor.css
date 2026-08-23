@@ -41,3 +41,36 @@
 .topic-name {
     margin-left: 0.25rem;
 }
+
+/* 並べ替え(長押ししてドラッグ。wwwroot/topic-order.js)。
+   掴み代(☰)は置かず見出しのどこでも掴めるので、**掴んでいる間の見た目**が
+   唯一の手がかりになる —— 浮かせて、影を濃くして、指に付いてきていることを示す */
+.topic-group.dragging {
+    box-shadow: var(--shadow);
+    border-color: var(--border-strong);
+    opacity: 0.95;
+}
+
+/* 掴めることは字で書かない(見出しが長くなる)。カーソルで示す */
+.topic-group > summary {
+    touch-action: pan-y;
+}
+
+/* 1 つずつ動かすボタン。**JS が動いていれば topic-order.js が隠す**
+   (ドラッグで足りるため)。出ているのは JS が効いていないときと、
+   ドラッグでの保存に失敗したときだけ */
+.topic-move {
+    display: flex;
+    gap: 0.2rem;
+    margin-left: auto;
+}
+
+.topic-move .btn {
+    padding: 0.1rem 0.4rem;
+    line-height: 1.1;
+}
+
+/* 冊数のバッジは名前のすぐ隣に置く(▲▼ が右端へ寄るぶん、離すと対応が読めない) */
+.topic-group > summary > .badge {
+    margin-right: 0.25rem;
+}

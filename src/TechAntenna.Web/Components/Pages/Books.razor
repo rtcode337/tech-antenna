@@ -43,6 +43,12 @@ else
         <strong>読み終えた本は右端の「読んだ」で印を付けられます</strong> ——
         印の付いた本は一覧から消えず、<strong>各グループの末尾へ回ります</strong>。
     </p>
+    <p class="text-muted">
+        <strong>トピックの見出しを長押しして上下にドラッグすると、並べ替えられます</strong>
+        (この端末ではなく<strong>サーバーに保存</strong>するので、別の端末でも同じ並びになります)。
+        並びは<strong>興味トピックの一覧ぜんぶで共通</strong>で、収集には影響しません。
+        押している間に指が動いたときは、ただのスクロールとして扱います。
+    </p>
 
     @if (_message is { Length: > 0 })
     {
@@ -55,7 +61,8 @@ else
        冊数ぶん並ぶので、押された本は submit の value(`read:<Id>`)で見分ける
        (タグの画面と同じ流儀)。data-keep-focus を付けるのは、POST で画面が
        作り直されると押した行が画面外へ消えるため(keep-focus.js が同じボタンへ戻す) *@
-    <form method="post" @formname="books-read" @onsubmit="ToggleReadAsync" data-keep-focus>
+    <form method="post" @formname="books-read" @onsubmit="SubmitAsync" data-keep-focus
+          data-topic-order>
         <AntiforgeryToken />
         @foreach (var group in _groups)
         {
@@ -65,10 +72,24 @@ else
                見るのに先頭を畳む操作が要る。
                例外は「読んだ」を押した直後(_openGroups)—— POST で作り直された画面が
                全部畳まれていると、押した本もボタンも見えず、何が起きたのか分からない *@
-            <details class="topic-group" open="@_openGroups.Contains(group.Tag)">
+            @* data-topic-row はドラッグの目印(wwwroot/topic-order.js)。
+               並べ替えは JS の上乗せで、動かなくても下の ▲▼ で 1 つずつ動かせる *@
+            <details class="topic-group" data-topic-row="@group.Tag"
+                     open="@_openGroups.Contains(group.Tag)">
                 <summary>
                     <span class="topic-name">@group.Display</span>
                     <span class="badge bg-secondary ms-1">@group.Books.Count</span>
+                    @* JS が動いていれば隠す(ドラッグで足りるため)。
+                       data-no-drag を付けるのは、押したつもりが長押しでドラッグに
+                       化けないようにするため *@
+                    <span class="topic-move" data-topic-move data-no-drag>
+                        <button type="submit" name="Action" value="@TopicOrderAction.UpValue(group.Tag)"
+                                class="btn btn-sm btn-outline-secondary"
+                                aria-label="「@group.Display」を上へ">▲</button>
+                        <button type="submit" name="Action" value="@TopicOrderAction.DownValue(group.Tag)"
+                                class="btn btn-sm btn-outline-secondary"
+                                aria-label="「@group.Display」を下へ">▼</button>
+                    </span>
                 </summary>
                 <ul class="list-unstyled">
                     @foreach (var book in group.Books)
@@ -79,6 +100,11 @@ else
                 </ul>
             </details>
         }
+
+        @* ドラッグで保存したときの結果。画面の下端に固定して出す ——
+           グループは何十個も並ぶので、上や下に置くと動かした行のそばに出てこない
+           (/settings/topics のその場保存と同じ流儀) *@
+        <p class="select-status" data-order-status role="status" hidden></p>
     </form>
 
 }
@@ -101,6 +127,53 @@ else
     string? Action { get; set; }
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    /// <summary>
+    /// 押されたボタンで処理を振り分ける。1 ページ 1 フォームなので、
+    /// 押されたのがどれかは submit の value で見分ける(タグの画面と同じ流儀)。
+    /// </summary>
+    async Task SubmitAsync()
+    {
+        if (TopicOrderAction.TryRead(Action, out var key, out var delta))
+        {
+            await MoveAsync(key, delta);
+
+            return;
+        }
+
+        await ToggleReadAsync();
+    }
+
+    /// <summary>
+    /// トピックを 1 つ分だけ上下へ動かす(<b>ドラッグが効かないときの経路</b>)。
+    /// JS が動く環境ではボタン自体を隠すが、**保存する手段を画面から消さない**
+    /// —— キーボードだけで操作する場合もここを通る。
+    /// </summary>
+    async Task MoveAsync(string key, int delta)
+    {
+        if (_groups is null)
+        {
+            return;
+        }
+
+        // 画面に出ている順がそのまま保存の順。出ていないトピック(本が 1 冊も無いもの)は
+        // ストアが後ろへ回す(ITopicStore.UpdateOrderAsync)
+        var order = _groups.Select(group => group.Tag).ToList();
+        var index = order.IndexOf(key);
+        var target = index + delta;
+        if (index < 0 || target < 0 || target >= order.Count)
+        {
+            // 端では何もしない(押しても動かないことは、ボタンが端に居ることで分かる)
+            return;
+        }
+
+        (order[index], order[target]) = (order[target], order[index]);
+        await TopicStore.UpdateOrderAsync(order);
+        await LoadAsync();
+
+        var display = _groups.FirstOrDefault(group => group.Tag == key)?.Display ?? key;
+        _message = $"「{display}」を{(delta < 0 ? "上" : "下")}へ移しました。";
+    }
 
     /// <summary>
     /// 「読んだ」の印を裏返す。押された本は submit の value(`toggle:&lt;Id&gt;`)で分かる。
@@ -146,6 +219,7 @@ else
     /// 配下のトピックごとに割ると、AI を選んだだけで LLM・RAG… と小さな見出しが並ぶ)。
     /// どのタグで載ったのかは、本のタグの帯の強調(<see cref="BookItem.HighlightTags"/>)で分かる。
     /// 1冊が複数のグループに出るのは従来どおり(親と子を両方選んでいれば両方に出る)。
+    /// <b>グループの並びは画面で決めた順</b>(<see cref="ITopicStore.GetSelectedAsync"/>)、
     /// 中は<b>読まれている順</b>(<see cref="BookPopularity"/>)。選択を外したトピックで
     /// 過去に集めた本や、タグの無い本(推薦で拾った本に多い)はこのページには出さない
     /// (トピックに寄らない推薦は /classics/books の担当)。
@@ -167,8 +241,9 @@ else
                     books.Where(book => book.Tags.Any(subtree.Contains)).ByPopularity().ToList());
             })
             .Where(group => group.Books.Count > 0)
-            .OrderByDescending(group => group.Books.Count)
-            .ThenBy(group => group.Display, StringComparer.Ordinal)
+            // **並べ替え直さない。** 並びは ITopicStore.GetSelectedAsync が決めたもの
+            // (画面のドラッグで保存した順)—— 冊数で並べていた頃は、収集のたびに
+            // 順番が入れ替わって「いつもの場所」が無かった
             .ToList();
 
     /// <summary>トピック1つぶんの見出しと中身。Subtree はトピック自身+配下のキー。</summary>

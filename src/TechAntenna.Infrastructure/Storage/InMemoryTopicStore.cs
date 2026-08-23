@@ -136,9 +136,7 @@ public class InMemoryTopicStore : ITopicStore
     {
         lock (_gate)
         {
-            return Task.FromResult<IReadOnlyList<SelectedTopic>>(_byKey.Values
-                .Where(topic => topic.IsSelected)
-                .OrderBy(topic => topic.Key, StringComparer.Ordinal)
+            return Task.FromResult<IReadOnlyList<SelectedTopic>>(Ordered()
                 .Select(topic => new SelectedTopic(
                     topic.Key,
                     topic.Display is { Length: > 0 } display ? display : topic.Key,
@@ -146,6 +144,43 @@ public class InMemoryTopicStore : ITopicStore
                 .ToList());
         }
     }
+
+    public Task<int> UpdateOrderAsync(
+        IReadOnlyList<string> keys, CancellationToken cancellationToken = default)
+    {
+        var wanted = TagNormalizer.Normalize(keys);
+
+        lock (_gate)
+        {
+            // 渡された順が先。**渡されなかった選択済みは、いまの並びのまま後ろへ** ——
+            // 画面には本のあるトピックしか出ないので、出ていない行は渡ってこない
+            var ordered = wanted
+                .Where(_byKey.ContainsKey)
+                .Concat(Ordered().Select(topic => topic.Key))
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            var order = 0;
+            foreach (var key in ordered)
+            {
+                if (_byKey.TryGetValue(key, out var topic) && topic.IsSelected)
+                {
+                    topic.SortOrder = ++order;
+                }
+            }
+
+            return Task.FromResult(order);
+        }
+    }
+
+    /// <summary>選択済みを画面の並び(<see cref="Topic.SortOrder"/>)で。未指定は後ろへ。</summary>
+    /// <remarks>ロックの中から呼ぶこと。</remarks>
+    IEnumerable<Topic> Ordered() => _byKey.Values
+        .Where(topic => topic.IsSelected)
+        // 0(未指定)を後ろへ回す。指定済みの間に割り込ませない
+        .OrderBy(topic => topic.SortOrder == 0)
+        .ThenBy(topic => topic.SortOrder)
+        .ThenBy(topic => topic.Key, StringComparer.Ordinal);
 
     internal static void Reset(Topic topic)
     {
@@ -156,7 +191,11 @@ public class InMemoryTopicStore : ITopicStore
         topic.BookCount = 0;
     }
 
-    /// <summary>更新内容を1行に写す(EF 版と同じ規則にするため共有する)。選択は触らない。</summary>
+    /// <summary>
+    /// 更新内容を1行に写す(EF 版と同じ規則にするため共有する)。
+    /// <b>選択(<see cref="Topic.IsSelected"/>)と並び(<see cref="Topic.SortOrder"/>)は
+    /// 写さない</b> —— どちらも画面で人が決めたもので、収集や整備のたびに巻き戻したくない。
+    /// </summary>
     internal static void Apply(Topic stored, Topic topic, DateTimeOffset updatedAt)
     {
         stored.Display = topic.Display;

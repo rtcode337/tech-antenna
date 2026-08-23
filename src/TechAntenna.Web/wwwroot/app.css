@@ -421,6 +421,34 @@ hr {
     font-size: 0.9rem;
 }
 
+/* その場保存の結果を出す1行。画面の下端に固定する —— 一覧が数百行あるので、
+   ページの上や下に置くと、いま操作した行のそばに出てこない。
+   **トピックの選択(/settings/topics)と、興味トピックの並べ替え(/interests/books)の
+   2 か所で使う**ので、scoped CSS ではなくここに置く(scoped だと片方の画面で効かない)。 */
+.select-status {
+    position: fixed;
+    left: 50%;
+    bottom: 1rem;
+    transform: translateX(-50%);
+    z-index: 10;
+    max-width: min(32rem, calc(100vw - 2rem));
+    margin: 0;
+    padding: 0.5rem 0.9rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--pill);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    font-size: 0.86rem;
+    color: var(--text);
+}
+
+/* 失敗は消えずに残るので、色でも成功と見分けられるようにする */
+.select-status.error {
+    border-color: var(--danger);
+    color: var(--danger);
+    font-weight: 600;
+}
+
 /* 畳んだ説明(details)。トピック・タグ・設定で同じ見た目を使う */
 .score-help {
     margin-bottom: 1rem;

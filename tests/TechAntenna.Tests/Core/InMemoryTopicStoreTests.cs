@@ -105,6 +105,73 @@ public class InMemoryTopicStoreTests
     }
 
     [Fact]
+    public async Task 並べ替えた順で選択済みを返す()
+    {
+        // 画面(/interests/books)のドラッグで決めた順。話題度や冊数で並べると
+        // 収集のたびに入れ替わり、毎日見る一覧で「いつもの場所」が無くなる
+        var store = new InMemoryTopicStore();
+        await store.UpsertAsync([NewTopic("ai", 30), NewTopic("llm", 20), NewTopic("rag", 10)], UpdatedAt);
+        await store.UpdateSelectionAsync(["ai", "llm", "rag"]);
+
+        Assert.Equal(3, await store.UpdateOrderAsync(["rag", "ai", "llm"]));
+
+        Assert.Equal(["rag", "ai", "llm"], (await store.GetSelectedAsync()).Select(topic => topic.Key));
+    }
+
+    [Fact]
+    public async Task 並べ替えていないトピックは指定済みの後ろへ回す()
+    {
+        // 画面には本のあるトピックしか出ないので、出ていない行は渡ってこない。
+        // 据え置くと、並べた列の間に古い番号のまま割り込む
+        var store = new InMemoryTopicStore();
+        await store.UpsertAsync(
+            [NewTopic("ai", 30), NewTopic("llm", 20), NewTopic("rag", 10)], UpdatedAt);
+        await store.UpdateSelectionAsync(["ai", "llm", "rag"]);
+
+        await store.UpdateOrderAsync(["rag", "ai"]);
+
+        Assert.Equal(["rag", "ai", "llm"], (await store.GetSelectedAsync()).Select(topic => topic.Key));
+    }
+
+    [Fact]
+    public async Task 並べ替えていない環境ではキーの順のまま()
+    {
+        // 入れたばかりの環境は全部 0(未指定)。従来どおりの並びで出る
+        var store = new InMemoryTopicStore();
+        await store.UpsertAsync([NewTopic("llm", 20), NewTopic("ai", 30)], UpdatedAt);
+        await store.UpdateSelectionAsync(["llm", "ai"]);
+
+        Assert.Equal(["ai", "llm"], (await store.GetSelectedAsync()).Select(topic => topic.Key));
+    }
+
+    [Fact]
+    public async Task 並べ替えは正規化して突き合わせる()
+    {
+        // 画面から来るのは正規化済みのキーだが、選択と同じ規則を通す
+        var store = new InMemoryTopicStore();
+        await store.UpsertAsync([NewTopic("生成ai", 10, "生成AI"), NewTopic("rag", 5)], UpdatedAt);
+        await store.UpdateSelectionAsync(["生成ai", "rag"]);
+
+        await store.UpdateOrderAsync(["生成AI", "rag"]);
+
+        Assert.Equal(["生成ai", "rag"], (await store.GetSelectedAsync()).Select(topic => topic.Key));
+    }
+
+    [Fact]
+    public async Task 更新でも並びは触らない()
+    {
+        // 選択と同じで、人が決めたものを整備が巻き戻さない
+        var store = new InMemoryTopicStore();
+        await store.UpsertAsync([NewTopic("ai", 30), NewTopic("llm", 20)], UpdatedAt);
+        await store.UpdateSelectionAsync(["ai", "llm"]);
+        await store.UpdateOrderAsync(["llm", "ai"]);
+
+        await store.UpsertAsync([NewTopic("ai", 99), NewTopic("llm", 1)], UpdatedAt.AddHours(1));
+
+        Assert.Equal(["llm", "ai"], (await store.GetSelectedAsync()).Select(topic => topic.Key));
+    }
+
+    [Fact]
     public async Task 更新でも選択は触らない()
     {
         // 選択を変えるのは画面の操作だけ。整備が上書きすると収集対象が勝手に変わる

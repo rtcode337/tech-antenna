@@ -65,6 +65,22 @@ public interface ITopicStore
     /// connpass や Google Books へ投げる<b>検索語</b>には表記(`生成AI`。英語圏には
     /// `generative ai`)が要るが、集めた記事のタグとの<b>突き合わせ</b>には
     /// 正規化済みのキー(`生成ai`)が要る。
+    ///
+    /// <b>並びは画面で決めた順</b>(<see cref="Topic.SortOrder"/>。未指定はその後ろへ、
+    /// キーの順)。収集は順番に依らないが、興味トピックの一覧はこの順で出す ——
+    /// <b>並びを決める場所を 1 つにする</b>ため、読む側で並べ替え直さない。
     /// </summary>
     Task<IReadOnlyList<SelectedTopic>> GetSelectedAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 興味トピックの並びを保存する(<paramref name="keys"/> の順に 1 から振り直す)。
+    ///
+    /// <b>渡されなかった選択済みトピックは後ろへ回す</b>(いまの並びは保ったまま)。
+    /// 画面には本のあるトピックしか出ないので、出ていない行が渡ってこない ——
+    /// そこを据え置くと、指定済みと未指定が入り混じって「並べたのに間に割り込む」ことになる。
+    ///
+    /// 実際に並べ替えた件数(振り直した行数)を返す。
+    /// </summary>
+    Task<int> UpdateOrderAsync(
+        IReadOnlyList<string> keys, CancellationToken cancellationToken = default);
 }
