@@ -13,8 +13,30 @@
 name: tech-antenna
 
 services:
+  # data/ の下に必要なディレクトリを作り、app の実行ユーザー(非 root)が
+  # 書けるように所有者を合わせる。ホストのディレクトリは作成者(ホストのユーザー)の
+  # 所有になるため、そのままでは Data Protection の鍵を書き出せない。
+  # **postgres の側は chown しない** —— あちらはエントリポイントが root で起動して
+  # 自分で揃えるので、こちらが触ると却って食い違う。
+  # mkdir と chown だけなので、アプリのイメージではなく小さい汎用イメージを使う
+  # (アプリ側を :local でビルドする構成でも GHCR を引きに行かずに済む)
+  init:
+    image: alpine:3.24
+    user: root
+    entrypoint:
+      - sh
+      - -c
+      - mkdir -p /data/postgres /data/keys && chown -R "$$0" /data/keys
+      - ${TECH_ANTENNA_UID:-10001}:${TECH_ANTENNA_GID:-10001}
+    volumes:
+      - ./data:/data
+    restart: "no"
+
   db:
     image: postgres:18-alpine
+    depends_on:
+      init:
+        condition: service_completed_successfully
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-techantenna}
       # .env で変えるなら初回起動の前に(data/postgres を作るときにしか効かず、
@@ -26,33 +48,26 @@ services:
       # PGPORT はサーバー(postgres)とクライアント(pg_isready/psql)の両方が読むので、
       # 下の healthcheck や `compose exec db psql` に -p を足す必要はない
       PGPORT: 7021
+      # **バインドするのは data/ 1本**なので、PGDATA を data/ の下へ移す。
+      # ホスト側の位置(data/postgres/18/docker)は今までと同じなので、
+      # 既に動いているホストでもデータの移動は要らない
+      PGDATA: /data/postgres/18/docker
     volumes:
-      # postgres:18 のイメージは PGDATA が /var/lib/postgresql/18/docker で、
-      # マウントするのはその1段上の /var/lib/postgresql(17 以前とは位置が違う)。
       # 名前付きボリュームではなくホストのディレクトリに置いてある —— data/ を丸ごと
       # コピーすればバックアップになり、Docker の中を覗きに行かなくて済む。
       # 中身の所有者調整は postgres のエントリポイントが root で起動時に済ませる
-      - ./data/postgres:/var/lib/postgresql
+      - ./data:/data
+    # postgres:18 は VOLUME /var/lib/postgresql を宣言していて、そこに何も
+    # マウントしないと起動のたびに空の匿名ボリュームが作られて溜まる。
+    # 実データは上の PGDATA(data/ 配下)に置くので、使い捨ての tmpfs を当てて抑える
+    tmpfs:
+      - /var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-techantenna} -d ${POSTGRES_DB:-techantenna}"]
       interval: 5s
       timeout: 5s
       retries: 10
     restart: unless-stopped
-
-  # data/keys を app の実行ユーザー(イメージが持つ非 root、UID 1654)が書けるようにする。
-  # ホストのディレクトリは作成者(ホストのユーザー)の所有になるため、そのままでは
-  # Data Protection の鍵を書き出せない。postgres と違い app 側は非 root で動くので、
-  # ここで一度だけ root で所有者を合わせてから本体を起動する
-  # chown を実行するだけなので、アプリのイメージではなく小さい汎用イメージを使う
-  # (アプリ側を :local でビルドする構成でも GHCR を引きに行かずに済む)
-  init:
-    image: alpine:3.24
-    user: root
-    entrypoint: ["sh", "-c", "chown -R 1654:1654 /app/keys"]
-    volumes:
-      - ./data/keys:/app/keys
-    restart: "no"
 
   app:
     image: ${TECH_ANTENNA_IMAGE:-ghcr.io/rtcode337/tech-antenna:latest}
@@ -94,7 +109,13 @@ services:
       # ホスト側も既定は同じ 7020(開発の dotnet run と同じ番号。同時起動はできない)
       - "${PORT:-7020}:7020"
     volumes:
-      # antiforgery と Blazor が使う Data Protection の鍵。コンテナを作り直しても
-      # 鍵を引き継げるようにする(消えると開いていたページの操作が一度エラーになる)
-      - ./data/keys:/app/keys
+      # **バインドはこの1本だけ**。下が postgres/(DB の実体)と keys/
+      # (antiforgery と Blazor が使う Data Protection の鍵。コンテナを作り直しても
+      # 鍵を引き継げるようにする —— 消えると開いていたページの操作が一度エラーになる)
+      - ./data:/data
+    # 実行ユーザー。既定は 10001 = ホストに実在しない番号(抜け出されてもホストの
+    # ユーザーのファイルには届かない)。そのぶん data/ はホストから見て「知らない
+    # ユーザー」の持ち物になるので、手元で直接編集・書き戻しをしたいホストでは
+    # .env の TECH_ANTENNA_UID / TECH_ANTENNA_GID に `id -u` / `id -g` を入れる
+    user: "${TECH_ANTENNA_UID:-10001}:${TECH_ANTENNA_GID:-10001}"
     restart: unless-stopped

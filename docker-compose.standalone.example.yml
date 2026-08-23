@@ -19,114 +19,86 @@
 # —— こちらは値の直書きぶん古くなりやすい。docker-compose.yml を変えたらこの雛形も追従させること。
 name: tech-antenna
 
-# ---- DB のパスワード ----
-# 変えるなら初回起動の前に、2行とも同じ値にすること(YAML のアンカーは文字列の一部に
-# 差し込めないため2行に分けてある)。片方だけ直すと静かに壊れる —— app は DB に繋がらないと
-# 接続文字列が無いときと同じ扱いになり、メモリ上のストアで起動して再起動のたびにデータが消える。
-# データの置き場を作った後で変えても DB 側は変わらないまま接続文字列だけがずれる
-x-postgres-password: &postgres-password "techantenna"
-x-connection-string: &connection-string "Host=db;Port=7021;Database=techantenna;Username=techantenna;Password=techantenna"
-
-# ---- ここだけ編集: イメージ ----
-# :latest ではなく :sha-xxxxxxx を指定すれば特定のイメージを指せる。
-# ※ GHCR には最新の 1 版しか残らない（push のたびに古い版を消してストレージの
-#   無料枠を守っている。.github/workflows/build-and-push-image.yml）ので、
-#   過去のイメージへは戻せない。戻せるようにするなら、あちらの
-#   min-versions-to-keep を上げて残す世代を増やすこと。
-x-image: &image "ghcr.io/rtcode337/tech-antenna:latest"
-
 # ---- ここだけ編集: データの置き場(そのホストの絶対パス) ----
 # 名前付きボリュームではなくホストのディレクトリに置く(data ごとコピーすればバックアップ
 # になる)。無ければ Docker が作るが、先に作っておくのが確実。
 # postgres 側は中身の所有者をエントリポイントが揃えるので、ホスト側の準備は要らない
-x-postgres-dir: &postgres-dir "/path/to/tech-antenna/data/postgres"
-x-keys-dir: &keys-dir "/path/to/tech-antenna/data/keys"
+# **`host:container` を丸ごと書く短い形にしてある** —— `type: bind` の長い形は、
+# 古い Docker だとホスト側のディレクトリを自動で作らない。
+# **バインドするのはこの1つだけ**で、下の postgres/ と keys/ は init が作る
+x-data-volume: &data-volume "/path/to/tech-antenna/data:/data"
 
-# ---- ここだけ編集: 公開ポート ----
-# host:container。コンテナ内は 7020 固定なので、変えるのは左だけ。
-x-port: &port "7020:7020"
+# ---- ここだけ編集(必要なときだけ): 実行ユーザー ----
+# **イメージ内の既定は 10001:10001** で、ホストに実在しない番号にしてある
+# (万一コンテナから抜け出されても、ホストのユーザーのファイルには届かない)。
+# data/ をホストから直接編集・書き戻ししたいときだけ `id -u`:`id -g` に書き換える
+x-run-as: &run-as "10001:10001"
 
-# ---- ここだけ編集: タイムゾーン ----
-x-timezone: &timezone "Asia/Tokyo"
-
-# ---- ここだけ編集: アプリの設定(.env の代わり) ----
-x-app-env: &app-env
-  ConnectionStrings__Default: *connection-string
-  TZ: *timezone
-
-  # 定期実行のオン/オフは画面(設定)から切り替える(既定はすべて無効)
-
-  # 外部 API のキーはここでは渡せない(画面の「設定 → 外部連携」から入れる。
-  # 暗号化して DB に保存され、再起動なしで効く)。渡すのはキー以外の設定だけ
-
-  # ---- ここだけ編集(任意): Chiezo(LAN 内の知識サーバー)の URL ----
-  # 入れると LLM の相手を画面から選べる(設定 → 外部連携の一番上)。鍵は Chiezo が持っている。
-  # 使わないなら空文字("")にする —— 同梱の Claude Code CLI / Anthropic API で動く。
-  #
-  # 書くのは chiezo-api のルート URL。`/v1` は付けない
-  # (こちらが `/v1/ai/...` を足すので、付けると `/v1/v1/...` になって 404)。
-  # 値は「このコンテナから chiezo に届くアドレス」—— 別のホストで動いているなら
-  # そのホストの IP、同じホストなら LAN の IP(`localhost` はコンテナ自身を指すので不可)。
-  #
-  # 届くかどうかの確かめ方(このイメージには curl も wget も入っていないので、
-  # 同じネットワーク名前空間に curl のコンテナを差し込んで叩く):
-  #   docker run --rm --network container:<このコンテナ名> curlimages/curl:8.11.1 \
-  #     -s -m 5 http://<IP>:7010/v1/ai/backends
-  # 応答が返らない(タイムアウトする)ときは下の「同じホストなのに届かないとき」を見ること
-  Chiezo__BaseUrl: "http://192.168.1.10:7010"
-
-  # 今日のサマリーの ntfy 通知。接続先(URL・トピック・トークン)は画面から設定する。
-  # タップで開く URL だけは「この環境の公開 URL」というデプロイ側の事実なのでここに残す
-  Ntfy__ClickUrl: ""
-
-  # リバースプロキシ配下で X-Forwarded-* を信頼するときだけ true にする
-  ASPNETCORE_FORWARDEDHEADERS_ENABLED: "false"
-
-# ---- 同じホストで chiezo が動いているのに届かないとき ----
-# コンテナからホストの LAN IP に張った公開ポートへ戻る経路は、環境によっては塞がれている
-# (NAS のファイアウォール等。症状は画面の「Chiezo(…)が時間内に応答しなかった」＝パケットが
-# 落とされている。届いていれば「繋がらない」や HTTP エラーになるので、そこで見分けられる)。
+# ---- ここだけ編集(任意): Chiezo(LAN 内の知識サーバー)の URL ----
+# 入れると LLM の相手を画面から選べる(設定 → 外部連携の一番上)。鍵は Chiezo が持っている。
+# 使わないなら空文字("")にする —— 同梱の Claude Code CLI / Anthropic API で動く。
 #
-# その場合は chiezo のネットワークに相乗りする(ホストのポートを経由しない)。
-# 下の app サービスに networks を足し、URL をサービス名に変える:
+# 書くのは chiezo-api のルート URL。`/v1` は付けない
+# (こちらが `/v1/ai/...` を足すので、付けると `/v1/v1/...` になって 404)。
+# 値は「このコンテナから chiezo に届くアドレス」—— 別のホストで動いているなら
+# そのホストの IP、同じホストなら LAN の IP(`localhost` はコンテナ自身を指すので不可)。
 #
-#   services:
-#     app:
-#       networks: [default, chiezo]   # ← default も必ず並べる
-#   networks:
-#     chiezo:
-#       external: true
-#       name: chiezo_default          # ← chiezo 側の実際のネットワーク名
-#
-# そのうえで Chiezo__BaseUrl を "http://chiezo-api:7010" にする
-# (chiezo-api はコンテナ名なので、相手のプロジェクト名が何でもこの名前で引ける)。
-#
-# 注意:
-# - `networks:` を書くと既定のネットワークに自動で入らなくなる。`default` を並べ忘れると
-#   app が db に繋がらなくなる(DB が無いときの挙動＝メモリ上のストアで
-#   起動し、再起動のたびにデータが消える形になるので気づきにくい)
-# - ネットワーク名は環境で変わる。`<プロジェクト名>_default` で、プロジェクト名は
-#   compose の `name:` か、NAS の管理画面で付けたスタック名。`docker network ls` で実物を確認する
-# - `external: true` はそのネットワークが既に在ることが前提。chiezo を同じホストで
-#   動かしていない環境でこれを書くと、app が起動できなくなる(だから既定では書いていない)
+# 届くかどうかの確かめ方(このイメージには curl も wget も入っていないので、
+# 同じネットワーク名前空間に curl のコンテナを差し込んで叩く):
+#   docker run --rm --network container:<このコンテナ名> curlimages/curl:8.11.1 \
+#     -s -m 5 http://<IP>:7010/v1/ai/backends
+# 応答が返らない(タイムアウトする)ときは、下の app の「同じホストなのに届かないとき」を見ること
+x-chiezo-url: &chiezo-url "http://192.168.1.10:7010"
+
+# ---- ここだけ編集(任意): 通知をタップして開く URL ----
+# 今日のサマリーの ntfy 通知。接続先(URL・トピック・トークン)は画面から設定するが、
+# タップで開く URL だけは「この環境の公開 URL」というデプロイ側の事実なのでここに書く
+# (例 "http://192.168.1.20:7020")。使わないなら空のままでよい
+x-ntfy-click-url: &ntfy-click-url ""
 
 services:
+  # data/ の下に postgres/ と keys/ を作り、keys/ を app の実行ユーザー(非 root)が
+  # 書けるようにする。ホストのディレクトリは作成者の所有になるため、そのままでは書き出せない。
+  # postgres 側は chown しない —— エントリポイントが root で起動して自分で揃える。
+  # **db も app もこれの完了を待つ**ので、いちばん先に置いてある。
+  # mkdir と chown だけなので、アプリのイメージではなく小さい汎用イメージを使う
+  init:
+    image: alpine:3.24
+    user: root
+    entrypoint:
+      - sh
+      - -c
+      - mkdir -p /data/postgres /data/keys && chown -R "$$0" /data/keys
+      - *run-as
+    volumes:
+      - *data-volume
+    restart: "no"
+
   db:
     image: postgres:18-alpine
+    depends_on:
+      init:
+        condition: service_completed_successfully
     environment:
       POSTGRES_USER: techantenna
-      POSTGRES_PASSWORD: *postgres-password
+      # 変えるなら初回起動の前に。**app の接続文字列(下)と同じ値に揃えること** ——
+      # 片方だけ直すと静かに壊れる(app は DB に繋がらないとメモリ上のストアで起動し、
+      # 再起動のたびにデータが消える)。置き場を作った後で変えても DB 側は変わらない
+      POSTGRES_PASSWORD: techantenna
       POSTGRES_DB: techantenna
-      TZ: *timezone
+      TZ: Asia/Tokyo
       # 既定の 5432 ではなく 7020 番台に寄せる(接続文字列の Port= と同じ値にすること)。
       # PGPORT はサーバーもクライアントも読むので healthcheck に -p は要らない
       PGPORT: 7021
+      # バインドは data/ 1本なので、PGDATA を data/ の下へ移す。ホスト側の位置
+      # (data/postgres/18/docker)は今までと同じで、データの移動は要らない
+      PGDATA: /data/postgres/18/docker
     volumes:
-      # postgres:18 のイメージは PGDATA が /var/lib/postgresql/18/docker で、
-      # マウントするのはその1段上の /var/lib/postgresql(17 以前とは位置が違う)
-      - type: bind
-        source: *postgres-dir
-        target: /var/lib/postgresql
+      - *data-volume
+    # postgres:18 が宣言する VOLUME に何もマウントしないと、起動のたびに空の匿名
+    # ボリュームが溜まる。実データは PGDATA(data/ 配下)なので tmpfs で抑える
+    tmpfs:
+      - /var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U techantenna -d techantenna"]
       interval: 5s
@@ -134,34 +106,72 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # 鍵と共有設定の置き場を app の実行ユーザー(イメージが持つ非 root、UID 1654)が
-  # 書けるようにする。ホストのディレクトリは作成者の所有になるため、そのままでは書き出せない
-  # chown を実行するだけなので、アプリのイメージではなく小さい汎用イメージを使う
-  init:
-    image: alpine:3.24
-    user: root
-    entrypoint: ["sh", "-c", "chown -R 1654:1654 /app/keys"]
-    volumes:
-      - type: bind
-        source: *keys-dir
-        target: /app/keys
-    restart: "no"
-
   app:
-    image: *image
+    # :latest ではなく :sha-xxxxxxx を指定すれば特定のイメージを指せる
+    # (GHCR に残るのは直近 10 版。.github/workflows/build-and-push-image.yml)
+    image: ghcr.io/rtcode337/tech-antenna:latest
     depends_on:
       # 起動時にマイグレーションを当てるため、DB が受け付けられるまで待つ
       db:
         condition: service_healthy
       init:
         condition: service_completed_successfully
-    environment: *app-env
+    environment:
+      # DB への接続。**上の db の POSTGRES_PASSWORD と同じ値に揃えること**
+      ConnectionStrings__Default: "Host=db;Port=7021;Database=techantenna;Username=techantenna;Password=techantenna"
+      TZ: Asia/Tokyo
+
+      Chiezo__BaseUrl: *chiezo-url
+      Ntfy__ClickUrl: *ntfy-click-url
+
+      # リバースプロキシ配下で X-Forwarded-* を信頼するときだけ true にする
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "false"
+
+      # ---- 同じホストで chiezo が動いているのに届かないとき ----
+      # コンテナからホストの LAN IP に張った公開ポートへ戻る経路は、環境によっては塞がれている
+      # (NAS のファイアウォール等。症状は画面の「Chiezo(…)が時間内に応答しなかった」＝パケットが
+      # 落とされている。届いていれば「繋がらない」や HTTP エラーになるので、そこで見分けられる)。
+      #
+      # その場合は chiezo のネットワークに相乗りする(ホストのポートを経由しない)。
+      # 下の app サービスに networks を足し、URL をサービス名に変える:
+      #
+      #   services:
+      #     app:
+      #       networks: [default, chiezo]   # ← default も必ず並べる
+      #   networks:
+      #     chiezo:
+      #       external: true
+      #       name: chiezo_default          # ← chiezo 側の実際のネットワーク名
+      #
+      # そのうえで Chiezo__BaseUrl を "http://chiezo-api:7010" にする
+      # (chiezo-api はコンテナ名なので、相手のプロジェクト名が何でもこの名前で引ける)。
+      #
+      # 注意:
+      # - `networks:` を書くと既定のネットワークに自動で入らなくなる。`default` を並べ忘れると
+      #   app が db に繋がらなくなる(DB が無いときの挙動＝メモリ上のストアで
+      #   起動し、再起動のたびにデータが消える形になるので気づきにくい)
+      # - ネットワーク名は環境で変わる。`<プロジェクト名>_default` で、プロジェクト名は
+      #   compose の `name:` か、NAS の管理画面で付けたスタック名。`docker network ls` で実物を確認する
+      # - `external: true` はそのネットワークが既に在ることが前提。chiezo を同じホストで
+      #   動かしていない環境でこれを書くと、app が起動できなくなる(だから既定では書いていない)
     ports:
-      - *port
+      # host:container。コンテナ内は 7020 固定なので、変えるのは左だけ
+      - "7020:7020"
+    # default も必ず並べる。networks を書くと既定のネットワークに自動で入らなくなり、
+    # 並べ忘れると app が db にも bridge にも繋がらない(DB 無しと同じ挙動で静かに壊れる)
+    # networks: [default, chiezo]
     volumes:
-      # antiforgery と Blazor が使う Data Protection の鍵。コンテナを作り直しても
-      # 鍵を引き継げるようにする(消えると開いていたページの操作が一度エラーになる)
-      - type: bind
-        source: *keys-dir
-        target: /app/keys
+      # バインドはこの1本だけ。下が postgres/(DB の実体)と keys/(antiforgery と
+      # Blazor が使う Data Protection の鍵。コンテナを作り直しても引き継げるように
+      # する —— 消えると開いていたページの操作が一度エラーになる)
+      - *data-volume
+    user: *run-as
     restart: unless-stopped
+# chiezo のネットワーク(既に在るものへ相乗りする)。名前は環境で変わる ——
+# `<プロジェクト名>_default` で、NAS の管理画面で付けたスタック名がプロジェクト名になる。
+# `docker network ls | grep chiezo` で実物を確かめてから貼ること
+# (違っていると app が「network ... not found」で起動できない)
+#networks:
+#  chiezo:
+#    external: true
+#    name: chiezo_default

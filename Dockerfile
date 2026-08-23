@@ -25,8 +25,9 @@ RUN dotnet publish src/TechAntenna.Web/TechAntenna.Web.csproj \
 
 # Data Protection の鍵置き場と非 root ユーザーのホーム。実行ステージで RUN を使わずに済むよう
 # (RUN があると arm64 向けビルドにエミュレーションが必要になる)、空ディレクトリだけここで
-# 作って COPY する
-RUN mkdir -p /app/keys /home/app
+# 作って COPY する。ホームを 1777 にしておくのは、compose の user: で別の uid を
+# 指定されたときに /etc/passwd に載らないユーザーになり、HOME が書けなくなるため
+RUN mkdir -p /data/keys /home/app && chmod 1777 /home/app
 
 # Claude Code の CLI を取り出すステージ。npm の配布物にはプラットフォームごとの
 # ネイティブな単一実行ファイルが入っており、それ単体で動く(node は要らない)ので
@@ -67,15 +68,23 @@ ENV ASPNETCORE_ENVIRONMENT=Production
 # 実行ステージに RUN を置かずに済むので、arm64 向けビルドのエミュレーションも増えない
 COPY --from=claude-cli /out/claude /usr/local/bin/claude
 
+# **実行ユーザーはホストに実在しない uid 10001**。ベースイメージの既定は 1654 だが、
+# 番号を揃える理由がこちらにある —— data/ をバインドする以上、ホストの1人目の
+# ユーザー(1000)で動かすと、万一コンテナから抜け出されたときにその人のファイルを
+# 触れる立場になる。10001 ならホストの誰でもなく、chown で渡した data/ しか触れない
+ENV APP_UID=10001
+
 # antiforgery と Blazor が使う Data Protection の鍵の保存先(Program.cs が読む)。
-# コンテナを作り直しても鍵が消えないよう docker-compose.yml でボリュームをマウントする
-ENV DataProtection__KeysDirectory=/app/keys
+# **置き場は data/ の下に寄せてある** —— バインドするホストのディレクトリを data/ 1本に
+# まとめ、その下を postgres/ と keys/ に切る(compose 参照)
+ENV DataProtection__KeysDirectory=/data/keys
 COPY --from=build /app/publish ./
-COPY --from=build --chown=$APP_UID:$APP_UID /app/keys ./keys
+COPY --from=build --chown=$APP_UID:$APP_UID /data/keys /data/keys
 # .NET が書き込み先にホームを使うことがある(証明書ストアなど)。非 root で動かすので用意しておく
 COPY --from=build --chown=$APP_UID:$APP_UID /home/app /home/app
 ENV HOME=/home/app
-# ベースイメージが用意している非 root ユーザー(UID 1654)で動かす
+# 非 root で動かす。compose の user: で上書きできる(data/ をホストから直接
+# 編集したいときは .env の TECH_ANTENNA_UID / TECH_ANTENNA_GID に id -u / id -g を入れる)
 USER $APP_UID
 # ベースイメージの既定(8080)ではなく 7020 を待ち受ける。ホスト側の公開ポートと
 # 番号をそろえて、compose の "7020:7020" を読むだけで対応が分かるようにするため。
