@@ -18,14 +18,13 @@
         <img src="@coverUrl" alt="" width="48" loading="lazy" />
     }
     <div>
-        @if (Book.Url is { } url)
-        {
-            <a href="@url" target="_blank" rel="noopener">@Book.Title</a>
-        }
-        else
-        {
-            <span>@Book.Title</span>
-        }
+        @* 書名は「この本について AI に聞く」リンク(BookAiQuestion)。一覧に出ているのは
+           書誌と名指しの数だけで、中身が自分に要る本かどうかは読み取れない —— 紹介文は
+           出版社の著作物なので取り込んでいない。書誌の詳細ページはメタ行の「詳細」へ回した
+           (押す先が2つになるので、大きいほうを「知りたいこと」に充てる)。
+           行き先が本のページではないので、title で何が開くかを言う *@
+        <a href="@BookAiQuestion.Url(Book)" target="_blank" rel="noopener"
+           title="この本について AI に聞く(Google の AI モードが開きます)">@Book.Title</a>
         <br />
         <small class="text-muted">
             @if (Book.Authors.Count > 0)
@@ -36,6 +35,11 @@
             @if (Book.PublishedOn is { } publishedOn)
             {
                 <text> — @publishedOn.ToString("yyyy-MM")</text>
+            }
+            @if (Book.Url is { } url)
+            {
+                @* 書誌の詳細ページ。引用で拾った本は ISBN しか持たないので、この行だけ出ない *@
+                <a class="detail-link ms-1" href="@url" target="_blank" rel="noopener">詳細</a>
             }
             @if (Book.RecommendationCount > 0)
             {

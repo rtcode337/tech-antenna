@@ -146,14 +146,10 @@ else
                    印を付け直すのは書籍の一覧(/interests/books・/classics/books)の仕事で、
                    ここは「なぜ下にいるのか」が読めればよい *@
                 <li class="mb-2 @(BookPopularity.Endorsements(book) > 0 ? "endorsed-book" : "") @(book.IsRead ? "read-book" : "")">
-                    @if (book.Url is { } url)
-                    {
-                        <a href="@url" target="_blank" rel="noopener">@book.Title</a>
-                    }
-                    else
-                    {
-                        <span>@book.Title</span>
-                    }
+                    @* 書名は「この本について AI に聞く」リンク(書籍の一覧と同じ)。
+                       書誌の詳細ページはメタ行の「詳細」へ回してある *@
+                    <a href="@BookAiQuestion.Url(book)" target="_blank" rel="noopener"
+                       title="この本について AI に聞く(Google の AI モードが開きます)">@book.Title</a>
                     @if (book.ReadAt is { } readAt)
                     {
                         <span class="read-mark ms-1" title="@($"{JapanTime.FormatDate(readAt)} に読んだ")">✓ 読んだ</span>
@@ -165,6 +161,10 @@ else
                             <text>@string.Join("、", book.Authors) — </text>
                         }
                         @(book.Publisher ?? "出版社不明")
+                        @if (book.Url is { } url)
+                        {
+                            <a class="detail-link ms-1" href="@url" target="_blank" rel="noopener">詳細</a>
+                        }
                         @* 推薦(まとめ記事)と引用(トピックの記事)は別々に出す ——
                            並べ替えでは1票ずつ合算するが、出どころは別の話。
                            押せるのは1本目だけ(出典を全部並べるのは書籍の一覧の仕事) *@
