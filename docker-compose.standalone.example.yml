@@ -38,7 +38,7 @@ x-run-as: &run-as "10001:10001"
 # 入れると LLM の相手を画面から選べる(設定 → 外部連携の一番上)。鍵は Chiezo が持っている。
 # 使わないなら空文字("")にする —— 同梱の Claude Code CLI / Anthropic API で動く。
 #
-# 書くのは chiezo-api のルート URL。`/v1` は付けない
+# 書くのは chiezo-app のルート URL。`/v1` は付けない
 # (こちらが `/v1/ai/...` を足すので、付けると `/v1/v1/...` になって 404)。
 # 値は「このコンテナから chiezo に届くアドレス」—— 別のホストで動いているなら
 # そのホストの IP、同じホストなら LAN の IP(`localhost` はコンテナ自身を指すので不可)。
@@ -143,8 +143,9 @@ services:
       #       external: true
       #       name: chiezo_default          # ← chiezo 側の実際のネットワーク名
       #
-      # そのうえで Chiezo__BaseUrl を "http://chiezo-api:7010" にする
-      # (chiezo-api はコンテナ名なので、相手のプロジェクト名が何でもこの名前で引ける)。
+      # そのうえで Chiezo__BaseUrl を "http://chiezo-app:7010" にする
+      # (chiezo-app は chiezo 側のサービス名で、standalone ではコンテナ名も同じ。
+      # どちらも同じネットワーク内での別名になるので、相手のプロジェクト名が何でもこの名前で引ける)。
       #
       # 注意:
       # - `networks:` を書くと既定のネットワークに自動で入らなくなる。`default` を並べ忘れると

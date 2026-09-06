@@ -345,7 +345,7 @@ public class ChiezoOptions
     public const string SectionName = "Chiezo";
 
     /// <summary>
-    /// Chiezo のルート URL(例 `http://192.168.1.10:7010`、同居なら `http://chiezo-api:7010`)。
+    /// Chiezo のルート URL(例 `http://192.168.1.10:7010`、同居なら `http://chiezo-app:7010`)。
     /// `/v1` は付けない —— 呼ぶ側が `/v1/ai/...` を足す。空なら使わない。
     /// </summary>
     public string BaseUrl { get; set; } = "";
